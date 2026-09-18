@@ -210,7 +210,7 @@ function renderHeatmap() {
     // document.createElement makes a new HTML element in memory - it
     // doesn't appear on the page until we attach it with appendChild.
     const cell = document.createElement("div");
-    cell.className = "day-cell";
+    cell.className = "heatmap-day";
 
     if (data.history.includes(dateStr)) {
       cell.classList.add("completed");
