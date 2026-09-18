@@ -180,9 +180,8 @@ function refreshRestDayWeek() {
 }
 
 function renderGraceStatus() {
-  const graceStatusEl = document.getElementById("grace-status");
-  const remaining = REST_DAYS_PER_WEEK - data.restDaysUsed;
-  graceStatusEl.textContent = `🛡️ Rest days remaining this week: ${remaining} / ${REST_DAYS_PER_WEEK}`;
+  const restDaysCountEl = document.getElementById("rest-days-count");
+  restDaysCountEl.textContent = REST_DAYS_PER_WEEK - data.restDaysUsed;
 }
 
 // Recalculate the progress bar live as the user types in any exercise box.
@@ -332,6 +331,69 @@ function logWorkout() {
 // addEventListener attaches a function to run whenever a specific event
 // happens on an element - here, whenever the button is clicked.
 logButtonEl.addEventListener("click", logWorkout);
+
+
+// STEP 4: Tabs (Today / Competition) and the leaderboard mockup.
+
+const tabBtnTodayEl = document.getElementById("tab-btn-today");
+const tabBtnCompetitionEl = document.getElementById("tab-btn-competition");
+const tabTodayEl = document.getElementById("tab-today");
+const tabCompetitionEl = document.getElementById("tab-competition");
+
+function showTab(tabName) {
+  const showingToday = tabName === "today";
+
+  tabTodayEl.classList.toggle("hidden", !showingToday);
+  tabCompetitionEl.classList.toggle("hidden", showingToday);
+
+  tabBtnTodayEl.classList.toggle("active", showingToday);
+  tabBtnCompetitionEl.classList.toggle("active", !showingToday);
+
+  if (!showingToday) {
+    renderLeaderboard();
+  }
+}
+
+tabBtnTodayEl.addEventListener("click", () => showTab("today"));
+tabBtnCompetitionEl.addEventListener("click", () => showTab("competition"));
+
+// Fake friends, purely to preview what a real leaderboard will look like
+// once accounts/friends are built. "You" is mixed in using your real streak.
+const MOCK_FRIENDS = [
+  { name: "Jordan", streak: 34, avatar: "🥷" },
+  { name: "Casey", streak: 21, avatar: "🐯" },
+  { name: "Alex", streak: 15, avatar: "🦁" },
+  { name: "Sam", streak: 9, avatar: "🐺" },
+];
+
+function renderLeaderboard() {
+  const leaderboardEl = document.getElementById("leaderboard");
+  leaderboardEl.innerHTML = "";
+
+  const you = { name: "You", streak: data.streak, avatar: "🔥", isYou: true };
+
+  // [...array] copies the array so sort() doesn't mutate the original
+  // MOCK_FRIENDS list. .sort((a, b) => b.streak - a.streak) sorts from
+  // highest streak to lowest.
+  const combined = [...MOCK_FRIENDS, you].sort((a, b) => b.streak - a.streak);
+
+  combined.forEach((person, index) => {
+    const row = document.createElement("div");
+    row.className = "leaderboard-row";
+    if (person.isYou) {
+      row.classList.add("is-you");
+    }
+
+    row.innerHTML = `
+      <span class="leaderboard-rank">#${index + 1}</span>
+      <span class="leaderboard-avatar">${person.avatar}</span>
+      <span class="leaderboard-name">${person.name}</span>
+      <span class="leaderboard-streak">${person.streak}🔥</span>
+    `;
+
+    leaderboardEl.appendChild(row);
+  });
+}
 
 
 // STEP 4: Register the service worker, if the browser supports one.

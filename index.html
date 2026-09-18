@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>StreakFit</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=2">
 
   <!-- PWA: lets the browser offer "Install App" / "Add to Home Screen" -->
   <link rel="manifest" href="manifest.json">
@@ -20,10 +20,10 @@
 <body>
 
   <main class="card">
+    <button id="settings-toggle" class="settings-toggle" title="Settings">⚙️</button>
+
     <div class="brand">
-      <span class="brand-icon">🔥</span>
-      <span class="brand-name">StreakFit</span>
-      <button id="settings-toggle" class="settings-toggle" title="Settings">⚙️</button>
+      <span class="brand-word brand-word-light">Streak</span><span class="brand-word brand-word-bold">Fit</span>
     </div>
 
     <div id="settings-panel" class="settings-panel hidden">
@@ -43,49 +43,80 @@
       <button id="save-settings">Save</button>
     </div>
 
-    <p id="motivation-message" class="motivation"></p>
+    <div id="tab-today" class="tab-panel">
+      <p id="motivation-message" class="motivation"></p>
 
-    <div class="streak-display">
-      <span id="streak-count">0</span>
-      <span class="streak-label">day streak</span>
-    </div>
-
-    <div class="progress-track">
-      <div id="progress-fill" class="progress-fill"></div>
-    </div>
-
-    <p id="status-message">Loading...</p>
-
-    <div class="exercise-list">
-      <div class="exercise-row">
-        <label for="pushups"><span class="exercise-icon">🏋️</span> Push-ups <span id="pushups-min-tag" class="min-tag">min 10</span></label>
-        <input type="number" id="pushups" min="0" value="0">
+      <div class="streak-display">
+        <span id="streak-count">0</span>
+        <span class="streak-label">day streak</span>
       </div>
-      <div class="exercise-row">
-        <label for="situps"><span class="exercise-icon">💪</span> Sit-ups <span id="situps-min-tag" class="min-tag">min 10</span></label>
-        <input type="number" id="situps" min="0" value="0">
+
+      <div class="progress-track">
+        <div id="progress-fill" class="progress-fill"></div>
       </div>
-      <div class="exercise-row">
-        <label for="squats"><span class="exercise-icon">🦵</span> Squats <span id="squats-min-tag" class="min-tag">min 10</span></label>
-        <input type="number" id="squats" min="0" value="0">
+
+      <p id="status-message">Loading...</p>
+
+      <div class="exercise-list">
+        <div class="exercise-tile">
+          <span class="exercise-icon">🏋️</span>
+          <label for="pushups">Push-ups</label>
+          <span id="pushups-min-tag" class="min-tag">min 10</span>
+          <input type="number" id="pushups" min="0" value="0">
+        </div>
+        <div class="exercise-tile">
+          <span class="exercise-icon">💪</span>
+          <label for="situps">Sit-ups</label>
+          <span id="situps-min-tag" class="min-tag">min 10</span>
+          <input type="number" id="situps" min="0" value="0">
+        </div>
+        <div class="exercise-tile">
+          <span class="exercise-icon">🦵</span>
+          <label for="squats">Squats</label>
+          <span id="squats-min-tag" class="min-tag">min 10</span>
+          <input type="number" id="squats" min="0" value="0">
+        </div>
+      </div>
+
+      <p id="error-message" class="error"></p>
+
+      <button id="log-button">Log Today's Workout</button>
+
+      <div class="stats-footer">
+        <div class="stat-tile">
+          <span id="best-streak-count" class="stat-number">0</span>
+          <span class="stat-label">Best streak</span>
+        </div>
+        <div class="stat-tile">
+          <span id="rest-days-count" class="stat-number">2</span>
+          <span class="stat-label">Rest days left</span>
+        </div>
+      </div>
+
+      <div class="heatmap-section">
+        <p class="heatmap-label">Last 12 weeks</p>
+        <div id="heatmap" class="heatmap"></div>
       </div>
     </div>
 
-    <p id="error-message" class="error"></p>
-
-    <button id="log-button">Log Today's Workout</button>
-
-    <div class="stats-footer">
-      <p class="best-streak">Best streak: <span id="best-streak-count">0</span> days</p>
-      <p id="grace-status" class="grace-status"></p>
+    <div id="tab-competition" class="tab-panel hidden">
+      <p class="preview-note">🔒 Preview - adding real friends is coming soon</p>
+      <div id="leaderboard" class="leaderboard"></div>
+      <button id="add-friends-button" class="add-friends-button" disabled>Add Friends (Coming Soon)</button>
     </div>
 
-    <div class="heatmap-section">
-      <p class="heatmap-label">Last 12 weeks</p>
-      <div id="heatmap" class="heatmap"></div>
-    </div>
+    <nav class="tab-bar">
+      <button id="tab-btn-today" class="tab-btn active">
+        <span class="tab-icon">🏠</span>
+        <span class="tab-text">Today</span>
+      </button>
+      <button id="tab-btn-competition" class="tab-btn">
+        <span class="tab-icon">🏆</span>
+        <span class="tab-text">Competition</span>
+      </button>
+    </nav>
   </main>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=2"></script>
 </body>
 </html>

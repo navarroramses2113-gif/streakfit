@@ -5,9 +5,32 @@
   box-sizing: border-box;
 }
 
+/* Browsers show their own default tap/focus highlight on buttons (often
+   a white or blue box) unless we turn it off ourselves. */
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus {
+  outline: none;
+}
+
+/* Number inputs come with native up/down arrow buttons that browsers
+   render in their own light/white style, ignoring our dark theme.
+   Removing them keeps the input a single simple color. */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* CSS variables ("custom properties"): named values we can reuse
    everywhere instead of repeating magic numbers. Changing one line here
-   updates spacing/sizing across the whole page. */
+   updates spacing/color/sizing across the whole page. */
 :root {
   --space-xs: 6px;
   --space-sm: 10px;
@@ -15,15 +38,34 @@
   --space-lg: 24px;
   --space-xl: 32px;
   --radius: 12px;
-  --orange: #f97316;
-  --orange-light: #fb923c;
-  --orange-dark: #ea580c;
+
+  /* Primary accent: muted clay/amber, used for the CTA and streak number.
+     Desaturated on purpose - a subtle accent instead of a neon one. */
+  --orange: #c08552;
+  --orange-light: #d4a373;
+  --orange-dark: #9c6b3f;
+
+  /* Secondary accent: muted sage, used for secondary stats/highlights so
+     the palette has more than one note instead of one color everywhere */
+  --teal: #8a9a8e;
+  --teal-light: #a8b8ac;
+
+  /* Background: a quiet, neutral charcoal gradient - no bright color
+     blooms, just subtle depth. */
+  --bg-start: #1a1b1f;
+  --bg-mid: #17181b;
+  --bg-end: #121316;
+
+  --text-primary: #f1f0ee;
+  --text-secondary: #9a9a96;
+  --text-muted: #6b6b68;
+  --border: #3a3a3880;
 }
 
 body {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-  background: radial-gradient(circle at top, #1e293b, #0f172a 60%);
-  color: #f1f5f9;
+  background: linear-gradient(160deg, var(--bg-start), var(--bg-mid) 55%, var(--bg-end));
+  color: var(--text-primary);
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -32,49 +74,27 @@ body {
 }
 
 .card {
-  background: #1e293bcc;
-  backdrop-filter: blur(10px);
-  border: 1px solid #334155;
-  border-radius: 20px;
+  position: relative;
+  background: #202022b3;
+  backdrop-filter: blur(16px);
+  border: 1px solid #ffffff1a;
+  border-radius: 22px;
   padding: var(--space-xl) var(--space-lg);
   width: 100%;
   max-width: 380px;
   text-align: center;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xs);
-  margin-bottom: var(--space-lg);
-  position: relative;
-}
-
-.brand-icon {
-  font-size: 1.6rem;
-  animation: flicker 2s ease-in-out infinite;
-}
-
-@keyframes flicker {
-  0%, 100% { transform: scale(1) rotate(0deg); }
-  50% { transform: scale(1.12) rotate(-4deg); }
-}
-
-.brand-name {
-  font-size: 1.3rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
 }
 
 .settings-toggle {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
   background: none;
   border: none;
   font-size: 1.1rem;
   cursor: pointer;
-  margin-left: var(--space-xs);
-  opacity: 0.7;
+  opacity: 0.6;
   padding: 6px;
   min-width: 32px;
   min-height: 32px;
@@ -86,13 +106,153 @@ body {
   transform: rotate(30deg);
 }
 
+.brand {
+  margin-bottom: var(--space-lg);
+}
+
+/* Wordmark logo: two weights/colors of the same word instead of an
+   icon, for a cleaner, more typographic identity. */
+.brand-word {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.brand-word-light {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.brand-word-bold {
+  background: linear-gradient(135deg, var(--orange-light), var(--orange-dark));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 900;
+}
+
 .hidden {
   display: none;
 }
 
+/* A single unified strip along the bottom of the card, like a mobile
+   app's bottom navigation bar - one row, evenly split between buttons. */
+.tab-bar {
+  display: flex;
+  margin-top: var(--space-lg);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+  margin-left: calc(var(--space-lg) * -1);
+  margin-right: calc(var(--space-lg) * -1);
+  padding-left: var(--space-sm);
+  padding-right: var(--space-sm);
+}
+
+.tab-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  font-family: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.tab-icon {
+  font-size: 1.25rem;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+
+.tab-text {
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.tab-btn.active {
+  color: var(--orange-light);
+}
+
+.tab-btn.active .tab-icon {
+  opacity: 1;
+}
+
+.preview-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: var(--space-md);
+}
+
+.leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: #1c1c1f66;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.leaderboard-row.is-you {
+  background: #c0855218;
+  border-color: #c0855250;
+}
+
+.leaderboard-rank {
+  width: 20px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.leaderboard-avatar {
+  font-size: 1.3rem;
+}
+
+.leaderboard-name {
+  flex: 1;
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.leaderboard-streak {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--orange-light);
+}
+
+.add-friends-button {
+  width: 100%;
+  min-height: 44px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: #3a3a3880;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  cursor: not-allowed;
+}
+
 .settings-panel {
-  background: #0f172a80;
-  border: 1px solid #334155;
+  background: #1c1c1f80;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-md);
   margin-bottom: var(--space-md);
@@ -106,11 +266,11 @@ body {
 }
 
 .settings-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #94a3b8;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.2px;
   margin-bottom: var(--space-sm);
 }
 
@@ -120,7 +280,7 @@ body {
   justify-content: space-between;
   margin-bottom: var(--space-sm);
   font-size: 0.85rem;
-  color: #e2e8f0;
+  color: #e4e3e0;
 }
 
 .settings-row input {
@@ -128,10 +288,10 @@ body {
   min-height: 40px;
   padding: 6px;
   text-align: center;
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: #232326;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  color: #f1f5f9;
+  color: var(--text-primary);
   font-family: inherit;
   font-size: 1rem;
 }
@@ -157,9 +317,10 @@ body {
 }
 
 .motivation {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-style: italic;
-  color: #94a3b8;
+  font-weight: 400;
+  color: var(--text-secondary);
   margin-bottom: var(--space-md);
   line-height: 1.4;
 }
@@ -170,9 +331,10 @@ body {
 
 #streak-count {
   display: inline-block;
-  font-size: 4rem;
-  font-weight: 800;
+  font-size: 4.5rem;
+  font-weight: 900;
   line-height: 1;
+  letter-spacing: -0.02em;
   background: linear-gradient(135deg, var(--orange-light), var(--orange) 60%, var(--orange-dark));
   -webkit-background-clip: text;
   background-clip: text;
@@ -188,18 +350,18 @@ body {
 
 .streak-label {
   display: block;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 1.5px;
-  margin-top: 4px;
+  letter-spacing: 2px;
+  margin-top: 2px;
 }
 
 .progress-track {
   width: 100%;
   height: 8px;
-  background: #0f172a;
+  background: #1a1a1c;
   border-radius: 999px;
   overflow: hidden;
   margin-bottom: var(--space-md);
@@ -214,75 +376,82 @@ body {
 }
 
 #status-message {
-  color: #94a3b8;
-  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
   margin-bottom: var(--space-lg);
   min-height: 20px;
 }
 
+/* Exercises as a row of 3 tiles instead of stacked list rows - reads
+   more like a dashboard, and puts equal visual weight on all 3. */
 .exercise-list {
-  text-align: left;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
   margin-bottom: var(--space-sm);
+}
+
+.exercise-tile {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-sm) 4px;
+  background: #1c1c1f66;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  transition: border-color 0.15s ease;
 }
 
-.exercise-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  background: #0f172a80;
-  border-radius: 10px;
-}
-
-.exercise-row label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.9rem;
-  color: #e2e8f0;
-  font-weight: 500;
+.exercise-tile:focus-within {
+  border-color: var(--orange);
 }
 
 .exercise-icon {
-  font-size: 1rem;
+  font-size: 1.3rem;
+}
+
+.exercise-tile label {
+  font-size: 0.78rem;
+  color: #e4e3e0;
+  font-weight: 600;
 }
 
 .min-tag {
-  font-size: 0.7rem;
-  color: #64748b;
+  font-size: 0.65rem;
+  color: var(--text-muted);
   font-weight: 400;
 }
 
-.exercise-row input {
-  width: 60px;
+.exercise-tile input {
+  width: 100%;
   min-height: 44px;
+  margin-top: 4px;
   padding: 8px;
-  font-size: 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
   font-family: inherit;
   text-align: center;
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: #232326;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  color: #f1f5f9;
+  color: var(--text-primary);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.exercise-row input:focus {
+.exercise-tile input:focus {
   outline: none;
   border-color: var(--orange);
-  background: #16223a;
+  background: #28282b;
 }
 
-.exercise-row input:disabled {
+.exercise-tile input:disabled {
   opacity: 0.5;
 }
 
 .error {
-  color: #f87171;
+  color: #c97b7b;
   font-size: 0.85rem;
   min-height: 18px;
   margin-bottom: var(--space-sm);
@@ -311,12 +480,12 @@ body {
   border-radius: 10px;
   cursor: pointer;
   transition: transform 0.1s ease, box-shadow 0.15s ease;
-  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.3);
+  box-shadow: 0 8px 20px rgba(192, 133, 82, 0.2);
 }
 
 #log-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(249, 115, 22, 0.4);
+  box-shadow: 0 10px 24px rgba(192, 133, 82, 0.28);
 }
 
 #log-button:active {
@@ -324,48 +493,63 @@ body {
 }
 
 #log-button:disabled {
-  background: #334155;
-  color: #64748b;
+  background: #3a3a3a;
+  color: var(--text-muted);
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
 }
 
+/* Two side-by-side stat tiles instead of plain stacked sentences -
+   mirrors the exercise tiles above for visual consistency. */
 .stats-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
   margin-top: var(--space-md);
   padding-top: var(--space-md);
-  border-top: 1px solid #33415580;
+  border-top: 1px solid var(--border);
 }
 
-.best-streak {
-  font-size: 0.8rem;
-  color: #64748b;
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-number {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--teal-light);
+  line-height: 1;
 }
 
 #best-streak-count {
-  color: #cbd5e1;
-  font-weight: 600;
+  color: var(--orange-light);
 }
 
-.grace-status {
-  margin-top: 4px;
-  font-size: 0.75rem;
-  color: #64748b;
+.stat-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .heatmap-section {
   margin-top: var(--space-md);
   padding-top: var(--space-md);
-  border-top: 1px solid #33415580;
+  border-top: 1px solid var(--border);
   text-align: left;
 }
 
 .heatmap-label {
   font-size: 0.7rem;
-  font-weight: 600;
-  color: #64748b;
+  font-weight: 700;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.2px;
   margin-bottom: var(--space-sm);
 }
 
@@ -385,12 +569,12 @@ body {
   width: 10px;
   height: 10px;
   border-radius: 2px;
-  background: #0f172a;
-  border: 1px solid #1e293b;
+  background: #1a1a1c;
+  border: 1px solid #232326;
 }
 
 .day-cell.completed {
-  background: var(--orange);
+  background: linear-gradient(135deg, var(--orange-light), var(--orange-dark));
   border-color: var(--orange-light);
 }
 
@@ -402,14 +586,18 @@ body {
   }
 
   #streak-count {
-    font-size: 3.2rem;
+    font-size: 3.4rem;
   }
 
-  .brand-name {
-    font-size: 1.15rem;
+  .brand-word {
+    font-size: 1.25rem;
   }
 
-  .exercise-row {
-    padding: var(--space-xs) var(--space-sm);
+  .exercise-tile {
+    padding: var(--space-xs) 2px;
+  }
+
+  .exercise-icon {
+    font-size: 1.1rem;
   }
 }
