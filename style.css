@@ -1,0 +1,415 @@
+/* Reset some default browser spacing so we control layout ourselves */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* CSS variables ("custom properties"): named values we can reuse
+   everywhere instead of repeating magic numbers. Changing one line here
+   updates spacing/sizing across the whole page. */
+:root {
+  --space-xs: 6px;
+  --space-sm: 10px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --radius: 12px;
+  --orange: #f97316;
+  --orange-light: #fb923c;
+  --orange-dark: #ea580c;
+}
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  background: radial-gradient(circle at top, #1e293b, #0f172a 60%);
+  color: #f1f5f9;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg) var(--space-md);
+}
+
+.card {
+  background: #1e293bcc;
+  backdrop-filter: blur(10px);
+  border: 1px solid #334155;
+  border-radius: 20px;
+  padding: var(--space-xl) var(--space-lg);
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  position: relative;
+}
+
+.brand-icon {
+  font-size: 1.6rem;
+  animation: flicker 2s ease-in-out infinite;
+}
+
+@keyframes flicker {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.12) rotate(-4deg); }
+}
+
+.brand-name {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.settings-toggle {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  margin-left: var(--space-xs);
+  opacity: 0.7;
+  padding: 6px;
+  min-width: 32px;
+  min-height: 32px;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.settings-toggle:hover {
+  opacity: 1;
+  transform: rotate(30deg);
+}
+
+.hidden {
+  display: none;
+}
+
+.settings-panel {
+  background: #0f172a80;
+  border: 1px solid #334155;
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  text-align: left;
+  animation: reveal 0.18s ease;
+}
+
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.settings-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: var(--space-sm);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+  font-size: 0.85rem;
+  color: #e2e8f0;
+}
+
+.settings-row input {
+  width: 56px;
+  min-height: 40px;
+  padding: 6px;
+  text-align: center;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #f1f5f9;
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+#save-settings {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 4px;
+  padding: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: white;
+  background: var(--orange);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+#save-settings:active {
+  transform: scale(0.97);
+}
+
+.motivation {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: #94a3b8;
+  margin-bottom: var(--space-md);
+  line-height: 1.4;
+}
+
+.streak-display {
+  margin-bottom: var(--space-md);
+}
+
+#streak-count {
+  display: inline-block;
+  font-size: 4rem;
+  font-weight: 800;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--orange-light), var(--orange) 60%, var(--orange-dark));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Applied briefly via JavaScript right after a successful log, then
+   removed - see the "pulse" class handling in script.js. */
+#streak-count.pulse {
+  transform: scale(1.18);
+}
+
+.streak-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-top: 4px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 8px;
+  background: #0f172a;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: var(--space-md);
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--orange-light), var(--orange));
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+#status-message {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  margin-bottom: var(--space-lg);
+  min-height: 20px;
+}
+
+.exercise-list {
+  text-align: left;
+  margin-bottom: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.exercise-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: #0f172a80;
+  border-radius: 10px;
+}
+
+.exercise-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+  font-weight: 500;
+}
+
+.exercise-icon {
+  font-size: 1rem;
+}
+
+.min-tag {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.exercise-row input {
+  width: 60px;
+  min-height: 44px;
+  padding: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  text-align: center;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #f1f5f9;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.exercise-row input:focus {
+  outline: none;
+  border-color: var(--orange);
+  background: #16223a;
+}
+
+.exercise-row input:disabled {
+  opacity: 0.5;
+}
+
+.error {
+  color: #f87171;
+  font-size: 0.85rem;
+  min-height: 18px;
+  margin-bottom: var(--space-sm);
+}
+
+.error.shake {
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+#log-button {
+  width: 100%;
+  min-height: 48px;
+  padding: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: white;
+  background: linear-gradient(135deg, var(--orange-light), var(--orange-dark));
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.3);
+}
+
+#log-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(249, 115, 22, 0.4);
+}
+
+#log-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+#log-button:disabled {
+  background: #334155;
+  color: #64748b;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.stats-footer {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid #33415580;
+}
+
+.best-streak {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+#best-streak-count {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.grace-status {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.heatmap-section {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid #33415580;
+  text-align: left;
+}
+
+.heatmap-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: var(--space-sm);
+}
+
+/* Arrange the day squares into 7 rows (like Sun-Sat), filling column
+   by column - this is what makes it look like a calendar heatmap. */
+.heatmap {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 10px;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.day-cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+}
+
+.day-cell.completed {
+  background: var(--orange);
+  border-color: var(--orange-light);
+}
+
+/* Small phones: tighten spacing and scale down the biggest text so
+   nothing forces horizontal scrolling or feels oversized. */
+@media (max-width: 380px) {
+  .card {
+    padding: var(--space-lg) var(--space-md);
+  }
+
+  #streak-count {
+    font-size: 3.2rem;
+  }
+
+  .brand-name {
+    font-size: 1.15rem;
+  }
+
+  .exercise-row {
+    padding: var(--space-xs) var(--space-sm);
+  }
+}
