@@ -67,8 +67,6 @@ const pushupsMinTagEl = document.getElementById("pushups-min-tag");
 const situpsMinTagEl = document.getElementById("situps-min-tag");
 const squatsMinTagEl = document.getElementById("squats-min-tag");
 
-const settingsToggleEl = document.getElementById("settings-toggle");
-const settingsPanelEl = document.getElementById("settings-panel");
 const minPushupsEl = document.getElementById("min-pushups");
 const minSitupsEl = document.getElementById("min-situps");
 const minSquatsEl = document.getElementById("min-squats");
@@ -81,13 +79,14 @@ function renderMinTags() {
   squatsMinTagEl.textContent = `min ${data.minimums.squats}`;
 }
 
-// Clicking the gear opens the panel and pre-fills it with the saved values.
-settingsToggleEl.addEventListener("click", () => {
+// The Daily Minimums section now lives permanently in the "Me" tab, so
+// the input boxes need to start out showing the saved values right away
+// instead of only being filled in when a toggle was clicked.
+function renderSettingsInputs() {
   minPushupsEl.value = data.minimums.pushups;
   minSitupsEl.value = data.minimums.situps;
   minSquatsEl.value = data.minimums.squats;
-  settingsPanelEl.classList.toggle("hidden");
-});
+}
 
 saveSettingsEl.addEventListener("click", () => {
   data.minimums.pushups = Number(minPushupsEl.value) || 1;
@@ -97,7 +96,6 @@ saveSettingsEl.addEventListener("click", () => {
   saveData(data);
   renderMinTags();
   render();
-  settingsPanelEl.classList.add("hidden");
 });
 
 // Turns a Date object into a "YYYY-MM-DD" string using LOCAL time.
@@ -197,7 +195,7 @@ function renderHeatmap() {
   // Clear out anything already there before rebuilding it from scratch.
   heatmapEl.innerHTML = "";
 
-  const totalDays = 84; // 12 weeks * 7 days
+  const totalDays = 56; // 8 weeks * 7 days
 
   // Loop from the oldest day (83 days ago) up to today, creating one
   // square per day in order. CSS Grid (set up in style.css) is what
@@ -255,6 +253,20 @@ render();
 renderHeatmap();
 renderMotivation();
 renderMinTags();
+renderSettingsInputs();
+
+// Hide the splash screen once the page has fully finished loading
+// (window's "load" event fires after everything - fonts, images, etc -
+// not just our script). A brief timeout on top of that ensures the
+// branding screen displays for at least a fraction of a second instead
+// of flashing away instantly if loading was already fast.
+window.addEventListener('load', () => {
+  const splash = document.getElementById('splash-screen');
+
+  setTimeout(() => {
+    splash.classList.add('splash-fade-out');
+  }, 600);
+});
 
 
 // STEP 3: Handle the button click and the actual streak logic.
@@ -333,29 +345,40 @@ function logWorkout() {
 logButtonEl.addEventListener("click", logWorkout);
 
 
-// STEP 4: Tabs (Today / Competition) and the leaderboard mockup.
+// STEP 4: Tabs (Today / Competition / Me) and the leaderboard mockup.
 
-const tabBtnTodayEl = document.getElementById("tab-btn-today");
-const tabBtnCompetitionEl = document.getElementById("tab-btn-competition");
-const tabTodayEl = document.getElementById("tab-today");
-const tabCompetitionEl = document.getElementById("tab-competition");
+// Each tab's name maps to its button and panel elements, so showTab()
+// can loop over them instead of needing a separate if/else per tab.
+const TABS = {
+  today: {
+    button: document.getElementById("tab-btn-today"),
+    panel: document.getElementById("tab-today"),
+  },
+  competition: {
+    button: document.getElementById("tab-btn-competition"),
+    panel: document.getElementById("tab-competition"),
+  },
+  me: {
+    button: document.getElementById("tab-btn-me"),
+    panel: document.getElementById("tab-me"),
+  },
+};
 
 function showTab(tabName) {
-  const showingToday = tabName === "today";
+  for (const name in TABS) {
+    const isActive = name === tabName;
+    TABS[name].panel.classList.toggle("hidden", !isActive);
+    TABS[name].button.classList.toggle("active", isActive);
+  }
 
-  tabTodayEl.classList.toggle("hidden", !showingToday);
-  tabCompetitionEl.classList.toggle("hidden", showingToday);
-
-  tabBtnTodayEl.classList.toggle("active", showingToday);
-  tabBtnCompetitionEl.classList.toggle("active", !showingToday);
-
-  if (!showingToday) {
+  if (tabName === "competition") {
     renderLeaderboard();
   }
 }
 
-tabBtnTodayEl.addEventListener("click", () => showTab("today"));
-tabBtnCompetitionEl.addEventListener("click", () => showTab("competition"));
+TABS.today.button.addEventListener("click", () => showTab("today"));
+TABS.competition.button.addEventListener("click", () => showTab("competition"));
+TABS.me.button.addEventListener("click", () => showTab("me"));
 
 // Fake friends, purely to preview what a real leaderboard will look like
 // once accounts/friends are built. "You" is mixed in using your real streak.

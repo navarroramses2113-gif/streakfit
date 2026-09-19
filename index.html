@@ -19,28 +19,17 @@
 </head>
 <body>
 
-  <main class="card">
-    <button id="settings-toggle" class="settings-toggle" title="Settings">⚙️</button>
+  <!-- Strava-style Splash Screen -->
+  <div id="splash-screen">
+    <div class="splash-content">
+      <h1 class="splash-logo">Streak<span>Fit</span></h1>
+      <div class="splash-loader"></div>
+    </div>
+  </div>
 
+  <main class="card">
     <div class="brand">
       <span class="brand-word brand-word-light">Streak</span><span class="brand-word brand-word-bold">Fit</span>
-    </div>
-
-    <div id="settings-panel" class="settings-panel hidden">
-      <p class="settings-title">Daily Minimums</p>
-      <div class="settings-row">
-        <label for="min-pushups">Push-ups</label>
-        <input type="number" id="min-pushups" min="1" value="10">
-      </div>
-      <div class="settings-row">
-        <label for="min-situps">Sit-ups</label>
-        <input type="number" id="min-situps" min="1" value="10">
-      </div>
-      <div class="settings-row">
-        <label for="min-squats">Squats</label>
-        <input type="number" id="min-squats" min="1" value="10">
-      </div>
-      <button id="save-settings">Save</button>
     </div>
 
     <div id="tab-today" class="tab-panel">
@@ -81,7 +70,16 @@
       <p id="error-message" class="error"></p>
 
       <button id="log-button">Log Today's Workout</button>
+    </div>
 
+    <div id="tab-competition" class="tab-panel hidden">
+      <p class="preview-note">🔒 Preview - adding real friends is coming soon</p>
+      <div id="leaderboard" class="leaderboard"></div>
+      <button id="add-friends-button" class="add-friends-button" disabled>Add Friends (Coming Soon)</button>
+    </div>
+
+    <div id="tab-me" class="tab-panel hidden">
+      <p class="section-heading">Progress</p>
       <div class="stats-footer">
         <div class="stat-tile">
           <span id="best-streak-count" class="stat-number">0</span>
@@ -94,15 +92,26 @@
       </div>
 
       <div class="heatmap-section">
-        <p class="heatmap-label">Last 12 weeks</p>
+        <p class="heatmap-label">Last 8 weeks</p>
         <div id="heatmap" class="heatmap-grid"></div>
       </div>
-    </div>
 
-    <div id="tab-competition" class="tab-panel hidden">
-      <p class="preview-note">🔒 Preview - adding real friends is coming soon</p>
-      <div id="leaderboard" class="leaderboard"></div>
-      <button id="add-friends-button" class="add-friends-button" disabled>Add Friends (Coming Soon)</button>
+      <div class="settings-panel">
+        <p class="settings-title">Daily Minimums</p>
+        <div class="settings-row">
+          <label for="min-pushups">Push-ups</label>
+          <input type="number" id="min-pushups" min="1" value="10">
+        </div>
+        <div class="settings-row">
+          <label for="min-situps">Sit-ups</label>
+          <input type="number" id="min-situps" min="1" value="10">
+        </div>
+        <div class="settings-row">
+          <label for="min-squats">Squats</label>
+          <input type="number" id="min-squats" min="1" value="10">
+        </div>
+        <button id="save-settings">Save</button>
+      </div>
     </div>
 
     <nav class="tab-bar">
@@ -113,6 +122,10 @@
       <button id="tab-btn-competition" class="tab-btn">
         <span class="tab-icon">🏆</span>
         <span class="tab-text">Competition</span>
+      </button>
+      <button id="tab-btn-me" class="tab-btn">
+        <span class="tab-icon">👤</span>
+        <span class="tab-text">Me</span>
       </button>
     </nav>
   </main>

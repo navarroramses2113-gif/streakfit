@@ -73,6 +73,66 @@ body {
   padding: var(--space-lg) var(--space-md);
 }
 
+/* Full-screen overlay shown while the app loads, hidden via JavaScript
+   once everything is ready to display. Sits above the card (z-index). */
+#splash-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #09090b; /* Matches premium dark fitness themes */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.splash-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.splash-logo {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+  animation: pulseLogo 1.2s infinite alternate ease-in-out;
+}
+
+.splash-logo span {
+  color: #22c55e; /* Vibrant accent color */
+}
+
+/* Subtle loading indicator ring */
+.splash-loader {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #22c55e;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Class applied via JavaScript to dismiss the screen */
+.splash-fade-out {
+  opacity: 0;
+  visibility: hidden;
+}
+
+@keyframes pulseLogo {
+  0% { transform: scale(0.97); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .card {
   position: relative;
   background: rgba(24, 24, 27, 0.7);
@@ -124,10 +184,7 @@ body {
 }
 
 .brand-word-bold {
-  background: linear-gradient(135deg, var(--orange-light), var(--orange-dark));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #22c55e;
   font-weight: 900;
 }
 
@@ -503,9 +560,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-sm);
-  margin-top: var(--space-md);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--border);
+  margin-bottom: var(--space-lg);
 }
 
 .stat-tile {
@@ -535,9 +590,9 @@ body {
 }
 
 .heatmap-section {
-  margin-top: var(--space-md);
   padding-top: var(--space-md);
   border-top: 1px solid var(--border);
+  margin-bottom: var(--space-lg);
   text-align: left;
 }
 
@@ -547,6 +602,16 @@ body {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 1.2px;
+  margin-bottom: var(--space-sm);
+}
+
+.section-heading {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  text-align: left;
   margin-bottom: var(--space-sm);
 }
 
