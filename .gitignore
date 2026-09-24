@@ -2,3 +2,12 @@
 Thumbs.db
 *.log
 .vscode/
+
+# Secrets and local environment config - never commit real credentials.
+# When we add a backend, actual keys go here (or in Netlify's dashboard),
+# never directly in tracked files.
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
