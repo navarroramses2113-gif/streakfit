@@ -1,4 +1,4 @@
-# StreakFit 🔥
+# Forja
 
 A daily accountability app for building a workout habit without the friction
 of the gym. Log a quick set of bodyweight exercises — push-ups, sit-ups,
@@ -8,18 +8,23 @@ squats — each day to keep your streak alive.
 
 ## Features
 
+- Try the full app as a guest before creating an account — signup is offered
+  after your first completed day, not required upfront
 - Daily streak tracking with a "best streak" personal record
 - Customizable daily minimums per exercise
 - 2 forgiven rest days per rolling week, so one busy day doesn't reset months of progress
-- 12-week history heatmap
+- 8-week history heatmap
+- Real accounts backed by Supabase (Postgres + auth), so progress syncs
+  across devices instead of living only in one browser
 - Installable as a home-screen app on iOS/Android (PWA), works offline
 - Rotating daily motivational message
 
 ## Tech stack
 
-Plain HTML, CSS, and JavaScript — no frameworks, no build step. Progress is
-stored locally in the browser (`localStorage`), so it currently works
-single-device, single-user by design.
+Plain HTML, CSS, and JavaScript — no frameworks, no build step. Guest
+progress is stored locally in the browser (`localStorage`); once you sign
+up, it's stored in Supabase (Postgres) with Row Level Security, so each
+user can only ever read or write their own data.
 
 ## Running locally
 

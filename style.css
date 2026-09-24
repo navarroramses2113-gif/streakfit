@@ -99,13 +99,9 @@ body {
 .splash-logo {
   font-size: 2.5rem;
   font-weight: 800;
-  color: #ffffff;
+  color: #22c55e;
   letter-spacing: -0.03em;
   animation: pulseLogo 1.2s infinite alternate ease-in-out;
-}
-
-.splash-logo span {
-  color: #22c55e; /* Vibrant accent color */
 }
 
 /* Subtle loading indicator ring */
@@ -135,15 +131,11 @@ body {
 
 .card {
   position: relative;
-  background: rgba(24, 24, 27, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  background: transparent;
   padding: 20px;
   width: 100%;
   max-width: 380px;
   text-align: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .settings-toggle {
@@ -176,16 +168,7 @@ body {
   font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.03em;
-}
-
-.brand-word-light {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.brand-word-bold {
   color: #22c55e;
-  font-weight: 900;
 }
 
 .hidden {
@@ -220,8 +203,12 @@ body {
   transition: color 0.15s ease;
 }
 
+.tab-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
 .tab-icon {
-  font-size: 1.25rem;
   opacity: 0.6;
   transition: opacity 0.15s ease;
 }
@@ -232,7 +219,7 @@ body {
 }
 
 .tab-btn.active {
-  color: var(--orange-light);
+  color: #22c55e;
 }
 
 .tab-btn.active .tab-icon {
@@ -244,6 +231,14 @@ body {
   color: var(--text-muted);
   text-align: center;
   margin-bottom: var(--space-md);
+}
+
+/* A small icon sitting inline with a line of text, nudged to align
+   with the text's baseline instead of sitting too high or low. */
+.inline-icon {
+  width: 13px;
+  height: 13px;
+  vertical-align: -2px;
 }
 
 .leaderboard {
@@ -277,7 +272,20 @@ body {
 }
 
 .leaderboard-avatar {
-  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #3a3a3a;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.leaderboard-avatar svg {
+  width: 16px;
+  height: 16px;
 }
 
 .leaderboard-name {
@@ -289,9 +297,17 @@ body {
 }
 
 .leaderboard-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 0.9rem;
   font-weight: 800;
   color: var(--orange-light);
+}
+
+.leaderboard-streak svg {
+  width: 14px;
+  height: 14px;
 }
 
 .add-friends-button {
@@ -338,6 +354,18 @@ body {
   margin-bottom: var(--space-sm);
   font-size: 0.85rem;
   color: #e4e3e0;
+}
+
+.settings-checkbox-row {
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--border);
+}
+
+.settings-checkbox-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #22c55e;
+  cursor: pointer;
 }
 
 .settings-row input {
@@ -445,6 +473,49 @@ body {
   margin-bottom: var(--space-sm);
 }
 
+/* The optional 4th activity - a single full-width row rather than a
+   tile, since it's a distinct "bonus" activity, not one of the core 3. */
+.walkrun-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+  background: #1c1c1f66;
+  border-radius: var(--radius);
+}
+
+.walkrun-row label {
+  flex: 1;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e4e3e0;
+}
+
+.walkrun-row input {
+  width: 60px;
+  min-height: 40px;
+  padding: 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  text-align: center;
+  background: #232326;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+}
+
+.walkrun-row input:focus {
+  outline: none;
+  border-color: #22c55e;
+}
+
+.walkrun-row input:disabled {
+  opacity: 0.5;
+}
+
 .exercise-tile {
   display: flex;
   flex-direction: column;
@@ -461,8 +532,13 @@ body {
   border-color: var(--orange);
 }
 
+.exercise-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
 .exercise-icon {
-  font-size: 1.3rem;
+  color: var(--text-secondary);
 }
 
 .exercise-tile label {
@@ -510,6 +586,10 @@ body {
   margin-bottom: var(--space-sm);
 }
 
+.error.success {
+  color: #22c55e;
+}
+
 .error.shake {
   animation: shake 0.3s ease;
 }
@@ -552,6 +632,233 @@ body {
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+}
+
+.onboarding-slide {
+  text-align: center;
+  padding: var(--space-lg) 0;
+}
+
+.onboarding-icon svg {
+  width: 56px;
+  height: 56px;
+}
+
+.onboarding-icon {
+  color: #22c55e;
+  margin-bottom: var(--space-lg);
+}
+
+.onboarding-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-md);
+}
+
+.onboarding-text {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.onboarding-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: var(--space-lg);
+}
+
+.onboarding-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3a3a3a;
+  transition: background 0.2s ease, width 0.2s ease;
+}
+
+.onboarding-dot.active {
+  background: #22c55e;
+  width: 20px;
+  border-radius: 4px;
+}
+
+#onboarding-next {
+  width: 100%;
+  min-height: 48px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: white;
+  background-color: #22c55e;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+#onboarding-next:hover {
+  background-color: #16a34a;
+}
+
+.onboarding-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  text-align: left;
+}
+
+.onboarding-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-md);
+  font-family: inherit;
+  background: #1c1c1f80;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.onboarding-choice:hover {
+  border-color: #22c55e;
+  background: #22c55e15;
+}
+
+.onboarding-choice-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.onboarding-choice-detail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.auth-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.auth-fields input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: #232326;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  transition: border-color 0.15s ease;
+}
+
+.auth-fields input:focus {
+  outline: none;
+  border-color: #22c55e;
+}
+
+.auth-submit-button {
+  width: 100%;
+  min-height: 48px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: white;
+  background-color: #22c55e;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.auth-submit-button:hover {
+  background-color: #16a34a;
+}
+
+.auth-submit-button:disabled {
+  background: #3a3a3a;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.auth-forgot-password {
+  display: block;
+  margin: 0 0 var(--space-sm) auto;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #22c55e;
+  cursor: pointer;
+}
+
+.auth-toggle {
+  margin-top: var(--space-md);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.link-button {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #22c55e;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 4px;
+}
+
+.guest-signup-button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: var(--space-md);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: white;
+  background-color: #22c55e;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.guest-signup-button:hover {
+  background-color: #16a34a;
+}
+
+.auth-skip {
+  display: block;
+  margin: var(--space-md) auto 0;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.log-out-button {
+  width: 100%;
+  min-height: 40px;
+  margin-top: var(--space-md);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
 }
 
 /* Two side-by-side stat tiles instead of plain stacked sentences -
@@ -660,7 +967,8 @@ body {
     padding: var(--space-xs) 2px;
   }
 
-  .exercise-icon {
-    font-size: 1.1rem;
+  .exercise-icon svg {
+    width: 18px;
+    height: 18px;
   }
 }

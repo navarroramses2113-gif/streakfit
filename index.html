@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>StreakFit</title>
+  <title>Forja</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=2">
 
   <!-- PWA: lets the browser offer "Install App" / "Add to Home Screen" -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#f97316">
+  <meta name="theme-color" content="#22c55e">
 
   <!-- iOS specifically ignores the manifest's icon and needs its own tag -->
   <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -22,14 +22,148 @@
   <!-- Strava-style Splash Screen -->
   <div id="splash-screen">
     <div class="splash-content">
-      <h1 class="splash-logo">Streak<span>Fit</span></h1>
+      <h1 class="splash-logo">Forja</h1>
       <div class="splash-loader"></div>
     </div>
   </div>
 
-  <main class="card">
+  <!-- Shown once, before the login screen, to sell the app's value
+       first (Duolingo-style) instead of leading with a signup wall. -->
+  <main id="onboarding-screen" class="card hidden">
+    <div class="onboarding-slide" data-slide="0">
+      <div class="onboarding-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-1 4-6 6-6 12a6 6 0 0 0 12 0c0-3-2-4-2-7-1 2-2 2-2 0 0-2-1-4-2-5z"/></svg>
+      </div>
+      <h2 class="onboarding-title">Build a Streak, Build a Habit</h2>
+      <p class="onboarding-text">No gym, no equipment. Just a few minutes a day to build the kind of consistency that actually sticks.</p>
+    </div>
+    <div class="onboarding-slide hidden" data-slide="1">
+      <div class="onboarding-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg>
+      </div>
+      <h2 class="onboarding-title">Quick Daily Check-Ins</h2>
+      <p class="onboarding-text">Push-ups, sit-ups, squats. Hit your minimums, log your day, and keep the streak alive.</p>
+    </div>
+    <div class="onboarding-slide hidden" data-slide="2">
+      <div class="onboarding-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v6a4 4 0 0 1-8 0V4z"/><path d="M8 5H5a2 2 0 0 0 0 4h3"/><path d="M16 5h3a2 2 0 0 1 0 4h-3"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="9" y1="21" x2="15" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg>
+      </div>
+      <h2 class="onboarding-title">Track Progress, Stay Accountable</h2>
+      <p class="onboarding-text">See your history at a glance, and compete with friends to stay motivated.</p>
+    </div>
+
+    <div class="onboarding-slide hidden" data-slide="3">
+      <h2 class="onboarding-title">Where do you want to start?</h2>
+      <p class="onboarding-text">This sets your daily minimums - you can always adjust them later in the Me tab.</p>
+      <div class="onboarding-choices">
+        <button class="onboarding-choice" data-level="beginner">
+          <span class="onboarding-choice-title">Beginner</span>
+          <span class="onboarding-choice-detail">5 push-ups · 10 sit-ups · 10 squats</span>
+        </button>
+        <button class="onboarding-choice" data-level="intermediate">
+          <span class="onboarding-choice-title">Intermediate</span>
+          <span class="onboarding-choice-detail">15 push-ups · 20 sit-ups · 20 squats</span>
+        </button>
+        <button class="onboarding-choice" data-level="advanced">
+          <span class="onboarding-choice-title">Advanced</span>
+          <span class="onboarding-choice-detail">30 push-ups · 30 sit-ups · 40 squats</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="onboarding-slide hidden" data-slide="4">
+      <h2 class="onboarding-title">Add walking or running?</h2>
+      <p class="onboarding-text">Track a simple daily minutes goal alongside your bodyweight exercises.</p>
+      <div class="onboarding-choices">
+        <button class="onboarding-choice" data-walkrun="yes">
+          <span class="onboarding-choice-title">Yes, add it</span>
+          <span class="onboarding-choice-detail">15 minutes a day to start</span>
+        </button>
+        <button class="onboarding-choice" data-walkrun="no">
+          <span class="onboarding-choice-title">No, just the 3 exercises</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="onboarding-dots">
+      <span class="onboarding-dot active"></span>
+      <span class="onboarding-dot"></span>
+      <span class="onboarding-dot"></span>
+      <span class="onboarding-dot"></span>
+      <span class="onboarding-dot"></span>
+    </div>
+
+    <button id="onboarding-next">Next</button>
+  </main>
+
+  <!-- Shown instead of the main app when nobody is logged in yet. -->
+  <main id="auth-screen" class="card hidden">
     <div class="brand">
-      <span class="brand-word brand-word-light">Streak</span><span class="brand-word brand-word-bold">Fit</span>
+      <span class="brand-word">Forja</span>
+    </div>
+
+    <p id="auth-subtitle" class="motivation">Log in to track your streak</p>
+
+    <div class="auth-fields">
+      <input type="email" id="auth-email" placeholder="Email" autocomplete="email">
+      <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password">
+    </div>
+
+    <button id="auth-forgot-password" class="link-button auth-forgot-password">Forgot password?</button>
+
+    <p id="auth-error" class="error"></p>
+
+    <button id="auth-submit" class="auth-submit-button">Log In</button>
+
+    <p class="auth-toggle">
+      <span id="auth-toggle-text">Don't have an account?</span>
+      <button id="auth-toggle-mode" class="link-button">Sign Up</button>
+    </p>
+
+    <button id="auth-skip" class="link-button auth-skip">Skip for now</button>
+  </main>
+
+  <!-- Shown when "Forgot password?" is clicked - just asks for the
+       email to send the reset link to. -->
+  <main id="forgot-password-screen" class="card hidden">
+    <div class="brand">
+      <span class="brand-word">Forja</span>
+    </div>
+
+    <p class="motivation">Enter your email to reset your password</p>
+
+    <div class="auth-fields">
+      <input type="email" id="forgot-password-email" placeholder="Email" autocomplete="email">
+    </div>
+
+    <p id="forgot-password-error" class="error"></p>
+
+    <button id="forgot-password-submit" class="auth-submit-button">Send Reset Link</button>
+
+    <button id="forgot-password-back" class="link-button auth-skip">Back to Log In</button>
+  </main>
+
+  <!-- Shown only after clicking a password reset link from email. -->
+  <main id="reset-password-screen" class="card hidden">
+    <div class="brand">
+      <span class="brand-word">Forja</span>
+    </div>
+
+    <p class="motivation">Set a new password</p>
+
+    <div class="auth-fields">
+      <input type="password" id="new-password" placeholder="New password" autocomplete="new-password">
+    </div>
+
+    <p id="reset-password-error" class="error"></p>
+
+    <button id="reset-password-submit" class="auth-submit-button">Update Password</button>
+  </main>
+
+  <!-- The actual app - hidden until we know the user is logged in. -->
+  <main id="app-screen" class="card hidden">
+    <div class="brand">
+      <span class="brand-word">Forja</span>
     </div>
 
     <div id="tab-today" class="tab-panel">
@@ -48,23 +182,30 @@
 
       <div class="exercise-list">
         <div class="exercise-tile">
-          <span class="exercise-icon">🏋️</span>
+          <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg></span>
           <label for="pushups">Push-ups</label>
           <span id="pushups-min-tag" class="min-tag">min 10</span>
           <input type="number" id="pushups" min="0" value="0">
         </div>
         <div class="exercise-tile">
-          <span class="exercise-icon">💪</span>
+          <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg></span>
           <label for="situps">Sit-ups</label>
           <span id="situps-min-tag" class="min-tag">min 10</span>
           <input type="number" id="situps" min="0" value="0">
         </div>
         <div class="exercise-tile">
-          <span class="exercise-icon">🦵</span>
+          <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg></span>
           <label for="squats">Squats</label>
           <span id="squats-min-tag" class="min-tag">min 10</span>
           <input type="number" id="squats" min="0" value="0">
         </div>
+      </div>
+
+      <div id="walkrun-row" class="walkrun-row hidden">
+        <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 12 6 12 9 4 14 20 17 12 22 12"/></svg></span>
+        <label for="walkrun">Walk/Run (minutes)</label>
+        <span id="walkrun-min-tag" class="min-tag">min 15</span>
+        <input type="number" id="walkrun" min="0" value="0">
       </div>
 
       <p id="error-message" class="error"></p>
@@ -73,7 +214,7 @@
     </div>
 
     <div id="tab-competition" class="tab-panel hidden">
-      <p class="preview-note">🔒 Preview - adding real friends is coming soon</p>
+      <p class="preview-note"><svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Preview - adding real friends is coming soon</p>
       <div id="leaderboard" class="leaderboard"></div>
       <button id="add-friends-button" class="add-friends-button" disabled>Add Friends (Coming Soon)</button>
     </div>
@@ -110,26 +251,42 @@
           <label for="min-squats">Squats</label>
           <input type="number" id="min-squats" min="1" value="10">
         </div>
+
+        <div class="settings-row settings-checkbox-row">
+          <label for="enable-walkrun">Track Walk/Run</label>
+          <input type="checkbox" id="enable-walkrun">
+        </div>
+        <div id="min-walkrun-row" class="settings-row hidden">
+          <label for="min-walkrun">Walk/Run minutes</label>
+          <input type="number" id="min-walkrun" min="1" value="15">
+        </div>
+
         <button id="save-settings">Save</button>
       </div>
+
+      <button id="log-out-button" class="log-out-button hidden">Log Out</button>
+      <button id="guest-signup-button" class="guest-signup-button hidden">Sign Up to Save Your Progress</button>
     </div>
 
     <nav class="tab-bar">
       <button id="tab-btn-today" class="tab-btn active">
-        <span class="tab-icon">🏠</span>
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg></span>
         <span class="tab-text">Today</span>
       </button>
       <button id="tab-btn-competition" class="tab-btn">
-        <span class="tab-icon">🏆</span>
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v6a4 4 0 0 1-8 0V4z"/><path d="M8 5H5a2 2 0 0 0 0 4h3"/><path d="M16 5h3a2 2 0 0 1 0 4h-3"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="9" y1="21" x2="15" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg></span>
         <span class="tab-text">Competition</span>
       </button>
       <button id="tab-btn-me" class="tab-btn">
-        <span class="tab-icon">👤</span>
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></span>
         <span class="tab-text">Me</span>
       </button>
     </nav>
   </main>
 
+  <!-- Supabase's client library - lets our JavaScript talk to our
+       database and handle user accounts/login. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js?v=2"></script>
 </body>
 </html>

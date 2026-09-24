@@ -1,49 +1,102 @@
-// STEP 1: Load saved data from the browser's storage.
+// STEP 1: Connect to Supabase and load the signed-in user's data.
 //
-// localStorage is a small key-value storage built into every browser.
-// It only stores strings, so we save our data as JSON text and parse it
-// back into a real JavaScript object when we read it.
-//
-// If nothing has been saved yet (first time using the app), we start
-// with default values: streak of 0, and no last-logged date.
+// Data used to live only in this browser's localStorage. Now it lives in
+// a real database, so it works across devices and survives clearing your
+// browser. localStorage is still read ONCE, as a one-time source to carry
+// over any progress you already had into your new account.
 
-function loadData() {
-  const saved = localStorage.getItem("streakfit-data");
-  if (saved) {
-    const parsed = JSON.parse(saved);
-    // Older saved data (from before this feature existed) won't have a
-    // `history` field at all. Fill in a default so the rest of the code
-    // can always assume it's there - this is called "migrating" old data.
-    if (!parsed.history) {
-      parsed.history = [];
-    }
-    if (!parsed.minimums) {
-      parsed.minimums = { pushups: 10, situps: 10, squats: 10 };
-    }
-    if (parsed.restDaysUsed === undefined) {
-      parsed.restDaysUsed = 0;
-      parsed.weekStartDate = null;
-    }
-    return parsed;
-  }
+const SUPABASE_URL = "https://wiixtjykewtqvpxqwtor.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpaXh0anlrZXd0cXZweHF3dG9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMTI3ODIsImV4cCI6MjEwNTc4ODc4Mn0.WKij4ltTLv_qNfKrT5vO8y1tyjQk2IAdz7WYDTemS80";
+
+// `supabase` (lowercase, no "Client") is the global the CDN script tag
+// creates. We name OUR instance `supabaseClient` so the two don't clash.
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Which user is currently logged in, and their data. Both start out
+// empty - they only get filled in once we hear back from Supabase about
+// who (if anyone) is signed in.
+let currentUserId = null;
+let data = null;
+
+// `minimums.walkRun` is either a number of minutes (tracking enabled)
+// or null (not tracking walk/run at all).
+function defaultData() {
   return {
     streak: 0,
     bestStreak: 0,
     lastLoggedDate: null,
     history: [],
-    minimums: { pushups: 10, situps: 10, squats: 10 },
+    minimums: { pushups: 10, situps: 10, squats: 10, walkRun: null },
     restDaysUsed: 0,
     weekStartDate: null,
   };
 }
 
-function saveData(data) {
-  localStorage.setItem("streakfit-data", JSON.stringify(data));
+// Fills in any fields older saved data (local OR cloud) might be missing,
+// so the rest of the app can always assume every field exists. Shared by
+// both data sources below instead of duplicating the same checks twice.
+function migrateData(parsed) {
+  if (!parsed.history) parsed.history = [];
+  if (!parsed.minimums) parsed.minimums = { pushups: 10, situps: 10, squats: 10, walkRun: null };
+  if (parsed.minimums.walkRun === undefined) parsed.minimums.walkRun = null;
+  if (parsed.restDaysUsed === undefined) {
+    parsed.restDaysUsed = 0;
+    parsed.weekStartDate = null;
+  }
+  return parsed;
 }
 
-// Load it once when the page starts, and keep it in a variable we can
-// update as the user interacts with the page.
-let data = loadData();
+// Reads whatever THIS BROWSER saved before accounts existed. Used only
+// once per account, to migrate a first-time user's existing progress
+// instead of silently starting them over at zero.
+function loadLocalData() {
+  const saved = localStorage.getItem("streakfit-data");
+  if (!saved) return null;
+  return migrateData(JSON.parse(saved));
+}
+
+// Fetches this user's row from the database. `async` marks this as a
+// function that does its work over time (a network request) rather than
+// instantly - callers use `await` to pause until it's actually done.
+async function loadUserData(userId) {
+  const { data: row } = await supabaseClient
+    .from("user_progress")
+    .select("data")
+    .eq("user_id", userId)
+    .maybeSingle(); // returns null instead of an error if no row exists yet
+
+  if (row) {
+    return migrateData(row.data);
+  }
+
+  // Brand new account - seed it from any existing local progress, or
+  // plain defaults if there isn't any.
+  const initialData = loadLocalData() || defaultData();
+  await saveUserData(userId, initialData);
+  return initialData;
+}
+
+// Saves the given data into this user's row, creating it if it doesn't
+// exist yet ("upsert" = update if present, insert if not).
+async function saveUserData(userId, dataToSave) {
+  await supabaseClient.from("user_progress").upsert({
+    user_id: userId,
+    data: dataToSave,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+// Called the exact same way it always was everywhere else in this file.
+// Logged in -> saves to the database. Not logged in (guest) -> saves to
+// this browser's localStorage, exactly like the app worked before
+// accounts existed - so you can use it fully before ever signing up.
+function saveData(dataToSave) {
+  if (currentUserId) {
+    saveUserData(currentUserId, dataToSave);
+  } else {
+    localStorage.setItem("streakfit-data", JSON.stringify(dataToSave));
+  }
+}
 
 
 // STEP 2: Grab references to the HTML elements we need to update.
@@ -62,21 +115,37 @@ const progressFillEl = document.getElementById("progress-fill");
 const pushupsEl = document.getElementById("pushups");
 const situpsEl = document.getElementById("situps");
 const squatsEl = document.getElementById("squats");
+const walkrunEl = document.getElementById("walkrun");
+const walkrunRowEl = document.getElementById("walkrun-row");
 
 const pushupsMinTagEl = document.getElementById("pushups-min-tag");
 const situpsMinTagEl = document.getElementById("situps-min-tag");
 const squatsMinTagEl = document.getElementById("squats-min-tag");
+const walkrunMinTagEl = document.getElementById("walkrun-min-tag");
 
 const minPushupsEl = document.getElementById("min-pushups");
 const minSitupsEl = document.getElementById("min-situps");
 const minSquatsEl = document.getElementById("min-squats");
+const enableWalkrunEl = document.getElementById("enable-walkrun");
+const minWalkrunEl = document.getElementById("min-walkrun");
+const minWalkrunRowEl = document.getElementById("min-walkrun-row");
 const saveSettingsEl = document.getElementById("save-settings");
+
+// Shows/hides the minutes input in Settings the instant the checkbox is
+// toggled, without waiting for Save - so it's obvious what you're about
+// to configure.
+enableWalkrunEl.addEventListener("change", () => {
+  minWalkrunRowEl.classList.toggle("hidden", !enableWalkrunEl.checked);
+});
 
 // Shows the current minimums next to each exercise (e.g. "min 15").
 function renderMinTags() {
   pushupsMinTagEl.textContent = `min ${data.minimums.pushups}`;
   situpsMinTagEl.textContent = `min ${data.minimums.situps}`;
   squatsMinTagEl.textContent = `min ${data.minimums.squats}`;
+  if (data.minimums.walkRun !== null) {
+    walkrunMinTagEl.textContent = `min ${data.minimums.walkRun}`;
+  }
 }
 
 // The Daily Minimums section now lives permanently in the "Me" tab, so
@@ -86,12 +155,18 @@ function renderSettingsInputs() {
   minPushupsEl.value = data.minimums.pushups;
   minSitupsEl.value = data.minimums.situps;
   minSquatsEl.value = data.minimums.squats;
+
+  const walkRunEnabled = data.minimums.walkRun !== null;
+  enableWalkrunEl.checked = walkRunEnabled;
+  minWalkrunEl.value = walkRunEnabled ? data.minimums.walkRun : 15;
+  minWalkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
 }
 
 saveSettingsEl.addEventListener("click", () => {
   data.minimums.pushups = Number(minPushupsEl.value) || 1;
   data.minimums.situps = Number(minSitupsEl.value) || 1;
   data.minimums.squats = Number(minSquatsEl.value) || 1;
+  data.minimums.walkRun = enableWalkrunEl.checked ? (Number(minWalkrunEl.value) || 1) : null;
 
   saveData(data);
   renderMinTags();
@@ -117,11 +192,19 @@ function todayString() {
 
 // Counts how many of the 3 exercises currently meet their minimum,
 // so we can show a progress bar even before the day is logged.
+// How many activities count toward today - 3 normally, or 4 if walk/run
+// tracking is turned on. Used both to size the progress bar correctly
+// and to know how many boxes need to be filled in to log the day.
+function totalActivityCount() {
+  return data.minimums.walkRun !== null ? 4 : 3;
+}
+
 function completedCount() {
   let count = 0;
   if (Number(pushupsEl.value) >= data.minimums.pushups) count += 1;
   if (Number(situpsEl.value) >= data.minimums.situps) count += 1;
   if (Number(squatsEl.value) >= data.minimums.squats) count += 1;
+  if (data.minimums.walkRun !== null && Number(walkrunEl.value) >= data.minimums.walkRun) count += 1;
   return count;
 }
 
@@ -141,12 +224,16 @@ function render() {
     statusMessageEl.textContent = "Do your reps, then log today's workout.";
     logButtonEl.disabled = false;
     logButtonEl.textContent = "Log Today's Workout";
-    progressFillEl.style.width = `${(completedCount() / 3) * 100}%`;
+    progressFillEl.style.width = `${(completedCount() / totalActivityCount()) * 100}%`;
   }
 
   pushupsEl.disabled = loggedToday;
   situpsEl.disabled = loggedToday;
   squatsEl.disabled = loggedToday;
+
+  const walkRunEnabled = data.minimums.walkRun !== null;
+  walkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
+  walkrunEl.disabled = loggedToday;
 
   const beforeReset = data.weekStartDate;
   refreshRestDayWeek();
@@ -186,6 +273,7 @@ function renderGraceStatus() {
 pushupsEl.addEventListener("input", render);
 situpsEl.addEventListener("input", render);
 squatsEl.addEventListener("input", render);
+walkrunEl.addEventListener("input", render);
 
 // Builds the "last 12 weeks" grid of small squares, one per day, colored
 // based on whether that day is in data.history.
@@ -248,24 +336,129 @@ function renderMotivation() {
   motivationEl.textContent = MOTIVATIONS[index];
 }
 
-// Run these once immediately so the page shows the right thing on load.
-render();
-renderHeatmap();
-renderMotivation();
-renderMinTags();
-renderSettingsInputs();
-
-// Hide the splash screen once the page has fully finished loading
-// (window's "load" event fires after everything - fonts, images, etc -
-// not just our script). A brief timeout on top of that ensures the
-// branding screen displays for at least a fraction of a second instead
-// of flashing away instantly if loading was already fast.
-window.addEventListener('load', () => {
-  const splash = document.getElementById('splash-screen');
-
+// Fades the splash screen out - guarded so it only ever runs once, and
+// wrapped in a brief timeout so it displays for at least a fraction of a
+// second instead of flashing away instantly if things resolved quickly.
+let splashHidden = false;
+function hideSplash() {
+  if (splashHidden) return;
+  splashHidden = true;
   setTimeout(() => {
-    splash.classList.add('splash-fade-out');
-  }, 600);
+    document.getElementById("splash-screen").classList.add("splash-fade-out");
+  }, 500);
+}
+
+// The 4 mutually-exclusive full-screen views. Listing them once here
+// means adding a 5th screen later only needs one new line, not a matching
+// "hide this one" line added into every other show-a-different-screen
+// function (which is exactly how the reset-password screen almost got
+// left out of revealApp() below).
+const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen"];
+
+function showScreen(idToShow) {
+  SCREEN_IDS.forEach((id) => {
+    document.getElementById(id).classList.toggle("hidden", id !== idToShow);
+  });
+  hideSplash();
+}
+
+// Shows the app's main tabs and fills in every part of the page from
+// whatever `data` currently holds - shared by both the logged-in path
+// and the guest path below, since both end up needing the exact same
+// on-screen setup once `data` is ready.
+function revealApp() {
+  render();
+  renderHeatmap();
+  renderMotivation();
+  renderMinTags();
+  renderSettingsInputs();
+  updateMeTabAuthSection();
+  showScreen("app-screen");
+}
+
+// Runs once we know someone is logged in: loads their data from the
+// database, then reveals the app.
+async function showApp(userId) {
+  currentUserId = userId;
+  data = await loadUserData(userId);
+  revealApp();
+}
+
+// Lets someone use the full app without an account yet. Their data is
+// only saved to this browser (via saveData's guest branch) until they
+// eventually sign up, at which point loadUserData migrates it in.
+function showAppAsGuest() {
+  currentUserId = null;
+  data = loadLocalData() || defaultData();
+  revealApp();
+}
+
+// Shows/hides the right button at the bottom of the Me tab depending on
+// whether you're logged in or just browsing as a guest.
+function updateMeTabAuthSection() {
+  document.getElementById("log-out-button").classList.toggle("hidden", !currentUserId);
+  document.getElementById("guest-signup-button").classList.toggle("hidden", !!currentUserId);
+}
+
+// Runs when nobody is logged in.
+function showAuthScreen() {
+  showScreen("auth-screen");
+}
+
+// Shown after clicking a password reset link from email.
+function showResetPasswordScreen() {
+  showScreen("reset-password-screen");
+}
+
+function showForgotPasswordScreen() {
+  showScreen("forgot-password-screen");
+}
+
+function showOnboardingScreen() {
+  showScreen("onboarding-screen");
+}
+
+// Set right before a deliberate log-out, so the handler below knows to
+// show the login screen instead of dropping back into guest mode.
+let justLoggedOut = false;
+
+// This is the actual entry point for the whole app. onAuthStateChange
+// fires once immediately with whatever the current login state is (so it
+// covers the very first page load), and again every time someone logs
+// in or out - one listener handles all three cases below.
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  // Clicking a password reset link logs you into a special temporary
+  // session and fires this exact event - we need to catch it BEFORE the
+  // normal "session exists -> show the app" check below, otherwise it'd
+  // just drop you into the app instead of letting you set a new password.
+  if (event === "PASSWORD_RECOVERY") {
+    showResetPasswordScreen();
+    return;
+  }
+
+  if (session) {
+    justLoggedOut = false;
+    showApp(session.user.id);
+    return;
+  }
+
+  currentUserId = null;
+  data = null;
+
+  if (justLoggedOut) {
+    justLoggedOut = false;
+    showAuthScreen();
+    return;
+  }
+
+  // First-time visitors see the onboarding pitch; anyone who has already
+  // seen it (including a guest just reopening the app) goes straight
+  // into using the app - signing up is offered later, not upfront.
+  if (localStorage.getItem("streakfit-seen-onboarding")) {
+    showAppAsGuest();
+  } else {
+    showOnboardingScreen();
+  }
 });
 
 
@@ -286,9 +479,21 @@ function logWorkout() {
   const pushups = Number(pushupsEl.value);
   const situps = Number(situpsEl.value);
   const squats = Number(squatsEl.value);
+  const walkRunEnabled = data.minimums.walkRun !== null;
+  const walkrunMinutes = Number(walkrunEl.value);
 
-  if (pushups < data.minimums.pushups || situps < data.minimums.situps || squats < data.minimums.squats) {
-    errorMessageEl.textContent = `You need at least ${data.minimums.pushups} push-ups, ${data.minimums.situps} sit-ups, and ${data.minimums.squats} squats to log today.`;
+  const missedMinimum =
+    pushups < data.minimums.pushups ||
+    situps < data.minimums.situps ||
+    squats < data.minimums.squats ||
+    (walkRunEnabled && walkrunMinutes < data.minimums.walkRun);
+
+  if (missedMinimum) {
+    let message = `You need at least ${data.minimums.pushups} push-ups, ${data.minimums.situps} sit-ups, and ${data.minimums.squats} squats`;
+    if (walkRunEnabled) {
+      message += `, plus ${data.minimums.walkRun} minutes of walk/run`;
+    }
+    errorMessageEl.textContent = message + " to log today.";
 
     // Retrigger the shake animation even if it's already mid-shake:
     // removing the class, forcing the browser to notice, then re-adding it.
@@ -338,6 +543,18 @@ function logWorkout() {
   // Briefly pulse the streak number to celebrate the successful log.
   streakCountEl.classList.add("pulse");
   setTimeout(() => streakCountEl.classList.remove("pulse"), 250);
+
+  // A guest who just logged their very first day gets invited to create
+  // an account right at that "high point" - after a short pause so they
+  // actually get to see the streak update first, not instead of it.
+  if (!currentUserId && data.history.length === 1) {
+    setTimeout(() => {
+      authMode = "signup";
+      applyAuthMode();
+      authSubtitleEl.textContent = "Day 1 complete! Create an account so you never lose this streak.";
+      showAuthScreen();
+    }, 1800);
+  }
 }
 
 // addEventListener attaches a function to run whenever a specific event
@@ -380,20 +597,28 @@ TABS.today.button.addEventListener("click", () => showTab("today"));
 TABS.competition.button.addEventListener("click", () => showTab("competition"));
 TABS.me.button.addEventListener("click", () => showTab("me"));
 
+// Reusable icon markup - defined once, inserted wherever needed via
+// template literals, instead of repeating the same SVG code every time.
+const PERSON_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>';
+const FLAME_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-1 4-6 6-6 12a6 6 0 0 0 12 0c0-3-2-4-2-7-1 2-2 2-2 0 0-2-1-4-2-5z"/></svg>';
+
 // Fake friends, purely to preview what a real leaderboard will look like
 // once accounts/friends are built. "You" is mixed in using your real streak.
+// Every avatar is a generic silhouette for now - once real friends and
+// profile pictures exist, this is where an uploaded photo would go instead,
+// falling back to this same silhouette for anyone without one.
 const MOCK_FRIENDS = [
-  { name: "Jordan", streak: 34, avatar: "🥷" },
-  { name: "Casey", streak: 21, avatar: "🐯" },
-  { name: "Alex", streak: 15, avatar: "🦁" },
-  { name: "Sam", streak: 9, avatar: "🐺" },
+  { name: "Jordan", streak: 34 },
+  { name: "Casey", streak: 21 },
+  { name: "Alex", streak: 15 },
+  { name: "Sam", streak: 9 },
 ];
 
 function renderLeaderboard() {
   const leaderboardEl = document.getElementById("leaderboard");
   leaderboardEl.innerHTML = "";
 
-  const you = { name: "You", streak: data.streak, avatar: "🔥", isYou: true };
+  const you = { name: "You", streak: data.streak, isYou: true };
 
   // [...array] copies the array so sort() doesn't mutate the original
   // MOCK_FRIENDS list. .sort((a, b) => b.streak - a.streak) sorts from
@@ -409,9 +634,9 @@ function renderLeaderboard() {
 
     row.innerHTML = `
       <span class="leaderboard-rank">#${index + 1}</span>
-      <span class="leaderboard-avatar">${person.avatar}</span>
+      <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
       <span class="leaderboard-name">${person.name}</span>
-      <span class="leaderboard-streak">${person.streak}🔥</span>
+      <span class="leaderboard-streak">${person.streak} ${FLAME_ICON_SVG}</span>
     `;
 
     leaderboardEl.appendChild(row);
@@ -419,7 +644,279 @@ function renderLeaderboard() {
 }
 
 
-// STEP 4: Register the service worker, if the browser supports one.
+// STEP 5: The login/sign-up form and the log-out button.
+
+const authEmailEl = document.getElementById("auth-email");
+const authPasswordEl = document.getElementById("auth-password");
+const authErrorEl = document.getElementById("auth-error");
+const authSubmitEl = document.getElementById("auth-submit");
+const authToggleModeEl = document.getElementById("auth-toggle-mode");
+const authToggleTextEl = document.getElementById("auth-toggle-text");
+const authSubtitleEl = document.getElementById("auth-subtitle");
+const authForgotPasswordEl = document.getElementById("auth-forgot-password");
+const logOutButtonEl = document.getElementById("log-out-button");
+
+// The form has two modes that share the same email/password fields.
+let authMode = "login";
+
+// Updates all the auth screen's text to match whatever `authMode`
+// currently is. Pulled into its own function so both the toggle link
+// AND the onboarding carousel's "Get Started" button can reuse it.
+function applyAuthMode() {
+  authErrorEl.textContent = "";
+  authErrorEl.classList.remove("success");
+
+  if (authMode === "signup") {
+    authSubtitleEl.textContent = "Create an account to save your streak";
+    authSubmitEl.textContent = "Sign Up";
+    authToggleTextEl.textContent = "Already have an account?";
+    authToggleModeEl.textContent = "Log In";
+    authForgotPasswordEl.classList.add("hidden");
+  } else {
+    authSubtitleEl.textContent = "Log in to track your streak";
+    authSubmitEl.textContent = "Log In";
+    authToggleTextEl.textContent = "Don't have an account?";
+    authToggleModeEl.textContent = "Sign Up";
+    authForgotPasswordEl.classList.remove("hidden");
+  }
+}
+
+authToggleModeEl.addEventListener("click", () => {
+  authMode = authMode === "login" ? "signup" : "login";
+  applyAuthMode();
+});
+
+authSubmitEl.addEventListener("click", async () => {
+  const email = authEmailEl.value.trim();
+  const password = authPasswordEl.value;
+
+  authErrorEl.textContent = "";
+  authErrorEl.classList.remove("success");
+
+  if (!email || !password) {
+    authErrorEl.textContent = "Enter both an email and password.";
+    return;
+  }
+
+  // Disable the button while the request is in flight, so a slow
+  // connection doesn't let someone click it 5 times in a row.
+  authSubmitEl.disabled = true;
+
+  if (authMode === "signup") {
+    const { data: signUpData, error } = await supabaseClient.auth.signUp({ email, password });
+
+    if (error) {
+      // Supabase can reveal that an email is already registered here.
+      // Showing that verbatim would let anyone check whether a specific
+      // person has an account (email enumeration) - so this one specific
+      // case gets the SAME response a real new signup gets instead of
+      // its own distinct message.
+      if (error.message.toLowerCase().includes("already registered")) {
+        authErrorEl.textContent = "Check your email to confirm your account, then log in.";
+        authErrorEl.classList.add("success");
+      } else {
+        authErrorEl.textContent = error.message;
+      }
+    } else if (!signUpData.session) {
+      // Supabase requires confirming your email before you can log in -
+      // there's no session yet, so onAuthStateChange won't fire.
+      authErrorEl.textContent = "Check your email to confirm your account, then log in.";
+      authErrorEl.classList.add("success");
+    }
+    // If a session WAS returned, onAuthStateChange fires on its own and
+    // showApp() takes over from here - nothing else to do in that case.
+  } else {
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      authErrorEl.textContent = error.message;
+    }
+  }
+
+  authSubmitEl.disabled = false;
+});
+
+// "Forgot password?" just navigates to its own dedicated screen - it
+// doesn't try to reuse whatever's typed in the login form's email field.
+authForgotPasswordEl.addEventListener("click", () => {
+  showForgotPasswordScreen();
+});
+
+const forgotPasswordEmailEl = document.getElementById("forgot-password-email");
+const forgotPasswordErrorEl = document.getElementById("forgot-password-error");
+const forgotPasswordSubmitEl = document.getElementById("forgot-password-submit");
+const forgotPasswordBackEl = document.getElementById("forgot-password-back");
+
+forgotPasswordSubmitEl.addEventListener("click", async () => {
+  const email = forgotPasswordEmailEl.value.trim();
+
+  forgotPasswordErrorEl.textContent = "";
+  forgotPasswordErrorEl.classList.remove("success");
+
+  if (!email) {
+    forgotPasswordErrorEl.textContent = "Enter your email address.";
+    return;
+  }
+
+  forgotPasswordSubmitEl.disabled = true;
+
+  // redirectTo tells Supabase where the link in the reset email should
+  // point. Building it from the current page's own URL means this works
+  // correctly whether we're testing on localhost or running live on
+  // Netlify, without hardcoding either one.
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname,
+  });
+
+  if (error) {
+    forgotPasswordErrorEl.textContent = error.message;
+  } else {
+    forgotPasswordErrorEl.textContent = "Check your email for a password reset link.";
+    forgotPasswordErrorEl.classList.add("success");
+  }
+
+  forgotPasswordSubmitEl.disabled = false;
+});
+
+forgotPasswordBackEl.addEventListener("click", () => {
+  forgotPasswordEmailEl.value = "";
+  forgotPasswordErrorEl.textContent = "";
+  forgotPasswordErrorEl.classList.remove("success");
+  showAuthScreen();
+});
+
+const newPasswordEl = document.getElementById("new-password");
+const resetPasswordSubmitEl = document.getElementById("reset-password-submit");
+const resetPasswordErrorEl = document.getElementById("reset-password-error");
+
+resetPasswordSubmitEl.addEventListener("click", async () => {
+  const newPassword = newPasswordEl.value;
+
+  resetPasswordErrorEl.textContent = "";
+
+  if (!newPassword || newPassword.length < 6) {
+    resetPasswordErrorEl.textContent = "Password must be at least 6 characters.";
+    return;
+  }
+
+  resetPasswordSubmitEl.disabled = true;
+
+  const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+
+  if (error) {
+    resetPasswordErrorEl.textContent = error.message;
+    resetPasswordSubmitEl.disabled = false;
+    return;
+  }
+
+  // The password is updated and the recovery session is now a normal
+  // one - fetch it directly and go straight into the app, rather than
+  // relying on another auth event to do it for us.
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) {
+    showApp(session.user.id);
+  } else {
+    showAuthScreen();
+  }
+});
+
+logOutButtonEl.addEventListener("click", () => {
+  justLoggedOut = true;
+  supabaseClient.auth.signOut();
+  // onAuthStateChange fires automatically after this and shows the
+  // login screen (because justLoggedOut is true) - no need to do it
+  // manually here.
+});
+
+// A guest can also choose to sign up any time from the Me tab, not just
+// when prompted after their first log.
+const guestSignupButtonEl = document.getElementById("guest-signup-button");
+guestSignupButtonEl.addEventListener("click", () => {
+  authMode = "signup";
+  applyAuthMode();
+  showAuthScreen();
+});
+
+// Lets someone dismiss the login/signup screen and keep using the app
+// as a guest - whether they landed here from the post-first-log prompt
+// or clicked into it manually.
+const authSkipEl = document.getElementById("auth-skip");
+authSkipEl.addEventListener("click", () => {
+  showAppAsGuest();
+});
+
+
+// STEP 6: The onboarding carousel (shown once, before the first login).
+//
+// Slides 0-2 are the value-prop pitch, navigated with the shared "Next"
+// button. Slides 3-4 are questions where tapping an answer both records
+// it AND advances - so the shared Next button is hidden for those.
+
+const onboardingSlides = document.querySelectorAll(".onboarding-slide");
+const onboardingDots = document.querySelectorAll(".onboarding-dot");
+const onboardingNextEl = document.getElementById("onboarding-next");
+
+const FIRST_CHOICE_SLIDE = 3;
+let currentOnboardingSlide = 0;
+
+function showOnboardingSlide(index) {
+  // .forEach on a NodeList (what querySelectorAll returns) works just
+  // like it does on a real array - runs the given function once per item.
+  onboardingSlides.forEach((slide, i) => {
+    slide.classList.toggle("hidden", i !== index);
+  });
+  onboardingDots.forEach((dot, i) => {
+    dot.classList.toggle("active", i === index);
+  });
+  onboardingNextEl.classList.toggle("hidden", index >= FIRST_CHOICE_SLIDE);
+}
+
+onboardingNextEl.addEventListener("click", () => {
+  currentOnboardingSlide += 1;
+  showOnboardingSlide(currentOnboardingSlide);
+});
+
+// Starting minimums per fitness level - chosen on the first question slide.
+const FITNESS_LEVELS = {
+  beginner: { pushups: 5, situps: 10, squats: 10 },
+  intermediate: { pushups: 15, situps: 20, squats: 20 },
+  advanced: { pushups: 30, situps: 30, squats: 40 },
+};
+
+let selectedFitnessLevel = "beginner";
+
+document.querySelectorAll(".onboarding-choice[data-level]").forEach((button) => {
+  button.addEventListener("click", () => {
+    selectedFitnessLevel = button.dataset.level;
+    currentOnboardingSlide = FIRST_CHOICE_SLIDE + 1;
+    showOnboardingSlide(currentOnboardingSlide);
+  });
+});
+
+document.querySelectorAll(".onboarding-choice[data-walkrun]").forEach((button) => {
+  button.addEventListener("click", () => {
+    finishOnboarding(button.dataset.walkrun === "yes");
+  });
+});
+
+// Builds the guest's actual starting data from their two answers, saves
+// it as this browser's local data, then drops them into the app - same
+// mechanism showAppAsGuest() always uses, just pre-seeded instead of
+// starting from plain defaults.
+function finishOnboarding(wantsWalkRun) {
+  localStorage.setItem("streakfit-seen-onboarding", "true");
+
+  const initial = defaultData();
+  initial.minimums = {
+    ...FITNESS_LEVELS[selectedFitnessLevel],
+    walkRun: wantsWalkRun ? 15 : null,
+  };
+  localStorage.setItem("streakfit-data", JSON.stringify(initial));
+
+  showAppAsGuest();
+}
+
+
+// STEP 7: Register the service worker, if the browser supports one.
 // "serviceWorker" in navigator is a feature check - older browsers that
 // don't support service workers simply skip this without erroring.
 if ("serviceWorker" in navigator) {
