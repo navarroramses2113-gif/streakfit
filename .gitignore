@@ -11,3 +11,8 @@ Thumbs.db
 .env.*.local
 *.pem
 *.key
+
+# AI assistant tooling/skills - local dev aids, not part of the app itself.
+.agents/
+.claude/
+skills-lock.json
