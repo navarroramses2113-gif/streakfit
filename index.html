@@ -8,6 +8,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=2">
 
+  <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
+       OpenStreetMap tiles - no API key needed. -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <!-- PWA: lets the browser offer "Install App" / "Add to Home Screen" -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#22c55e">
@@ -160,6 +165,53 @@
     <button id="reset-password-submit" class="auth-submit-button">Update Password</button>
   </main>
 
+  <!-- Live GPS tracking, shown while a walk/run is in progress. -->
+  <main id="tracking-screen" class="card hidden">
+    <div class="tracking-stats">
+      <div class="tracking-stat">
+        <span id="tracking-time" class="tracking-stat-value">0:00</span>
+        <span class="tracking-stat-label">Time</span>
+      </div>
+      <div class="tracking-stat">
+        <span id="tracking-distance" class="tracking-stat-value">0.00</span>
+        <span id="tracking-distance-label" class="tracking-stat-label">mi</span>
+      </div>
+    </div>
+
+    <div id="tracking-map"></div>
+
+    <p id="tracking-error" class="error"></p>
+
+    <div class="tracking-buttons">
+      <button id="tracking-cancel" class="tracking-cancel-button">Cancel</button>
+      <button id="tracking-finish" class="auth-submit-button">Finish</button>
+    </div>
+  </main>
+
+  <!-- Shown once after finishing a tracked walk/run. -->
+  <main id="tracking-summary-screen" class="card hidden">
+    <p class="motivation">Nice work!</p>
+
+    <div class="tracking-stats">
+      <div class="tracking-stat">
+        <span id="summary-time" class="tracking-stat-value">0:00</span>
+        <span class="tracking-stat-label">Time</span>
+      </div>
+      <div class="tracking-stat">
+        <span id="summary-distance" class="tracking-stat-value">0.00</span>
+        <span id="summary-distance-label" class="tracking-stat-label">mi</span>
+      </div>
+      <div class="tracking-stat">
+        <span id="summary-pace" class="tracking-stat-value">0:00</span>
+        <span id="summary-pace-label" class="tracking-stat-label">/mi</span>
+      </div>
+    </div>
+
+    <div id="summary-map"></div>
+
+    <button id="tracking-summary-done" class="auth-submit-button">Done</button>
+  </main>
+
   <!-- The actual app - hidden until we know the user is logged in. -->
   <main id="app-screen" class="card hidden">
     <div class="brand">
@@ -205,6 +257,9 @@
         <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 12 6 12 9 4 14 20 17 12 22 12"/></svg></span>
         <label for="walkrun">Walk/Run (minutes)</label>
         <span id="walkrun-min-tag" class="min-tag">min 15</span>
+        <button id="start-tracking-button" class="start-tracking-button" title="Track with GPS">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        </button>
         <input type="number" id="walkrun" min="0" value="0">
       </div>
 
@@ -259,6 +314,13 @@
         <div id="min-walkrun-row" class="settings-row hidden">
           <label for="min-walkrun">Walk/Run minutes</label>
           <input type="number" id="min-walkrun" min="1" value="15">
+        </div>
+        <div id="units-row" class="settings-row hidden">
+          <label for="distance-units">Distance units</label>
+          <select id="distance-units">
+            <option value="miles">Miles</option>
+            <option value="km">Kilometers</option>
+          </select>
         </div>
 
         <button id="save-settings">Save</button>

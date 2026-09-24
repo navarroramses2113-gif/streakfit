@@ -29,6 +29,8 @@ function defaultData() {
     minimums: { pushups: 10, situps: 10, squats: 10, walkRun: null },
     restDaysUsed: 0,
     weekStartDate: null,
+    units: "miles",
+    lastRoute: null,
   };
 }
 
@@ -43,6 +45,8 @@ function migrateData(parsed) {
     parsed.restDaysUsed = 0;
     parsed.weekStartDate = null;
   }
+  if (!parsed.units) parsed.units = "miles";
+  if (parsed.lastRoute === undefined) parsed.lastRoute = null;
   return parsed;
 }
 
@@ -129,6 +133,8 @@ const minSquatsEl = document.getElementById("min-squats");
 const enableWalkrunEl = document.getElementById("enable-walkrun");
 const minWalkrunEl = document.getElementById("min-walkrun");
 const minWalkrunRowEl = document.getElementById("min-walkrun-row");
+const unitsRowEl = document.getElementById("units-row");
+const distanceUnitsEl = document.getElementById("distance-units");
 const saveSettingsEl = document.getElementById("save-settings");
 
 // Shows/hides the minutes input in Settings the instant the checkbox is
@@ -136,6 +142,7 @@ const saveSettingsEl = document.getElementById("save-settings");
 // to configure.
 enableWalkrunEl.addEventListener("change", () => {
   minWalkrunRowEl.classList.toggle("hidden", !enableWalkrunEl.checked);
+  unitsRowEl.classList.toggle("hidden", !enableWalkrunEl.checked);
 });
 
 // Shows the current minimums next to each exercise (e.g. "min 15").
@@ -160,6 +167,8 @@ function renderSettingsInputs() {
   enableWalkrunEl.checked = walkRunEnabled;
   minWalkrunEl.value = walkRunEnabled ? data.minimums.walkRun : 15;
   minWalkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
+  unitsRowEl.classList.toggle("hidden", !walkRunEnabled);
+  distanceUnitsEl.value = data.units;
 }
 
 saveSettingsEl.addEventListener("click", () => {
@@ -167,6 +176,7 @@ saveSettingsEl.addEventListener("click", () => {
   data.minimums.situps = Number(minSitupsEl.value) || 1;
   data.minimums.squats = Number(minSquatsEl.value) || 1;
   data.minimums.walkRun = enableWalkrunEl.checked ? (Number(minWalkrunEl.value) || 1) : null;
+  data.units = distanceUnitsEl.value;
 
   saveData(data);
   renderMinTags();
@@ -234,6 +244,7 @@ function render() {
   const walkRunEnabled = data.minimums.walkRun !== null;
   walkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
   walkrunEl.disabled = loggedToday;
+  startTrackingButtonEl.disabled = loggedToday;
 
   const beforeReset = data.weekStartDate;
   refreshRestDayWeek();
@@ -353,7 +364,7 @@ function hideSplash() {
 // "hide this one" line added into every other show-a-different-screen
 // function (which is exactly how the reset-password screen almost got
 // left out of revealApp() below).
-const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen"];
+const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-screen", "tracking-summary-screen"];
 
 function showScreen(idToShow) {
   SCREEN_IDS.forEach((id) => {
@@ -916,7 +927,220 @@ function finishOnboarding(wantsWalkRun) {
 }
 
 
-// STEP 7: Register the service worker, if the browser supports one.
+// STEP 7: GPS walk/run tracking - a live map, distance, and timer.
+
+const startTrackingButtonEl = document.getElementById("start-tracking-button");
+const trackingTimeEl = document.getElementById("tracking-time");
+const trackingDistanceEl = document.getElementById("tracking-distance");
+const trackingDistanceLabelEl = document.getElementById("tracking-distance-label");
+const trackingErrorEl = document.getElementById("tracking-error");
+const trackingCancelEl = document.getElementById("tracking-cancel");
+const trackingFinishEl = document.getElementById("tracking-finish");
+const summaryTimeEl = document.getElementById("summary-time");
+const summaryDistanceEl = document.getElementById("summary-distance");
+const summaryDistanceLabelEl = document.getElementById("summary-distance-label");
+const summaryPaceEl = document.getElementById("summary-pace");
+const summaryPaceLabelEl = document.getElementById("summary-pace-label");
+const trackingSummaryDoneEl = document.getElementById("tracking-summary-done");
+
+// Everything about the CURRENT tracking session lives in one object, so
+// starting a new session is just replacing this rather than resetting a
+// dozen separate variables individually.
+let session = null;
+
+function milesFromKm(km) {
+  return km * 0.621371;
+}
+
+// The distance "as the crow flies" between two GPS points, in km - the
+// standard formula for this (haversine) accounts for the Earth being a
+// sphere rather than a flat plane.
+function haversineDistanceKm(lat1, lon1, lat2, lon2) {
+  const EARTH_RADIUS_KM = 6371;
+  const toRadians = (deg) => (deg * Math.PI) / 180;
+
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
+  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Formats milliseconds as "M:SS" (or "H:MM:SS" past an hour).
+function formatDuration(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const paddedSeconds = String(seconds).padStart(2, "0");
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${paddedSeconds}`;
+  }
+  return `${minutes}:${paddedSeconds}`;
+}
+
+function distanceUnitLabel() {
+  return data.units === "km" ? "km" : "mi";
+}
+
+function displayDistance(km) {
+  const value = data.units === "km" ? km : milesFromKm(km);
+  return value.toFixed(2);
+}
+
+function createTrackingMap(containerId) {
+  const map = L.map(containerId);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors",
+    maxZoom: 19,
+  }).addTo(map);
+  return map;
+}
+
+function startTracking() {
+  if (!("geolocation" in navigator)) {
+    trackingErrorEl.textContent = "GPS isn't available on this device/browser.";
+    showScreen("tracking-screen");
+    return;
+  }
+
+  session = {
+    route: [],
+    distanceKm: 0,
+    startTime: Date.now(),
+    watchId: null,
+    timerId: null,
+    map: null,
+    polyline: null,
+    marker: null,
+  };
+
+  trackingErrorEl.textContent = "";
+  trackingTimeEl.textContent = "0:00";
+  trackingDistanceEl.textContent = "0.00";
+  trackingDistanceLabelEl.textContent = distanceUnitLabel();
+
+  showScreen("tracking-screen");
+
+  // The map container must actually be visible on screen before Leaflet
+  // can measure it correctly, so it's created here (after showScreen)
+  // rather than up front.
+  session.map = createTrackingMap("tracking-map");
+  session.map.setView([0, 0], 16);
+  session.polyline = L.polyline([], { color: "#22c55e", weight: 4 }).addTo(session.map);
+
+  session.timerId = setInterval(() => {
+    trackingTimeEl.textContent = formatDuration(Date.now() - session.startTime);
+  }, 1000);
+
+  session.watchId = navigator.geolocation.watchPosition(onTrackingPosition, onTrackingError, {
+    enableHighAccuracy: true,
+    maximumAge: 0,
+  });
+}
+
+function onTrackingPosition(position) {
+  const { latitude, longitude } = position.coords;
+  const point = [latitude, longitude];
+  const previousPoint = session.route[session.route.length - 1];
+
+  if (previousPoint) {
+    session.distanceKm += haversineDistanceKm(previousPoint[0], previousPoint[1], latitude, longitude);
+  }
+
+  session.route.push(point);
+  session.polyline.addLatLng(point);
+
+  if (session.marker) {
+    session.marker.setLatLng(point);
+  } else {
+    session.marker = L.circleMarker(point, { radius: 7, color: "#22c55e", fillOpacity: 1 }).addTo(session.map);
+  }
+
+  session.map.setView(point, session.map.getZoom() < 15 ? 16 : session.map.getZoom());
+  trackingDistanceEl.textContent = displayDistance(session.distanceKm);
+}
+
+function onTrackingError(error) {
+  trackingErrorEl.textContent =
+    error.code === error.PERMISSION_DENIED
+      ? "Location permission denied - allow it in your browser settings to track a route."
+      : "Couldn't get your location. Check your GPS/location settings.";
+}
+
+// Stops watching GPS and the timer, but keeps `session`'s data around so
+// the caller can still read the final distance/route/duration from it.
+function stopTrackingWatchers() {
+  if (session.watchId !== null) navigator.geolocation.clearWatch(session.watchId);
+  if (session.timerId !== null) clearInterval(session.timerId);
+}
+
+trackingCancelEl.addEventListener("click", () => {
+  stopTrackingWatchers();
+  session = null;
+  showScreen("app-screen");
+});
+
+trackingFinishEl.addEventListener("click", () => {
+  stopTrackingWatchers();
+
+  const durationMs = Date.now() - session.startTime;
+  const durationMinutes = Math.max(1, Math.round(durationMs / 60000));
+
+  // Auto-fill the manual minutes field, same as if it had been typed in -
+  // the rest of the day-logging logic doesn't need to know GPS was involved.
+  walkrunEl.value = durationMinutes;
+  render();
+
+  // Keep just the most recent route (not a full history archive) - enough
+  // to show the "nice work" recap without the saved data growing forever.
+  data.lastRoute = {
+    date: todayString(),
+    distanceKm: session.distanceKm,
+    durationMs,
+    route: session.route,
+  };
+  saveData(data);
+
+  showTrackingSummary(session.route, session.distanceKm, durationMs);
+  session = null;
+});
+
+function showTrackingSummary(route, distanceKm, durationMs) {
+  summaryTimeEl.textContent = formatDuration(durationMs);
+  summaryDistanceEl.textContent = displayDistance(distanceKm);
+  summaryDistanceLabelEl.textContent = distanceUnitLabel();
+
+  const distanceInUnits = data.units === "km" ? distanceKm : milesFromKm(distanceKm);
+  if (distanceInUnits > 0) {
+    const paceMsPerUnit = durationMs / distanceInUnits;
+    summaryPaceEl.textContent = formatDuration(paceMsPerUnit);
+  } else {
+    summaryPaceEl.textContent = "--";
+  }
+  summaryPaceLabelEl.textContent = `/${distanceUnitLabel()}`;
+
+  showScreen("tracking-summary-screen");
+
+  const map = createTrackingMap("summary-map");
+  if (route.length > 0) {
+    const polyline = L.polyline(route, { color: "#22c55e", weight: 4 }).addTo(map);
+    map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+  } else {
+    map.setView([0, 0], 2);
+  }
+}
+
+trackingSummaryDoneEl.addEventListener("click", () => {
+  showScreen("app-screen");
+});
+
+startTrackingButtonEl.addEventListener("click", startTracking);
+
+
+// STEP 8: Register the service worker, if the browser supports one.
 // "serviceWorker" in navigator is a feature check - older browsers that
 // don't support service workers simply skip this without erroring.
 if ("serviceWorker" in navigator) {
