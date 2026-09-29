@@ -68,3 +68,39 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(event.request))
   );
 });
+
+// "push" fires when a push message arrives from the server, even if no tab
+// has the app open. This is the part that actually puts a notification on
+// the screen - everything else (permission, subscribing) just sets this up.
+self.addEventListener("push", (event) => {
+  let payload = { title: "Forja", body: "Don't lose your streak today!" };
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch (err) {
+      payload.body = event.data.text();
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: "./icons/icon-192.png",
+      badge: "./icons/icon-192.png",
+    })
+  );
+});
+
+// Tapping the notification should bring an existing tab to the front
+// instead of always opening a fresh one.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ("focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow("./");
+    })
+  );
+});

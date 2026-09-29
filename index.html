@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Forja</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -165,32 +165,72 @@
     <button id="reset-password-submit" class="auth-submit-button">Update Password</button>
   </main>
 
-  <!-- Live GPS tracking, shown while a walk/run is in progress. -->
-  <main id="tracking-screen" class="card hidden">
-    <div class="tracking-stats">
-      <div class="tracking-stat">
-        <span id="tracking-time" class="tracking-stat-value">0:00</span>
-        <span class="tracking-stat-label">Time</span>
-      </div>
-      <div class="tracking-stat">
-        <span id="tracking-distance" class="tracking-stat-value">0.00</span>
-        <span id="tracking-distance-label" class="tracking-stat-label">mi</span>
-      </div>
+  <!-- Full calendar view, opened by tapping the small heatmap. -->
+  <main id="calendar-screen" class="card hidden">
+    <div class="calendar-header">
+      <button id="calendar-prev-month" class="calendar-nav-button" title="Previous month">‹</button>
+      <p id="calendar-month-label" class="section-heading">Month Year</p>
+      <button id="calendar-next-month" class="calendar-nav-button" title="Next month">›</button>
     </div>
 
-    <div id="tracking-map"></div>
-
-    <p id="tracking-error" class="error"></p>
-
-    <div class="tracking-buttons">
-      <button id="tracking-cancel" class="tracking-cancel-button">Cancel</button>
-      <button id="tracking-finish" class="auth-submit-button">Finish</button>
+    <div class="calendar-weekdays">
+      <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
     </div>
+
+    <div id="calendar-grid" class="calendar-grid"></div>
+
+    <button id="calendar-close-button" class="auth-submit-button">Close</button>
+  </main>
+
+  <!-- Followers/Following list, opened by tapping either stat on the
+       Me tab's profile header. -->
+  <main id="follow-list-screen" class="card hidden">
+    <h1 id="follow-list-title" class="large-title">Followers</h1>
+    <div id="follow-list" class="leaderboard"></div>
+    <button id="follow-list-close-button" class="auth-submit-button">Close</button>
+  </main>
+
+  <!-- Block/report another user - opened via the "more options" button on
+       leaderboard rows, friend request rows, and follow list rows. Exists
+       to satisfy Apple's user-generated-content moderation requirement
+       (Guideline 1.2): usernames are typed by other people, so users need
+       a way to report or cut off contact with someone. -->
+  <main id="user-actions-screen" class="card hidden">
+    <h1 class="large-title">Manage User</h1>
+    <p id="user-actions-subtitle" class="preview-note"></p>
+
+    <div id="user-actions-menu" class="account-menu">
+      <button id="open-report-button" class="account-menu-item">
+        Report User
+        <span class="account-menu-chevron">&rsaquo;</span>
+      </button>
+      <button id="open-block-button" class="account-menu-item">
+        Block User
+        <span class="account-menu-chevron">&rsaquo;</span>
+      </button>
+    </div>
+
+    <div id="report-reason-section" class="hidden">
+      <p class="settings-title">What's wrong with this account?</p>
+      <div class="auth-fields">
+        <input type="text" id="report-reason-input" maxlength="200" placeholder="Reason (optional)">
+      </div>
+      <p id="report-status-message" class="error"></p>
+      <button id="submit-report-button" class="auth-submit-button">Submit Report</button>
+    </div>
+
+    <div id="block-confirm-section" class="hidden">
+      <p class="settings-title">Block this user?</p>
+      <p class="preview-note">They won't be able to send you a friend request again, and any existing connection between you will be removed.</p>
+      <button id="confirm-block-button" class="auth-submit-button block-confirm-button">Block User</button>
+    </div>
+
+    <button id="user-actions-close-button" class="tracking-cancel-button full-width-button">Cancel</button>
   </main>
 
   <!-- Shown once after finishing a tracked walk/run. -->
   <main id="tracking-summary-screen" class="card hidden">
-    <p class="motivation">Nice work!</p>
+    <p id="tracking-summary-heading" class="motivation">Nice work!</p>
 
     <div class="tracking-stats">
       <div class="tracking-stat">
@@ -205,20 +245,29 @@
         <span id="summary-pace" class="tracking-stat-value">0:00</span>
         <span id="summary-pace-label" class="tracking-stat-label">/mi</span>
       </div>
+      <div class="tracking-stat">
+        <span id="summary-elevation" class="tracking-stat-value">0</span>
+        <span id="summary-elevation-label" class="tracking-stat-label">ft gain</span>
+      </div>
     </div>
 
     <div id="summary-map"></div>
 
-    <button id="tracking-summary-done" class="auth-submit-button">Done</button>
+    <div id="keep-discard-section">
+      <p class="preview-note">Keep this route so you can look back at it later?</p>
+      <div class="tracking-buttons">
+        <button id="discard-route-button" class="tracking-cancel-button">Discard</button>
+        <button id="keep-route-button" class="auth-submit-button">Keep Route</button>
+      </div>
+    </div>
+
+    <button id="tracking-summary-close-button" class="auth-submit-button hidden">Close</button>
   </main>
 
   <!-- The actual app - hidden until we know the user is logged in. -->
   <main id="app-screen" class="card hidden">
-    <div class="brand">
-      <span class="brand-word">Forja</span>
-    </div>
-
     <div id="tab-today" class="tab-panel">
+      <h1 class="large-title">Today</h1>
       <p id="motivation-message" class="motivation"></p>
 
       <div class="stat-container">
@@ -269,12 +318,63 @@
     </div>
 
     <div id="tab-competition" class="tab-panel hidden">
-      <p class="preview-note"><svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Preview - adding real friends is coming soon</p>
-      <div id="leaderboard" class="leaderboard"></div>
-      <button id="add-friends-button" class="add-friends-button" disabled>Add Friends (Coming Soon)</button>
+      <h1 class="large-title">Competition</h1>
+
+      <div id="competition-guest-prompt" class="hidden">
+        <p class="onboarding-text">Create an account to add friends and compare streaks.</p>
+      </div>
+
+      <div id="username-setup-section" class="hidden">
+        <p class="section-heading">Choose a Username</p>
+        <p class="onboarding-text">Pick a username so friends can find you - this is never your email.</p>
+        <div class="auth-fields">
+          <input type="text" id="set-username-input" placeholder="Username" autocomplete="off">
+        </div>
+        <p id="username-error" class="error"></p>
+        <button id="save-username-button" class="auth-submit-button">Save Username</button>
+      </div>
+
+      <div id="friends-section" class="hidden">
+        <p class="section-heading">Add a Friend</p>
+        <div class="auth-fields">
+          <input type="text" id="friend-username-input" placeholder="Their username" autocomplete="off">
+        </div>
+        <p id="friend-add-error" class="error"></p>
+        <button id="send-friend-request-button" class="auth-submit-button">Send Request</button>
+
+        <div id="friend-requests-section" class="hidden">
+          <p class="section-heading">Friend Requests</p>
+          <div id="friend-requests-list" class="leaderboard"></div>
+        </div>
+
+        <p class="section-heading">Leaderboard</p>
+        <div id="leaderboard" class="leaderboard"></div>
+      </div>
     </div>
 
     <div id="tab-me" class="tab-panel hidden">
+      <h1 class="large-title">Me</h1>
+
+      <div id="profile-header" class="profile-header hidden">
+        <div class="profile-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+        </div>
+        <div class="profile-header-info">
+          <p id="profile-header-username" class="profile-username"></p>
+          <div class="profile-follow-stats">
+            <button id="followers-button" class="follow-stat-button">
+              <span id="followers-count" class="follow-stat-count">0</span>
+              <span class="follow-stat-label">Followers</span>
+            </button>
+            <button id="following-button" class="follow-stat-button">
+              <span id="following-count" class="follow-stat-count">0</span>
+              <span class="follow-stat-label">Following</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <p id="profile-header-prompt" class="preview-note hidden">Set a username in Edit Profile to create your public profile.</p>
+
       <p class="section-heading">Progress</p>
       <div class="stats-footer">
         <div class="stat-tile">
@@ -287,12 +387,54 @@
         </div>
       </div>
 
-      <div class="heatmap-section">
-        <p class="heatmap-label">Last 8 weeks</p>
-        <div id="heatmap" class="heatmap-grid"></div>
+      <div class="progress-visuals">
+        <button id="heatmap-section" class="heatmap-section">
+          <p class="heatmap-label">8 Weeks <span class="heatmap-tap-hint">›</span></p>
+          <div id="heatmap" class="heatmap-grid"></div>
+        </button>
+
+        <div class="distance-chart-section">
+          <p class="heatmap-label">Distance</p>
+          <svg id="distance-chart" class="distance-chart" viewBox="0 0 130 100" preserveAspectRatio="none"></svg>
+          <p id="distance-chart-detail" class="distance-chart-detail"></p>
+        </div>
       </div>
 
-      <div class="settings-panel">
+      <p class="section-heading">Account</p>
+      <div class="account-menu">
+        <button id="edit-profile-button" class="account-menu-item hidden">
+          <span>Edit Profile</span>
+          <span class="account-menu-chevron">›</span>
+        </button>
+        <button id="share-profile-button" class="account-menu-item hidden">
+          <span>Share Profile</span>
+          <span class="account-menu-chevron">›</span>
+        </button>
+        <button id="open-settings-button" class="account-menu-item">
+          <span>Settings</span>
+          <span class="account-menu-chevron">›</span>
+        </button>
+      </div>
+
+      <div id="edit-profile-panel" class="settings-panel hidden">
+        <p class="settings-title">Edit Profile</p>
+        <div class="settings-row">
+          <label for="profile-username">Username</label>
+          <input type="text" id="profile-username" autocomplete="off">
+        </div>
+        <div class="settings-row">
+          <label for="profile-email">Email</label>
+          <input type="email" id="profile-email" autocomplete="email">
+        </div>
+        <div class="settings-row">
+          <label for="profile-phone">Phone</label>
+          <input type="tel" id="profile-phone" placeholder="Optional" autocomplete="tel">
+        </div>
+        <p id="edit-profile-error" class="error"></p>
+        <button id="save-profile-button" class="auth-submit-button">Save Profile</button>
+      </div>
+
+      <div id="settings-panel" class="settings-panel hidden">
         <p class="settings-title">Daily Minimums</p>
         <div class="settings-row">
           <label for="min-pushups">Push-ups</label>
@@ -323,11 +465,59 @@
           </select>
         </div>
 
+        <div class="settings-row settings-checkbox-row">
+          <label for="enable-reminders">Daily Reminders</label>
+          <input type="checkbox" id="enable-reminders">
+        </div>
+        <p id="reminders-status" class="error"></p>
+        <button id="test-notification-button" class="tracking-cancel-button full-width-button">Send Test Notification</button>
+
         <button id="save-settings">Save</button>
       </div>
 
       <button id="log-out-button" class="log-out-button hidden">Log Out</button>
       <button id="guest-signup-button" class="guest-signup-button hidden">Sign Up to Save Your Progress</button>
+    </div>
+
+    <div id="tab-record" class="tab-panel hidden">
+      <h1 class="large-title">Record</h1>
+
+      <div id="record-tracking-stats" class="tracking-stats hidden">
+        <div class="tracking-stat">
+          <span id="tracking-time" class="tracking-stat-value">0:00</span>
+          <span class="tracking-stat-label">Time</span>
+        </div>
+        <div class="tracking-stat">
+          <span id="tracking-distance" class="tracking-stat-value">0.00</span>
+          <span id="tracking-distance-label" class="tracking-stat-label">mi</span>
+        </div>
+        <div class="tracking-stat">
+          <span id="tracking-pace" class="tracking-stat-value">--</span>
+          <span id="tracking-pace-label" class="tracking-stat-label">/mi</span>
+        </div>
+        <div class="tracking-stat">
+          <span id="tracking-elevation" class="tracking-stat-value">0</span>
+          <span id="tracking-elevation-label" class="tracking-stat-label">ft gain</span>
+        </div>
+      </div>
+
+      <div id="record-map"></div>
+
+      <p id="tracking-error" class="error"></p>
+
+      <div id="record-idle-panel">
+        <button id="record-start-button" class="auth-submit-button">Start Tracking</button>
+
+        <p class="section-heading record-past-routes-heading">Past Routes</p>
+        <p id="past-routes-empty" class="preview-note">No routes recorded yet.</p>
+        <div id="past-routes-list" class="leaderboard"></div>
+      </div>
+
+      <div id="record-active-panel" class="tracking-buttons hidden">
+        <button id="tracking-cancel" class="tracking-cancel-button">Cancel</button>
+        <button id="tracking-pause" class="tracking-pause-button">Pause</button>
+        <button id="tracking-finish" class="auth-submit-button">Finish</button>
+      </div>
     </div>
 
     <nav class="tab-bar">
@@ -338,6 +528,10 @@
       <button id="tab-btn-competition" class="tab-btn">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v6a4 4 0 0 1-8 0V4z"/><path d="M8 5H5a2 2 0 0 0 0 4h3"/><path d="M16 5h3a2 2 0 0 1 0 4h-3"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="9" y1="21" x2="15" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg></span>
         <span class="tab-text">Competition</span>
+      </button>
+      <button id="tab-btn-record" class="tab-btn">
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
+        <span class="tab-text">Record</span>
       </button>
       <button id="tab-btn-me" class="tab-btn">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></span>

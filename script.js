@@ -8,6 +8,13 @@
 const SUPABASE_URL = "https://wiixtjykewtqvpxqwtor.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpaXh0anlrZXd0cXZweHF3dG9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMTI3ODIsImV4cCI6MjEwNTc4ODc4Mn0.WKij4ltTLv_qNfKrT5vO8y1tyjQk2IAdz7WYDTemS80";
 
+// The PUBLIC half of a VAPID key pair - safe to expose client-side, same
+// trust level as the Supabase anon key above. It just proves to the push
+// service (Apple's, Google's, etc.) which server is allowed to send to a
+// given subscription; it can't be used to send anything by itself. The
+// PRIVATE half lives only server-side, never in this file.
+const VAPID_PUBLIC_KEY = "BDbknJwLFn1rKbU5fImh75k6LHtrktnNi_kMwOAWonpds6RyrzuOa16QBIfqbR4rOWSNEuXccvgCM1fJfFGF2PY";
+
 // `supabase` (lowercase, no "Client") is the global the CDN script tag
 // creates. We name OUR instance `supabaseClient` so the two don't clash.
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -30,7 +37,10 @@ function defaultData() {
     restDaysUsed: 0,
     weekStartDate: null,
     units: "miles",
-    lastRoute: null,
+    // Every KEPT route, forever - {date, distanceKm, durationMs,
+    // encodedRoute}. encodedRoute is a compressed string (see the
+    // simplifyRoute/encodePolyline functions below), not raw GPS points.
+    routes: [],
   };
 }
 
@@ -46,7 +56,37 @@ function migrateData(parsed) {
     parsed.weekStartDate = null;
   }
   if (!parsed.units) parsed.units = "miles";
-  if (parsed.lastRoute === undefined) parsed.lastRoute = null;
+
+  // One-time migration from the old lastRoute/routeLog fields (which
+  // only ever kept one full route plus a distance-only log of the rest)
+  // into the new permanent `routes` array.
+  if (!parsed.routes) {
+    parsed.routes = (parsed.routeLog || []).map((entry) => ({
+      date: entry.date,
+      distanceKm: entry.distanceKm,
+      durationMs: null,
+      encodedRoute: null, // the old log never stored the actual path
+    }));
+
+    if (parsed.lastRoute) {
+      const encodedRoute = encodePolyline(simplifyRoute(parsed.lastRoute.route, ROUTE_SIMPLIFY_TOLERANCE));
+      const existing = parsed.routes.find((r) => r.date === parsed.lastRoute.date);
+      if (existing) {
+        existing.durationMs = parsed.lastRoute.durationMs;
+        existing.encodedRoute = encodedRoute;
+      } else {
+        parsed.routes.push({
+          date: parsed.lastRoute.date,
+          distanceKm: parsed.lastRoute.distanceKm,
+          durationMs: parsed.lastRoute.durationMs,
+          encodedRoute,
+        });
+      }
+    }
+  }
+  delete parsed.lastRoute;
+  delete parsed.routeLog;
+
   return parsed;
 }
 
@@ -145,6 +185,124 @@ enableWalkrunEl.addEventListener("change", () => {
   unitsRowEl.classList.toggle("hidden", !enableWalkrunEl.checked);
 });
 
+// STEP 2b: Account menu on the Me tab - Edit Profile, Share Profile,
+// and a Settings toggle that just reveals the existing Daily Minimums
+// panel (a full standalone Settings section is planned for later).
+
+const editProfilePanelEl = document.getElementById("edit-profile-panel");
+const settingsPanelEl = document.getElementById("settings-panel");
+
+document.getElementById("open-settings-button").addEventListener("click", () => {
+  editProfilePanelEl.classList.add("hidden");
+  settingsPanelEl.classList.toggle("hidden");
+  if (!settingsPanelEl.classList.contains("hidden")) refreshRemindersToggle();
+});
+
+document.getElementById("edit-profile-button").addEventListener("click", async () => {
+  settingsPanelEl.classList.add("hidden");
+  document.getElementById("edit-profile-error").textContent = "";
+
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+  document.getElementById("profile-email").value = user ? user.email : "";
+
+  // Fetch straight from the database rather than trusting the in-memory
+  // `myUsername` variable - it's only ever set after visiting the
+  // Competition tab, so it could still be null here even for someone
+  // who already has a saved username.
+  const { data: profile } = await supabaseClient
+    .from("profiles")
+    .select("username, phone")
+    .eq("user_id", currentUserId)
+    .maybeSingle();
+
+  if (profile) {
+    myUsername = profile.username;
+  }
+  document.getElementById("profile-username").value = myUsername || "";
+  document.getElementById("profile-phone").value = (profile && profile.phone) || "";
+
+  editProfilePanelEl.classList.toggle("hidden");
+});
+
+document.getElementById("save-profile-button").addEventListener("click", async () => {
+  const errorEl = document.getElementById("edit-profile-error");
+  const newUsername = document.getElementById("profile-username").value.trim();
+  const newEmail = document.getElementById("profile-email").value.trim();
+  const newPhone = document.getElementById("profile-phone").value.trim();
+
+  errorEl.textContent = "";
+  errorEl.classList.remove("success");
+
+  if (!USERNAME_PATTERN.test(newUsername)) {
+    errorEl.textContent = "Username must be 3-20 characters: letters, numbers, underscores only.";
+    return;
+  }
+
+  // Username and phone live in our own `profiles` table - a plain
+  // update, no special verification needed for either.
+  if (newUsername !== myUsername || newPhone) {
+    // upsert (not update): someone who opened Edit Profile without ever
+    // setting a username has no `profiles` row yet, so a plain update
+    // would silently affect zero rows instead of actually saving anything.
+    const { error } = await supabaseClient
+      .from("profiles")
+      .upsert({ user_id: currentUserId, username: newUsername, phone: newPhone || null });
+
+    if (error) {
+      errorEl.textContent = error.code === "23505" ? "That username is already taken." : "Couldn't save your profile. Try again.";
+      return;
+    }
+    myUsername = newUsername;
+    // Refresh the Me tab's profile header in case a username was just
+    // set for the first time here rather than on the Competition tab.
+    enterMeTab();
+  }
+
+  // Email is your actual login credential, so Supabase requires
+  // confirming the change via a link sent to the NEW address before it
+  // actually takes effect - it does NOT change instantly.
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+
+  if (user && newEmail !== user.email) {
+    const { error } = await supabaseClient.auth.updateUser({ email: newEmail });
+    if (error) {
+      errorEl.textContent = error.message;
+      return;
+    }
+    errorEl.textContent = "Profile saved. Check your new email to confirm the email change.";
+    errorEl.classList.add("success");
+    return;
+  }
+
+  errorEl.textContent = "Profile saved.";
+  errorEl.classList.add("success");
+});
+
+document.getElementById("share-profile-button").addEventListener("click", async () => {
+  const shareText = myUsername
+    ? `Add me on Forja! My username is ${myUsername}`
+    : "Check out Forja - a daily workout streak tracker!";
+
+  // Web Share API opens the phone's native share sheet (Messages, etc.)
+  // where supported; otherwise fall back to copying the text so it can
+  // still be pasted anywhere.
+  if (navigator.share) {
+    try {
+      await navigator.share({ text: shareText });
+    } catch (error) {
+      // The user simply canceling the share sheet also lands here -
+      // nothing to show an error for in that case.
+    }
+  } else {
+    await navigator.clipboard.writeText(shareText);
+    alert("Copied to clipboard!");
+  }
+});
+
 // Shows the current minimums next to each exercise (e.g. "min 15").
 function renderMinTags() {
   pushupsMinTagEl.textContent = `min ${data.minimums.pushups}`;
@@ -181,6 +339,114 @@ saveSettingsEl.addEventListener("click", () => {
   saveData(data);
   renderMinTags();
   render();
+});
+
+// STEP 2c: Push notification reminders. Requires an account (subscriptions
+// are tied to a user_id in the database) and, on iOS specifically, requires
+// the app to have been added to the Home Screen - regular Safari tabs never
+// receive Web Push on iOS regardless of permission.
+
+const enableRemindersEl = document.getElementById("enable-reminders");
+const remindersStatusEl = document.getElementById("reminders-status");
+
+// atob() gives raw bytes for a base64 string, but the push API wants a
+// Uint8Array in its own url-safe base64 variant - this converts between
+// the two. Boilerplate every Web Push implementation needs.
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+// Reflects whatever this browser's actual subscription state is (not just
+// a saved preference) into the checkbox, every time Settings is opened.
+async function refreshRemindersToggle() {
+  remindersStatusEl.textContent = "";
+
+  if (!currentUserId) {
+    enableRemindersEl.checked = false;
+    enableRemindersEl.disabled = true;
+    remindersStatusEl.textContent = "Sign in to enable reminders.";
+    return;
+  }
+
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    enableRemindersEl.checked = false;
+    enableRemindersEl.disabled = true;
+    remindersStatusEl.textContent = "Reminders aren't supported in this browser. On iPhone, add Forja to your Home Screen first.";
+    return;
+  }
+
+  enableRemindersEl.disabled = false;
+  const registration = await navigator.serviceWorker.ready;
+  const existingSubscription = await registration.pushManager.getSubscription();
+  enableRemindersEl.checked = !!existingSubscription;
+}
+
+enableRemindersEl.addEventListener("change", async () => {
+  remindersStatusEl.textContent = "";
+  remindersStatusEl.classList.remove("success");
+
+  if (enableRemindersEl.checked) {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      enableRemindersEl.checked = false;
+      remindersStatusEl.textContent = "Notification permission was denied.";
+      return;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+
+    const subscriptionJson = subscription.toJSON();
+    const { error } = await supabaseClient.from("push_subscriptions").upsert({
+      endpoint: subscriptionJson.endpoint,
+      user_id: currentUserId,
+      p256dh: subscriptionJson.keys.p256dh,
+      auth_key: subscriptionJson.keys.auth,
+    });
+
+    if (error) {
+      remindersStatusEl.textContent = "Couldn't save that. Try again.";
+      enableRemindersEl.checked = false;
+      return;
+    }
+
+    remindersStatusEl.textContent = "Reminders enabled.";
+    remindersStatusEl.classList.add("success");
+  } else {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      await supabaseClient.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint);
+      await subscription.unsubscribe();
+    }
+    remindersStatusEl.textContent = "Reminders turned off.";
+  }
+});
+
+// Temporary diagnostic button (not the real reminder system) - calls
+// showNotification() directly from the page instead of via a push message,
+// so it can confirm permission + service worker + display all work on this
+// phone before we build the actual server-side sending piece next.
+document.getElementById("test-notification-button").addEventListener("click", async () => {
+  if (Notification.permission !== "granted") {
+    remindersStatusEl.textContent = "Enable reminders above first.";
+    return;
+  }
+  const registration = await navigator.serviceWorker.ready;
+  registration.showNotification("Forja", {
+    body: "If you can see this, notifications work on this device!",
+    icon: "./icons/icon-192.png",
+    badge: "./icons/icon-192.png",
+  });
 });
 
 // Turns a Date object into a "YYYY-MM-DD" string using LOCAL time.
@@ -320,6 +586,179 @@ function renderHeatmap() {
   }
 }
 
+// Weekly distance line chart - a single series (your own distance), so
+// one consistent color throughout and no legend needed. Aggregates
+// data.routes (every KEPT route) into 8 weekly totals, oldest to newest,
+// matching the heatmap's 8-week window.
+
+function weeklyDistanceBuckets() {
+  const WEEKS = 8;
+  const buckets = [];
+
+  for (let weeksAgo = WEEKS - 1; weeksAgo >= 0; weeksAgo--) {
+    const weekEnd = new Date();
+    weekEnd.setDate(weekEnd.getDate() - weeksAgo * 7);
+    const weekStart = new Date(weekEnd);
+    weekStart.setDate(weekStart.getDate() - 6);
+
+    const weekStartStr = dateToString(weekStart);
+    const weekEndStr = dateToString(weekEnd);
+
+    // "YYYY-MM-DD" strings compare correctly with plain >= / <= since
+    // that format sorts the same alphabetically as chronologically.
+    const distanceKm = data.routes
+      .filter((entry) => entry.date >= weekStartStr && entry.date <= weekEndStr)
+      .reduce((total, entry) => total + entry.distanceKm, 0);
+
+    buckets.push({ weekStartStr, weekEndStr, distanceKm });
+  }
+
+  return buckets;
+}
+
+function renderDistanceChart() {
+  const svg = document.getElementById("distance-chart");
+  const detailEl = document.getElementById("distance-chart-detail");
+  svg.innerHTML = "";
+
+  const buckets = weeklyDistanceBuckets();
+  const values = buckets.map((b) => (data.units === "km" ? b.distanceKm : milesFromKm(b.distanceKm)));
+  const maxValue = Math.max(...values, 1); // avoids dividing by zero when nothing's been tracked yet
+
+  const chartWidth = 130;
+  const chartHeight = 100;
+  const topPadding = 10;
+  const bottomPadding = 15;
+  const plotHeight = chartHeight - topPadding - bottomPadding;
+  const stepX = chartWidth / (buckets.length - 1);
+
+  const points = values.map((value, index) => ({
+    x: index * stepX,
+    y: topPadding + plotHeight - (value / maxValue) * plotHeight,
+  }));
+
+  // SVG elements need to be created with this special "namespace"
+  // method (createElementNS), not the regular createElement we use
+  // everywhere else - plain HTML elements don't need one, but SVG does.
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
+  const baseline = document.createElementNS(SVG_NS, "line");
+  baseline.setAttribute("x1", "0");
+  baseline.setAttribute("x2", String(chartWidth));
+  baseline.setAttribute("y1", String(chartHeight - bottomPadding));
+  baseline.setAttribute("y2", String(chartHeight - bottomPadding));
+  baseline.setAttribute("class", "distance-chart-baseline");
+  svg.appendChild(baseline);
+
+  const polyline = document.createElementNS(SVG_NS, "polyline");
+  polyline.setAttribute("points", points.map((p) => `${p.x},${p.y}`).join(" "));
+  polyline.setAttribute("class", "distance-chart-line");
+  svg.appendChild(polyline);
+
+  function showWeekDetail(bucket, value) {
+    const label = new Date(bucket.weekStartStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    detailEl.textContent = `Week of ${label}: ${value.toFixed(1)} ${distanceUnitLabel()}`;
+  }
+
+  points.forEach((point, index) => {
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("cx", String(point.x));
+    dot.setAttribute("cy", String(point.y));
+    dot.setAttribute("r", "2.5");
+    dot.setAttribute("class", "distance-chart-dot");
+    svg.appendChild(dot);
+
+    // A bigger invisible circle on top of the visible dot - an actual
+    // 5px-wide dot is too small to reliably tap on a phone, so the real
+    // click target is larger than what you see.
+    const hitArea = document.createElementNS(SVG_NS, "circle");
+    hitArea.setAttribute("cx", String(point.x));
+    hitArea.setAttribute("cy", String(point.y));
+    hitArea.setAttribute("r", "9");
+    hitArea.setAttribute("class", "distance-chart-hit");
+    hitArea.addEventListener("click", () => showWeekDetail(buckets[index], values[index]));
+    svg.appendChild(hitArea);
+  });
+
+  // Show the most recent week's stats by default, so this line isn't
+  // just blank until you tap something.
+  showWeekDetail(buckets[buckets.length - 1], values[values.length - 1]);
+}
+
+// Full calendar view (opened by tapping the small heatmap) - shows every
+// day of a given month with actual date numbers, not just colored
+// squares, and lets you page between months to see any date's history.
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+// Which month is currently being viewed - reset to today's month every
+// time the calendar is opened.
+let calendarViewDate = new Date();
+
+function renderCalendarMonth() {
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+
+  document.getElementById("calendar-month-label").textContent = `${MONTH_NAMES[month]} ${year}`;
+
+  const gridEl = document.getElementById("calendar-grid");
+  gridEl.innerHTML = "";
+
+  const firstOfMonth = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate(); // day 0 of next month = last day of this one
+  const startWeekday = firstOfMonth.getDay(); // 0 = Sunday, matching the Su-Sa header
+
+  // Empty filler cells so day 1 lines up under its correct weekday column.
+  for (let i = 0; i < startWeekday; i++) {
+    const filler = document.createElement("div");
+    filler.className = "calendar-day empty";
+    gridEl.appendChild(filler);
+  }
+
+  const todayStr = todayString();
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = dateToString(new Date(year, month, day));
+
+    const cell = document.createElement("div");
+    cell.className = "calendar-day";
+    if (data.history.includes(dateStr)) {
+      cell.classList.add("completed");
+    }
+    if (dateStr === todayStr) {
+      cell.classList.add("is-today");
+    }
+    cell.textContent = day;
+
+    gridEl.appendChild(cell);
+  }
+}
+
+document.getElementById("heatmap-section").addEventListener("click", () => {
+  calendarViewDate = new Date();
+  renderCalendarMonth();
+  showScreen("calendar-screen");
+});
+
+document.getElementById("calendar-prev-month").addEventListener("click", () => {
+  // setMonth handles year rollover automatically (e.g. January - 1
+  // correctly becomes December of the previous year).
+  calendarViewDate.setMonth(calendarViewDate.getMonth() - 1);
+  renderCalendarMonth();
+});
+
+document.getElementById("calendar-next-month").addEventListener("click", () => {
+  calendarViewDate.setMonth(calendarViewDate.getMonth() + 1);
+  renderCalendarMonth();
+});
+
+document.getElementById("calendar-close-button").addEventListener("click", () => {
+  showScreen("app-screen");
+});
+
 // A pool of messages to rotate through. Feel free to edit/add your own.
 const MOTIVATIONS = [
   "Discipline is choosing between what you want now and what you want most.",
@@ -364,7 +803,7 @@ function hideSplash() {
 // "hide this one" line added into every other show-a-different-screen
 // function (which is exactly how the reset-password screen almost got
 // left out of revealApp() below).
-const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-screen", "tracking-summary-screen"];
+const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "calendar-screen", "follow-list-screen", "user-actions-screen"];
 
 function showScreen(idToShow) {
   SCREEN_IDS.forEach((id) => {
@@ -380,6 +819,7 @@ function showScreen(idToShow) {
 function revealApp() {
   render();
   renderHeatmap();
+  renderDistanceChart();
   renderMotivation();
   renderMinTags();
   renderSettingsInputs();
@@ -409,6 +849,10 @@ function showAppAsGuest() {
 function updateMeTabAuthSection() {
   document.getElementById("log-out-button").classList.toggle("hidden", !currentUserId);
   document.getElementById("guest-signup-button").classList.toggle("hidden", !!currentUserId);
+  // Editing/sharing a profile only makes sense for a real account - a
+  // guest has no username, email, or phone stored anywhere yet.
+  document.getElementById("edit-profile-button").classList.toggle("hidden", !currentUserId);
+  document.getElementById("share-profile-button").classList.toggle("hidden", !currentUserId);
 }
 
 // Runs when nobody is logged in.
@@ -590,6 +1034,10 @@ const TABS = {
     button: document.getElementById("tab-btn-me"),
     panel: document.getElementById("tab-me"),
   },
+  record: {
+    button: document.getElementById("tab-btn-record"),
+    panel: document.getElementById("tab-record"),
+  },
 };
 
 function showTab(tabName) {
@@ -600,59 +1048,457 @@ function showTab(tabName) {
   }
 
   if (tabName === "competition") {
-    renderLeaderboard();
+    enterCompetitionTab();
+  }
+  if (tabName === "record") {
+    enterRecordTab();
+  }
+  if (tabName === "me") {
+    enterMeTab();
   }
 }
 
 TABS.today.button.addEventListener("click", () => showTab("today"));
 TABS.competition.button.addEventListener("click", () => showTab("competition"));
 TABS.me.button.addEventListener("click", () => showTab("me"));
+TABS.record.button.addEventListener("click", () => showTab("record"));
 
 // Reusable icon markup - defined once, inserted wherever needed via
 // template literals, instead of repeating the same SVG code every time.
 const PERSON_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>';
 const FLAME_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-1 4-6 6-6 12a6 6 0 0 0 12 0c0-3-2-4-2-7-1 2-2 2-2 0 0-2-1-4-2-5z"/></svg>';
 
-// Fake friends, purely to preview what a real leaderboard will look like
-// once accounts/friends are built. "You" is mixed in using your real streak.
-// Every avatar is a generic silhouette for now - once real friends and
-// profile pictures exist, this is where an uploaded photo would go instead,
-// falling back to this same silhouette for anyone without one.
-const MOCK_FRIENDS = [
-  { name: "Jordan", streak: 34 },
-  { name: "Casey", streak: 21 },
-  { name: "Alex", streak: 15 },
-  { name: "Sam", streak: 9 },
-];
+// Real friends: usernames (so nobody's email is ever exposed), a
+// request/accept flow, and a leaderboard built from actual streak data.
 
-function renderLeaderboard() {
-  const leaderboardEl = document.getElementById("leaderboard");
-  leaderboardEl.innerHTML = "";
+let myUsername = null;
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
 
-  const you = { name: "You", streak: data.streak, isYou: true };
+// Usernames are typed by OTHER real people now, not our own hardcoded
+// mock data - so unlike the old fake leaderboard, this text can't be
+// trusted. Building rows with a blank name span and setting it via
+// textContent (never interpolated into innerHTML) means a maliciously
+// crafted username can never inject HTML/scripts into someone else's page.
+function buildLeaderboardRow(name, streak, isYou, rank, userId) {
+  const row = document.createElement("div");
+  row.className = "leaderboard-row";
+  if (isYou) row.classList.add("is-you");
 
-  // [...array] copies the array so sort() doesn't mutate the original
-  // MOCK_FRIENDS list. .sort((a, b) => b.streak - a.streak) sorts from
-  // highest streak to lowest.
-  const combined = [...MOCK_FRIENDS, you].sort((a, b) => b.streak - a.streak);
+  row.innerHTML = `
+    <span class="leaderboard-rank">#${rank}</span>
+    <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
+    <span class="leaderboard-name"></span>
+    <span class="leaderboard-streak">${streak} ${FLAME_ICON_SVG}</span>
+    ${isYou ? "" : '<button class="row-options-button" aria-label="More options">&#8942;</button>'}
+  `;
+  row.querySelector(".leaderboard-name").textContent = name;
 
-  combined.forEach((person, index) => {
-    const row = document.createElement("div");
-    row.className = "leaderboard-row";
-    if (person.isYou) {
-      row.classList.add("is-you");
+  if (!isYou) {
+    row.querySelector(".row-options-button").addEventListener("click", () => openUserActions(userId, name, "app-screen", null));
+  }
+
+  return row;
+}
+
+function buildFriendRequestRow(friendshipId, requesterName, requesterId) {
+  const row = document.createElement("div");
+  row.className = "leaderboard-row";
+
+  row.innerHTML = `
+    <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
+    <span class="leaderboard-name"></span>
+    <span class="friend-request-actions">
+      <button class="accept-request-button">Accept</button>
+      <button class="decline-request-button">Decline</button>
+    </span>
+    <button class="row-options-button" aria-label="More options">&#8942;</button>
+  `;
+  row.querySelector(".leaderboard-name").textContent = requesterName;
+  row.querySelector(".accept-request-button").addEventListener("click", () => respondToRequest(friendshipId, true));
+  row.querySelector(".decline-request-button").addEventListener("click", () => respondToRequest(friendshipId, false));
+  row.querySelector(".row-options-button").addEventListener("click", () => openUserActions(requesterId, requesterName, "app-screen", null));
+
+  return row;
+}
+
+// Called whenever the Competition tab is opened - figures out which of
+// the 3 states to show (guest / needs a username / ready to see friends).
+async function enterCompetitionTab() {
+  const guestPromptEl = document.getElementById("competition-guest-prompt");
+  const usernameSetupEl = document.getElementById("username-setup-section");
+  const friendsSectionEl = document.getElementById("friends-section");
+
+  guestPromptEl.classList.add("hidden");
+  usernameSetupEl.classList.add("hidden");
+  friendsSectionEl.classList.add("hidden");
+
+  if (!currentUserId) {
+    guestPromptEl.classList.remove("hidden");
+    return;
+  }
+
+  if (!myUsername) {
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("username")
+      .eq("user_id", currentUserId)
+      .maybeSingle();
+
+    if (profile) {
+      myUsername = profile.username;
     }
+  }
 
-    row.innerHTML = `
-      <span class="leaderboard-rank">#${index + 1}</span>
-      <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
-      <span class="leaderboard-name">${person.name}</span>
-      <span class="leaderboard-streak">${person.streak} ${FLAME_ICON_SVG}</span>
-    `;
+  if (!myUsername) {
+    usernameSetupEl.classList.remove("hidden");
+    return;
+  }
 
-    leaderboardEl.appendChild(row);
+  friendsSectionEl.classList.remove("hidden");
+  loadFriendRequests();
+  loadLeaderboard();
+}
+
+document.getElementById("save-username-button").addEventListener("click", async () => {
+  const usernameInput = document.getElementById("set-username-input");
+  const errorEl = document.getElementById("username-error");
+  const username = usernameInput.value.trim();
+
+  errorEl.textContent = "";
+
+  if (!USERNAME_PATTERN.test(username)) {
+    errorEl.textContent = "Username must be 3-20 characters: letters, numbers, underscores only.";
+    return;
+  }
+
+  const { error } = await supabaseClient.from("profiles").insert({ user_id: currentUserId, username });
+
+  if (error) {
+    errorEl.textContent = error.code === "23505" ? "That username is already taken." : "Something went wrong. Try again.";
+    return;
+  }
+
+  myUsername = username;
+  document.getElementById("username-setup-section").classList.add("hidden");
+  document.getElementById("friends-section").classList.remove("hidden");
+  loadFriendRequests();
+  loadLeaderboard();
+});
+
+document.getElementById("send-friend-request-button").addEventListener("click", async () => {
+  const input = document.getElementById("friend-username-input");
+  const errorEl = document.getElementById("friend-add-error");
+  const targetUsername = input.value.trim();
+
+  errorEl.textContent = "";
+  errorEl.classList.remove("success");
+
+  if (!targetUsername) {
+    errorEl.textContent = "Enter a username.";
+    return;
+  }
+
+  if (targetUsername.toLowerCase() === myUsername.toLowerCase()) {
+    errorEl.textContent = "You can't add yourself.";
+    return;
+  }
+
+  const { data: targetProfile } = await supabaseClient
+    .from("profiles")
+    .select("user_id")
+    .ilike("username", targetUsername)
+    .maybeSingle();
+
+  if (!targetProfile) {
+    errorEl.textContent = "No user found with that username.";
+    return;
+  }
+
+  const { error } = await supabaseClient.from("friendships").insert({
+    requester_id: currentUserId,
+    addressee_id: targetProfile.user_id,
+    status: "pending",
+  });
+
+  if (error) {
+    errorEl.textContent =
+      error.code === "23505" ? "You've already sent a request to this user." : "Couldn't send the request. Try again.";
+    return;
+  }
+
+  errorEl.textContent = "Friend request sent!";
+  errorEl.classList.add("success");
+  input.value = "";
+});
+
+async function loadFriendRequests() {
+  const sectionEl = document.getElementById("friend-requests-section");
+  const listEl = document.getElementById("friend-requests-list");
+
+  const { data: requests } = await supabaseClient
+    .from("friendships")
+    .select("id, requester_id")
+    .eq("addressee_id", currentUserId)
+    .eq("status", "pending");
+
+  if (!requests || requests.length === 0) {
+    sectionEl.classList.add("hidden");
+    return;
+  }
+
+  const requesterIds = requests.map((r) => r.requester_id);
+  const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username").in("user_id", requesterIds);
+
+  const usernameByUserId = {};
+  (profiles || []).forEach((p) => {
+    usernameByUserId[p.user_id] = p.username;
+  });
+
+  listEl.innerHTML = "";
+  requests.forEach((request) => {
+    const name = usernameByUserId[request.requester_id] || "Unknown";
+    listEl.appendChild(buildFriendRequestRow(request.id, name, request.requester_id));
+  });
+
+  sectionEl.classList.remove("hidden");
+}
+
+async function respondToRequest(friendshipId, accept) {
+  if (accept) {
+    await supabaseClient.from("friendships").update({ status: "accepted" }).eq("id", friendshipId);
+  } else {
+    await supabaseClient.from("friendships").delete().eq("id", friendshipId);
+  }
+  loadFriendRequests();
+  loadLeaderboard();
+}
+
+async function loadLeaderboard() {
+  const leaderboardEl = document.getElementById("leaderboard");
+
+  const { data: friendships } = await supabaseClient
+    .from("friendships")
+    .select("requester_id, addressee_id")
+    .eq("status", "accepted")
+    .or(`requester_id.eq.${currentUserId},addressee_id.eq.${currentUserId}`);
+
+  const friendIds = (friendships || []).map((f) => (f.requester_id === currentUserId ? f.addressee_id : f.requester_id));
+
+  const combined = [{ name: myUsername, streak: data.streak, isYou: true, userId: currentUserId }];
+
+  if (friendIds.length > 0) {
+    const [{ data: profiles }, { data: progressRows }] = await Promise.all([
+      supabaseClient.from("profiles").select("user_id, username").in("user_id", friendIds),
+      supabaseClient.from("user_progress").select("user_id, data").in("user_id", friendIds),
+    ]);
+
+    const usernameByUserId = {};
+    (profiles || []).forEach((p) => {
+      usernameByUserId[p.user_id] = p.username;
+    });
+
+    (progressRows || []).forEach((row) => {
+      combined.push({
+        name: usernameByUserId[row.user_id] || "Unknown",
+        streak: (row.data && row.data.streak) || 0,
+        isYou: false,
+        userId: row.user_id,
+      });
+    });
+  }
+
+  combined.sort((a, b) => b.streak - a.streak);
+
+  leaderboardEl.innerHTML = "";
+  combined.forEach((person, index) => {
+    leaderboardEl.appendChild(buildLeaderboardRow(person.name, person.streak, person.isYou, index + 1, person.userId));
   });
 }
+
+// The Me tab's profile header (avatar, username, follower/following
+// counts). There's no separate one-way-follow system yet, so this reuses
+// the existing mutual friendship data: adding a friend makes the
+// REQUESTER a follower of the ADDRESSEE.
+
+let followerIds = [];
+let followingIds = [];
+
+async function enterMeTab() {
+  const headerEl = document.getElementById("profile-header");
+  const promptEl = document.getElementById("profile-header-prompt");
+
+  if (!currentUserId) {
+    headerEl.classList.add("hidden");
+    promptEl.classList.add("hidden");
+    return;
+  }
+
+  if (!myUsername) {
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("username")
+      .eq("user_id", currentUserId)
+      .maybeSingle();
+    if (profile) myUsername = profile.username;
+  }
+
+  if (!myUsername) {
+    headerEl.classList.add("hidden");
+    promptEl.classList.remove("hidden");
+    return;
+  }
+
+  promptEl.classList.add("hidden");
+  headerEl.classList.remove("hidden");
+  document.getElementById("profile-header-username").textContent = `@${myUsername}`;
+
+  await loadFollowCounts();
+}
+
+async function loadFollowCounts() {
+  const { data: friendships } = await supabaseClient
+    .from("friendships")
+    .select("requester_id, addressee_id")
+    .eq("status", "accepted")
+    .or(`requester_id.eq.${currentUserId},addressee_id.eq.${currentUserId}`);
+
+  // I added them (I'm the requester) -> I'm following them.
+  followingIds = (friendships || []).filter((f) => f.requester_id === currentUserId).map((f) => f.addressee_id);
+
+  // They added me (I'm the addressee) -> they're my follower.
+  followerIds = (friendships || []).filter((f) => f.addressee_id === currentUserId).map((f) => f.requester_id);
+
+  document.getElementById("followers-count").textContent = followerIds.length;
+  document.getElementById("following-count").textContent = followingIds.length;
+}
+
+async function showFollowList(title, userIds) {
+  document.getElementById("follow-list-title").textContent = title;
+  const listEl = document.getElementById("follow-list");
+  listEl.innerHTML = "";
+
+  if (userIds.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "preview-note";
+    empty.textContent = "Nobody here yet.";
+    listEl.appendChild(empty);
+  } else {
+    const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username").in("user_id", userIds);
+    (profiles || []).forEach((profile) => {
+      const row = document.createElement("div");
+      row.className = "leaderboard-row";
+      row.innerHTML = `
+        <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
+        <span class="leaderboard-name"></span>
+        <button class="row-options-button" aria-label="More options">&#8942;</button>
+      `;
+      row.querySelector(".leaderboard-name").textContent = profile.username;
+      row.querySelector(".row-options-button").addEventListener("click", () =>
+        openUserActions(profile.user_id, profile.username, "follow-list-screen", title === "Followers" ? "followers" : "following")
+      );
+      listEl.appendChild(row);
+    });
+  }
+
+  showScreen("follow-list-screen");
+}
+
+document.getElementById("followers-button").addEventListener("click", () => showFollowList("Followers", followerIds));
+document.getElementById("following-button").addEventListener("click", () => showFollowList("Following", followingIds));
+document.getElementById("follow-list-close-button").addEventListener("click", () => showScreen("app-screen"));
+
+// Block/report another user - satisfies Apple's Guideline 1.2 (user-generated
+// content moderation) since usernames are typed by other real people.
+// Reports are insert-only from the client (see the `reports` table's RLS) -
+// they're reviewed manually in the Supabase dashboard rather than through a
+// built admin panel, which is a reasonable setup at this app's size.
+// Blocking deletes any friendship row between the two users (pending or
+// accepted) and records the block, which a database policy then uses to
+// reject any future friend request between them in either direction.
+
+let userActionsTargetId = null;
+let userActionsReturnScreen = "app-screen";
+let userActionsReturnFollowList = null; // "followers" | "following" | null
+
+function openUserActions(userId, username, returnScreen, returnFollowList) {
+  userActionsTargetId = userId;
+  userActionsReturnScreen = returnScreen;
+  userActionsReturnFollowList = returnFollowList;
+
+  document.getElementById("user-actions-subtitle").textContent = `@${username}`;
+  document.getElementById("user-actions-menu").classList.remove("hidden");
+  document.getElementById("report-reason-section").classList.add("hidden");
+  document.getElementById("block-confirm-section").classList.add("hidden");
+  document.getElementById("report-reason-input").value = "";
+
+  const statusEl = document.getElementById("report-status-message");
+  statusEl.textContent = "";
+  statusEl.classList.remove("success");
+
+  showScreen("user-actions-screen");
+}
+
+async function closeUserActionsAndRefresh() {
+  if (userActionsReturnFollowList) {
+    await loadFollowCounts();
+    await showFollowList(
+      userActionsReturnFollowList === "followers" ? "Followers" : "Following",
+      userActionsReturnFollowList === "followers" ? followerIds : followingIds
+    );
+  } else {
+    showScreen(userActionsReturnScreen);
+    await Promise.all([loadFriendRequests(), loadLeaderboard()]);
+  }
+}
+
+document.getElementById("open-report-button").addEventListener("click", () => {
+  document.getElementById("user-actions-menu").classList.add("hidden");
+  document.getElementById("report-reason-section").classList.remove("hidden");
+});
+
+document.getElementById("open-block-button").addEventListener("click", () => {
+  document.getElementById("user-actions-menu").classList.add("hidden");
+  document.getElementById("block-confirm-section").classList.remove("hidden");
+});
+
+document.getElementById("user-actions-close-button").addEventListener("click", () => {
+  showScreen(userActionsReturnScreen);
+});
+
+document.getElementById("submit-report-button").addEventListener("click", async () => {
+  const reasonInput = document.getElementById("report-reason-input");
+  const statusEl = document.getElementById("report-status-message");
+  const reason = reasonInput.value.trim();
+
+  const { error } = await supabaseClient.from("reports").insert({
+    reporter_id: currentUserId,
+    reported_user_id: userActionsTargetId,
+    reason: reason || null,
+  });
+
+  if (error) {
+    statusEl.textContent = "Something went wrong. Try again.";
+    statusEl.classList.remove("success");
+    return;
+  }
+
+  statusEl.textContent = "Report submitted. Thank you.";
+  statusEl.classList.add("success");
+  reasonInput.value = "";
+});
+
+document.getElementById("confirm-block-button").addEventListener("click", async () => {
+  await supabaseClient
+    .from("friendships")
+    .delete()
+    .or(
+      `and(requester_id.eq.${currentUserId},addressee_id.eq.${userActionsTargetId}),and(requester_id.eq.${userActionsTargetId},addressee_id.eq.${currentUserId})`
+    );
+
+  await supabaseClient.from("blocked_users").insert({ blocker_id: currentUserId, blocked_id: userActionsTargetId });
+
+  await closeUserActionsAndRefresh();
+});
 
 
 // STEP 5: The login/sign-up form and the log-out button.
@@ -927,25 +1773,43 @@ function finishOnboarding(wantsWalkRun) {
 }
 
 
-// STEP 7: GPS walk/run tracking - a live map, distance, and timer.
+// STEP 7: GPS walk/run tracking - a live map, distance, and timer, all
+// embedded directly in the Record tab (map shows a preview of where you
+// are before you start, then switches to live-drawing your route).
 
 const startTrackingButtonEl = document.getElementById("start-tracking-button");
+const recordIdlePanelEl = document.getElementById("record-idle-panel");
+const recordActivePanelEl = document.getElementById("record-active-panel");
+const recordTrackingStatsEl = document.getElementById("record-tracking-stats");
 const trackingTimeEl = document.getElementById("tracking-time");
 const trackingDistanceEl = document.getElementById("tracking-distance");
 const trackingDistanceLabelEl = document.getElementById("tracking-distance-label");
+const trackingPaceEl = document.getElementById("tracking-pace");
+const trackingPaceLabelEl = document.getElementById("tracking-pace-label");
+const trackingElevationEl = document.getElementById("tracking-elevation");
+const trackingElevationLabelEl = document.getElementById("tracking-elevation-label");
 const trackingErrorEl = document.getElementById("tracking-error");
 const trackingCancelEl = document.getElementById("tracking-cancel");
+const trackingPauseEl = document.getElementById("tracking-pause");
 const trackingFinishEl = document.getElementById("tracking-finish");
 const summaryTimeEl = document.getElementById("summary-time");
 const summaryDistanceEl = document.getElementById("summary-distance");
 const summaryDistanceLabelEl = document.getElementById("summary-distance-label");
 const summaryPaceEl = document.getElementById("summary-pace");
 const summaryPaceLabelEl = document.getElementById("summary-pace-label");
-const trackingSummaryDoneEl = document.getElementById("tracking-summary-done");
+
+// The Record tab's map is created once and reused every time the tab is
+// shown (both for the idle "here's where you are" preview and for live
+// tracking) - Leaflet doesn't like being re-initialized on a container
+// that already has a map on it.
+let recordMap = null;
+let previewMarker = null;
+let summaryMap = null;
 
 // Everything about the CURRENT tracking session lives in one object, so
 // starting a new session is just replacing this rather than resetting a
-// dozen separate variables individually.
+// dozen separate variables individually. Also doubles as "are we
+// currently tracking?" - null means no.
 let session = null;
 
 function milesFromKm(km) {
@@ -965,6 +1829,130 @@ function haversineDistanceKm(lat1, lon1, lat2, lon2) {
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
   return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ---- Efficient permanent route storage ----
+//
+// Every kept route is stored forever now (matching what real fitness
+// apps like Strava do - your history is a core feature, not something
+// to prune). What keeps that cheap is storing each route in a heavily
+// compressed form instead of raw GPS points: first DROP nearly-redundant
+// points that don't change the route's shape (Douglas-Peucker), then
+// pack what's left into a single short string (Google's "Encoded
+// Polyline" format - the same technique Google Maps and most mapping
+// tools use). A route that might otherwise be 500 verbose {lat,lng}
+// objects becomes a few dozen points encoded as one compact string.
+
+// How far a point can deviate from a straight line before it's considered
+// meaningful enough to keep, in degrees (~4 meters). Bigger = smaller
+// files but a blockier-looking route; smaller = more faithful but larger.
+const ROUTE_SIMPLIFY_TOLERANCE = 0.00004;
+
+function perpendicularDistance(point, lineStart, lineEnd) {
+  const [px, py] = point;
+  const [x1, y1] = lineStart;
+  const [x2, y2] = lineEnd;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+
+  if (dx === 0 && dy === 0) {
+    return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+  }
+
+  // Project the point onto the line, clamped to the segment itself.
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+  const nearestX = x1 + t * dx;
+  const nearestY = y1 + t * dy;
+  return Math.sqrt((px - nearestX) ** 2 + (py - nearestY) ** 2);
+}
+
+// Douglas-Peucker: recursively keeps only the points that meaningfully
+// change the route's shape, dropping the ones that fall almost exactly
+// on a straight line between their neighbors.
+function simplifyRoute(points, tolerance) {
+  if (points.length <= 2) return points;
+
+  let maxDistance = 0;
+  let splitIndex = 0;
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const distance = perpendicularDistance(points[i], points[0], points[points.length - 1]);
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      splitIndex = i;
+    }
+  }
+
+  if (maxDistance > tolerance) {
+    const left = simplifyRoute(points.slice(0, splitIndex + 1), tolerance);
+    const right = simplifyRoute(points.slice(splitIndex), tolerance);
+    return left.slice(0, -1).concat(right); // avoid duplicating the shared middle point
+  }
+
+  return [points[0], points[points.length - 1]];
+}
+
+// Google's Encoded Polyline format: each point is stored as the small
+// DIFFERENCE from the previous point (GPS points move only a little
+// between samples), using a base64-like variable-length encoding so
+// small differences take just 1-2 characters instead of a full number.
+function encodeNumber(num) {
+  let value = num << 1;
+  if (num < 0) value = ~value;
+  let output = "";
+  while (value >= 0x20) {
+    output += String.fromCharCode((0x20 | (value & 0x1f)) + 63);
+    value >>= 5;
+  }
+  return output + String.fromCharCode(value + 63);
+}
+
+function encodePolyline(points) {
+  let output = "";
+  let prevLat = 0;
+  let prevLng = 0;
+
+  points.forEach(([lat, lng]) => {
+    const lat5 = Math.round(lat * 1e5);
+    const lng5 = Math.round(lng * 1e5);
+    output += encodeNumber(lat5 - prevLat) + encodeNumber(lng5 - prevLng);
+    prevLat = lat5;
+    prevLng = lng5;
+  });
+
+  return output;
+}
+
+function decodePolyline(encoded) {
+  const points = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+
+    result = 0;
+    shift = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+
+  return points;
 }
 
 // Formats milliseconds as "M:SS" (or "H:MM:SS" past an hour).
@@ -990,7 +1978,26 @@ function displayDistance(km) {
   return value.toFixed(2);
 }
 
-function createTrackingMap(containerId) {
+function metersToFeet(meters) {
+  return meters * 3.28084;
+}
+
+function elevationUnitLabel() {
+  return data.units === "km" ? "m gain" : "ft gain";
+}
+
+function displayElevation(meters) {
+  const value = data.units === "km" ? meters : metersToFeet(meters);
+  return Math.round(value);
+}
+
+// How much a single step's altitude has to change before it counts
+// toward elevation gain, in meters. Phone GPS altitude is noisy - without
+// a threshold like this, standing still would still slowly accumulate
+// fake "gain" from that noise alone.
+const ELEVATION_NOISE_THRESHOLD_M = 1;
+
+function createMap(containerId) {
   const map = L.map(containerId);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors",
@@ -999,10 +2006,83 @@ function createTrackingMap(containerId) {
   return map;
 }
 
+// Called every time the Record tab is opened. If a session is already
+// in progress (e.g. you switched to another tab mid-run and came back),
+// this leaves everything as-is instead of resetting the view.
+function enterRecordTab() {
+  if (!recordMap) {
+    recordMap = createMap("record-map");
+    recordMap.setView([20, 0], 2); // whole-world view until we know better
+  }
+
+  // The container was hidden (display:none) until just now, so Leaflet
+  // needs to be told to re-measure it, or the map renders broken/blank.
+  setTimeout(() => recordMap.invalidateSize(), 0);
+
+  if (session) {
+    return; // already tracking - keep showing the live view as-is
+  }
+
+  renderPastRoutesList();
+  showPreviewLocation();
+}
+
+// Shows a single marker at your current position, before tracking has
+// started - literally the "preview" of where a run would begin.
+function showPreviewLocation() {
+  if (!("geolocation" in navigator)) return;
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const point = [position.coords.latitude, position.coords.longitude];
+      recordMap.setView(point, 16);
+      if (previewMarker) {
+        previewMarker.setLatLng(point);
+      } else {
+        previewMarker = L.circleMarker(point, { radius: 7, color: "#22c55e", fillOpacity: 1 }).addTo(recordMap);
+      }
+    },
+    () => {
+      // Permission denied or unavailable - silently leave the world view
+      // in place. We only surface an error once they actually try to
+      // start tracking, not just for looking at the tab.
+    },
+    { enableHighAccuracy: true }
+  );
+}
+
+// The elapsed time actually spent moving - freezes the instant you pause
+// (using the pause moment instead of "now") and permanently excludes
+// whatever time you've already spent paused before this point.
+function elapsedTrackingMs() {
+  const now = session.isPaused ? session.pausedAt : Date.now();
+  return now - session.startTime - session.totalPausedMs;
+}
+
+// Same pace formula the post-run summary screen uses (time / distance),
+// just recalculated live instead of once at the end.
+function updateTrackingTimeAndPace() {
+  const elapsed = elapsedTrackingMs();
+  trackingTimeEl.textContent = formatDuration(elapsed);
+
+  const distanceInUnits = data.units === "km" ? session.distanceKm : milesFromKm(session.distanceKm);
+  trackingPaceEl.textContent = distanceInUnits > 0.01 ? formatDuration(elapsed / distanceInUnits) : "--";
+}
+
+// Starts (or restarts, after a resume) the actual GPS watch and the
+// once-a-second display timer - pulled into its own function so Resume
+// can reuse the exact same setup as the initial Start.
+function startWatchingPosition() {
+  session.timerId = setInterval(updateTrackingTimeAndPace, 1000);
+  session.watchId = navigator.geolocation.watchPosition(onTrackingPosition, onTrackingError, {
+    enableHighAccuracy: true,
+    maximumAge: 0,
+  });
+}
+
 function startTracking() {
   if (!("geolocation" in navigator)) {
     trackingErrorEl.textContent = "GPS isn't available on this device/browser.";
-    showScreen("tracking-screen");
     return;
   }
 
@@ -1012,42 +2092,81 @@ function startTracking() {
     startTime: Date.now(),
     watchId: null,
     timerId: null,
-    map: null,
     polyline: null,
     marker: null,
+    isPaused: false,
+    pausedAt: null,
+    totalPausedMs: 0,
+    elevationGainM: 0,
+    lastAltitude: null,
   };
 
   trackingErrorEl.textContent = "";
   trackingTimeEl.textContent = "0:00";
   trackingDistanceEl.textContent = "0.00";
   trackingDistanceLabelEl.textContent = distanceUnitLabel();
+  trackingPaceEl.textContent = "--";
+  trackingPaceLabelEl.textContent = `/${distanceUnitLabel()}`;
+  trackingElevationEl.textContent = "0";
+  trackingElevationLabelEl.textContent = elevationUnitLabel();
+  trackingPauseEl.textContent = "Pause";
 
-  showScreen("tracking-screen");
+  recordIdlePanelEl.classList.add("hidden");
+  recordActivePanelEl.classList.remove("hidden");
+  recordTrackingStatsEl.classList.remove("hidden");
 
-  // The map container must actually be visible on screen before Leaflet
-  // can measure it correctly, so it's created here (after showScreen)
-  // rather than up front.
-  session.map = createTrackingMap("tracking-map");
-  session.map.setView([0, 0], 16);
-  session.polyline = L.polyline([], { color: "#22c55e", weight: 4 }).addTo(session.map);
+  // Starting fresh: clear the preview marker and draw the route on top
+  // of the same map instance instead of creating a new one.
+  if (previewMarker) {
+    recordMap.removeLayer(previewMarker);
+    previewMarker = null;
+  }
+  session.polyline = L.polyline([], { color: "#22c55e", weight: 4 }).addTo(recordMap);
 
-  session.timerId = setInterval(() => {
-    trackingTimeEl.textContent = formatDuration(Date.now() - session.startTime);
-  }, 1000);
-
-  session.watchId = navigator.geolocation.watchPosition(onTrackingPosition, onTrackingError, {
-    enableHighAccuracy: true,
-    maximumAge: 0,
-  });
+  startWatchingPosition();
 }
 
+trackingPauseEl.addEventListener("click", () => {
+  if (session.isPaused) {
+    // Resume: fold however long we were paused into the running total,
+    // so the displayed time picks back up where it left off instead of
+    // jumping forward by the length of the pause.
+    session.totalPausedMs += Date.now() - session.pausedAt;
+    session.isPaused = false;
+    trackingPauseEl.textContent = "Pause";
+    startWatchingPosition();
+  } else {
+    session.isPaused = true;
+    session.pausedAt = Date.now();
+    trackingPauseEl.textContent = "Resume";
+    navigator.geolocation.clearWatch(session.watchId);
+    clearInterval(session.timerId);
+  }
+});
+
 function onTrackingPosition(position) {
-  const { latitude, longitude } = position.coords;
+  const { latitude, longitude, altitude } = position.coords;
   const point = [latitude, longitude];
   const previousPoint = session.route[session.route.length - 1];
 
   if (previousPoint) {
     session.distanceKm += haversineDistanceKm(previousPoint[0], previousPoint[1], latitude, longitude);
+  }
+
+  // altitude is `null` on many devices/moments (GPS altitude needs a
+  // stronger fix than horizontal position does) - only count a change
+  // when we have two real readings to compare, and only if that change
+  // clears the noise threshold, so standing still doesn't slowly rack up
+  // fake gain from GPS jitter alone.
+  if (altitude !== null) {
+    if (session.lastAltitude !== null) {
+      const gain = altitude - session.lastAltitude;
+      if (gain > ELEVATION_NOISE_THRESHOLD_M) {
+        session.elevationGainM += gain;
+        trackingElevationEl.textContent = String(displayElevation(session.elevationGainM));
+      }
+    }
+    session.lastAltitude = altitude;
   }
 
   session.route.push(point);
@@ -1056,10 +2175,10 @@ function onTrackingPosition(position) {
   if (session.marker) {
     session.marker.setLatLng(point);
   } else {
-    session.marker = L.circleMarker(point, { radius: 7, color: "#22c55e", fillOpacity: 1 }).addTo(session.map);
+    session.marker = L.circleMarker(point, { radius: 7, color: "#22c55e", fillOpacity: 1 }).addTo(recordMap);
   }
 
-  session.map.setView(point, session.map.getZoom() < 15 ? 16 : session.map.getZoom());
+  recordMap.setView(point, recordMap.getZoom() < 15 ? 16 : recordMap.getZoom());
   trackingDistanceEl.textContent = displayDistance(session.distanceKm);
 }
 
@@ -1077,38 +2196,58 @@ function stopTrackingWatchers() {
   if (session.timerId !== null) clearInterval(session.timerId);
 }
 
+// Returns the Record tab to its normal idle view (map preview + Start
+// button) - used after both Cancel and after finishing.
+function resetRecordToIdle() {
+  recordActivePanelEl.classList.add("hidden");
+  recordTrackingStatsEl.classList.add("hidden");
+  recordIdlePanelEl.classList.remove("hidden");
+  if (session && session.polyline) {
+    recordMap.removeLayer(session.polyline);
+  }
+  if (session && session.marker) {
+    recordMap.removeLayer(session.marker);
+  }
+  session = null;
+  showPreviewLocation();
+}
+
 trackingCancelEl.addEventListener("click", () => {
   stopTrackingWatchers();
-  session = null;
-  showScreen("app-screen");
+  resetRecordToIdle();
 });
+
+// Holds the just-finished route until the user decides on the summary
+// screen whether to actually keep it - saving happens only if they do.
+let pendingRoute = null;
 
 trackingFinishEl.addEventListener("click", () => {
   stopTrackingWatchers();
 
-  const durationMs = Date.now() - session.startTime;
+  const durationMs = elapsedTrackingMs();
   const durationMinutes = Math.max(1, Math.round(durationMs / 60000));
+  const { route, distanceKm, elevationGainM } = session;
 
   // Auto-fill the manual minutes field, same as if it had been typed in -
-  // the rest of the day-logging logic doesn't need to know GPS was involved.
+  // this counts toward today regardless of whether the route itself gets
+  // kept or discarded afterward.
   walkrunEl.value = durationMinutes;
   render();
 
-  // Keep just the most recent route (not a full history archive) - enough
-  // to show the "nice work" recap without the saved data growing forever.
-  data.lastRoute = {
-    date: todayString(),
-    distanceKm: session.distanceKm,
-    durationMs,
-    route: session.route,
-  };
-  saveData(data);
+  pendingRoute = { date: todayString(), distanceKm, durationMs, route, elevationGainM };
 
-  showTrackingSummary(session.route, session.distanceKm, durationMs);
-  session = null;
+  resetRecordToIdle();
+  showTrackingSummary(route, distanceKm, durationMs, elevationGainM, "new");
 });
 
-function showTrackingSummary(route, distanceKm, durationMs) {
+// mode is "new" (just finished tracking - shows the Keep/Discard prompt)
+// or "view" (browsing an already-saved route from Past Routes - shows a
+// plain Close button instead, since there's nothing left to decide).
+function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode) {
+  document.getElementById("tracking-summary-heading").textContent = mode === "view" ? "Route Detail" : "Nice work!";
+  document.getElementById("keep-discard-section").classList.toggle("hidden", mode === "view");
+  document.getElementById("tracking-summary-close-button").classList.toggle("hidden", mode !== "view");
+
   summaryTimeEl.textContent = formatDuration(durationMs);
   summaryDistanceEl.textContent = displayDistance(distanceKm);
   summaryDistanceLabelEl.textContent = distanceUnitLabel();
@@ -1122,22 +2261,109 @@ function showTrackingSummary(route, distanceKm, durationMs) {
   }
   summaryPaceLabelEl.textContent = `/${distanceUnitLabel()}`;
 
+  document.getElementById("summary-elevation").textContent = String(displayElevation(elevationGainM || 0));
+  document.getElementById("summary-elevation-label").textContent = elevationUnitLabel();
+
   showScreen("tracking-summary-screen");
 
-  const map = createTrackingMap("summary-map");
+  // Leaflet throws if you re-initialize a map on a container that
+  // already has one - remove the previous summary map first, since this
+  // screen gets reused for every route (new or from history).
+  if (summaryMap) {
+    summaryMap.remove();
+  }
+  summaryMap = createMap("summary-map");
+
   if (route.length > 0) {
-    const polyline = L.polyline(route, { color: "#22c55e", weight: 4 }).addTo(map);
-    map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+    const polyline = L.polyline(route, { color: "#22c55e", weight: 4 }).addTo(summaryMap);
+    summaryMap.fitBounds(polyline.getBounds(), { padding: [20, 20] });
   } else {
-    map.setView([0, 0], 2);
+    summaryMap.setView([0, 0], 2);
   }
 }
 
-trackingSummaryDoneEl.addEventListener("click", () => {
+document.getElementById("keep-route-button").addEventListener("click", () => {
+  // Simplify (drop near-redundant points) then encode (pack into one
+  // compact string) before saving - this is what makes it reasonable to
+  // keep every route forever instead of pruning old ones.
+  const simplified = simplifyRoute(pendingRoute.route, ROUTE_SIMPLIFY_TOLERANCE);
+  data.routes.push({
+    date: pendingRoute.date,
+    distanceKm: pendingRoute.distanceKm,
+    durationMs: pendingRoute.durationMs,
+    elevationGainM: pendingRoute.elevationGainM || 0,
+    encodedRoute: encodePolyline(simplified),
+  });
+  pendingRoute = null;
+  saveData(data);
+
+  renderPastRoutesList();
+  renderDistanceChart();
   showScreen("app-screen");
 });
 
-startTrackingButtonEl.addEventListener("click", startTracking);
+document.getElementById("discard-route-button").addEventListener("click", () => {
+  pendingRoute = null;
+  showScreen("app-screen");
+});
+
+document.getElementById("tracking-summary-close-button").addEventListener("click", () => {
+  showScreen("app-screen");
+});
+
+// The Today tab's small GPS button just takes you to the Record tab,
+// where the actual map/tracking UI lives - one tracking experience, not
+// two separate implementations to maintain.
+startTrackingButtonEl.addEventListener("click", () => showTab("record"));
+
+const recordStartButtonEl = document.getElementById("record-start-button");
+recordStartButtonEl.addEventListener("click", startTracking);
+
+function buildPastRouteRow(route) {
+  const row = document.createElement("div");
+  row.className = "leaderboard-row";
+
+  row.innerHTML = `
+    <span class="leaderboard-name"></span>
+    <span class="leaderboard-streak"></span>
+  `;
+  row.querySelector(".leaderboard-name").textContent = route.date;
+
+  const distanceInUnits = data.units === "km" ? route.distanceKm : milesFromKm(route.distanceKm);
+  row.querySelector(".leaderboard-streak").textContent =
+    `${distanceInUnits.toFixed(1)} ${distanceUnitLabel()} · ${formatDuration(route.durationMs)}`;
+
+  row.addEventListener("click", () => {
+    const points = route.encodedRoute ? decodePolyline(route.encodedRoute) : [];
+    showTrackingSummary(points, route.distanceKm, route.durationMs, route.elevationGainM || 0, "view");
+  });
+
+  return row;
+}
+
+// Shows every kept route, most recent first - this is what actually
+// makes the permanent route history useful instead of just sitting
+// unseen in the database.
+function renderPastRoutesList() {
+  const listEl = document.getElementById("past-routes-list");
+  const emptyEl = document.getElementById("past-routes-empty");
+
+  listEl.innerHTML = "";
+
+  if (data.routes.length === 0) {
+    emptyEl.classList.remove("hidden");
+    return;
+  }
+
+  emptyEl.classList.add("hidden");
+
+  // [...array] copies the array so reverse() doesn't scramble the
+  // original stored order.
+  const mostRecentFirst = [...data.routes].reverse();
+  mostRecentFirst.forEach((route) => {
+    listEl.appendChild(buildPastRouteRow(route));
+  });
+}
 
 
 // STEP 8: Register the service worker, if the browser supports one.

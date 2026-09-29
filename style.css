@@ -60,10 +60,21 @@ input[type="number"]::-webkit-inner-spin-button {
   --text-secondary: #9a9a96;
   --text-muted: #6b6b68;
   --border: #3a3a3880;
+
+  /* The area an iPhone's notch/Dynamic Island/home indicator/rounded
+     corners occupy. Zero on devices without them, or without
+     viewport-fit=cover set - env() just falls back to 0px either way. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 body {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Apple's actual system font (San Francisco) first, so the app matches
+     every native iOS app's typography instead of a downloaded web font -
+     "Inter" is now just the fallback for non-Apple devices. */
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
   background-color: #09090b;
   color: #f4f4f5;
   min-height: 100vh;
@@ -132,30 +143,28 @@ body {
 .card {
   position: relative;
   background: transparent;
-  padding: 20px;
+  padding: var(--space-xl) var(--space-lg);
   width: 100%;
   max-width: 380px;
   text-align: center;
 }
 
-.settings-toggle {
-  position: absolute;
-  top: var(--space-md);
-  right: var(--space-md);
-  background: none;
-  border: none;
-  font-size: 1.1rem;
-  cursor: pointer;
-  opacity: 0.6;
-  padding: 6px;
-  min-width: 32px;
-  min-height: 32px;
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
+/* Below ~480px wide, treat this as a phone, not a webpage with a card
+   floating on it - the app should fill the entire screen edge-to-edge,
+   like every native app does, instead of sitting in a centered box with
+   visible background around it. */
+@media (max-width: 480px) {
+  body {
+    padding: 0;
+    align-items: stretch;
+  }
 
-.settings-toggle:hover {
-  opacity: 1;
-  transform: rotate(30deg);
+  .card {
+    max-width: 100%;
+    min-height: 100dvh;
+    padding: calc(var(--space-xl) + var(--safe-top)) calc(var(--space-lg) + var(--safe-right))
+      calc(var(--space-lg) + var(--safe-bottom)) calc(var(--space-lg) + var(--safe-left));
+  }
 }
 
 .brand {
@@ -171,8 +180,13 @@ body {
   color: #22c55e;
 }
 
+/* !important is deliberate here: this is a utility class whose entire
+   job is "always hide this, no matter what other classes are also on
+   this element." Without it, a same-specificity class defined later in
+   this file (like .tracking-buttons) can silently win the display
+   property and make "hidden" elements show up anyway. */
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 /* A single unified strip along the bottom of the card, like a mobile
@@ -181,11 +195,17 @@ body {
   display: flex;
   margin-top: var(--space-lg);
   padding-top: var(--space-sm);
+  padding-bottom: var(--space-xs);
   border-top: 1px solid var(--border);
-  margin-left: calc(var(--space-lg) * -1);
-  margin-right: calc(var(--space-lg) * -1);
-  padding-left: var(--space-sm);
-  padding-right: var(--space-sm);
+  margin-left: calc((var(--space-lg) + var(--safe-left)) * -1);
+  margin-right: calc((var(--space-lg) + var(--safe-right)) * -1);
+  padding-left: calc(var(--space-sm) + var(--safe-left));
+  padding-right: calc(var(--space-sm) + var(--safe-right));
+  /* iOS's native tab bars are frosted glass, not a flat color - this is
+     one of the most recognizable Apple UI materials. */
+  background: rgba(20, 20, 22, 0.75);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
 }
 
 .tab-btn {
@@ -310,17 +330,65 @@ body {
   height: 14px;
 }
 
-.add-friends-button {
-  width: 100%;
-  min-height: 44px;
+.friend-request-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.friend-request-actions button {
+  min-height: 32px;
+  padding: 0 12px;
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   font-weight: 700;
+  border-radius: 7px;
+  cursor: pointer;
+  border: none;
+}
+
+.accept-request-button {
+  background-color: #22c55e;
+  color: white;
+}
+
+.decline-request-button {
+  background: none;
+  border: 1px solid var(--border) !important;
   color: var(--text-muted);
-  background: #3a3a3880;
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  cursor: not-allowed;
+}
+
+.row-options-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.row-options-button:hover {
+  background: #ffffff12;
+}
+
+.full-width-button {
+  width: 100%;
+  margin-top: var(--space-sm);
+}
+
+.block-confirm-button {
+  background-color: #dc2626;
+}
+
+.block-confirm-button:hover {
+  background-color: #b91c1c;
 }
 
 .settings-panel {
@@ -370,7 +438,7 @@ body {
 
 .settings-row input {
   width: 56px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 6px;
   text-align: center;
   background: #232326;
@@ -382,7 +450,7 @@ body {
 }
 
 .settings-row select {
-  min-height: 40px;
+  min-height: 44px;
   padding: 6px 10px;
   background: #232326;
   border: 1px solid var(--border);
@@ -394,7 +462,7 @@ body {
 
 #save-settings {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   margin-top: 4px;
   padding: 8px;
   font-size: 0.85rem;
@@ -506,7 +574,7 @@ body {
 
 .walkrun-row input {
   width: 60px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 6px;
   font-size: 1rem;
   font-weight: 700;
@@ -531,8 +599,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   background: #22c55e;
   border: none;
@@ -554,9 +622,9 @@ body {
 
 /* Tracking screen and post-run summary */
 .tracking-stats {
-  display: flex;
-  justify-content: center;
-  gap: var(--space-xl);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md) var(--space-xl);
   margin-bottom: var(--space-lg);
 }
 
@@ -582,7 +650,7 @@ body {
   letter-spacing: 1px;
 }
 
-#tracking-map,
+#record-map,
 #summary-map {
   width: 100%;
   height: 240px;
@@ -590,6 +658,7 @@ body {
   margin-bottom: var(--space-md);
   background: #1c1c1f;
 }
+
 
 .tracking-buttons {
   display: flex;
@@ -611,6 +680,19 @@ body {
 
 .tracking-buttons .auth-submit-button {
   flex: 1;
+}
+
+.tracking-pause-button {
+  flex: 1;
+  min-height: 48px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: white;
+  background: #3a3a3a;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
 }
 
 .exercise-tile {
@@ -944,9 +1026,47 @@ body {
   cursor: pointer;
 }
 
+/* Classic iOS Settings-app "grouped list" look: one rounded container
+   with thin divider lines between rows, instead of separate floating
+   buttons. */
+.account-menu {
+  display: flex;
+  flex-direction: column;
+  background: #1c1c1f66;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: var(--space-md);
+}
+
+.account-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--space-md);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.account-menu-item:last-child {
+  border-bottom: none;
+}
+
+.account-menu-chevron {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
 .log-out-button {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   margin-top: var(--space-md);
   font-family: inherit;
   font-size: 0.85rem;
@@ -993,10 +1113,94 @@ body {
   letter-spacing: 0.1em;
 }
 
-.heatmap-section {
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.profile-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #3a3a3a;
+  color: var(--text-secondary);
+}
+
+.profile-avatar svg {
+  width: 30px;
+  height: 30px;
+}
+
+.profile-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.profile-username {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.profile-follow-stats {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.follow-stat-button {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.follow-stat-count {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.follow-stat-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Heatmap and the distance chart sit side by side, each taking half the
+   card's width. */
+.progress-visuals {
+  display: flex;
+  gap: var(--space-md);
   padding-top: var(--space-md);
   border-top: 1px solid var(--border);
   margin-bottom: var(--space-lg);
+}
+
+.heatmap-section {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.distance-chart-section {
+  flex: 1;
+  min-width: 0;
   text-align: left;
 }
 
@@ -1009,6 +1213,124 @@ body {
   margin-bottom: var(--space-sm);
 }
 
+.heatmap-tap-hint {
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+/* Weekly distance line chart - a single series, so one consistent color
+   (the app's existing "activity/completed" green) with no legend needed. */
+.distance-chart {
+  display: block;
+  width: 100%;
+  height: 75px;
+}
+
+.distance-chart-line {
+  fill: none;
+  stroke: #22c55e;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.distance-chart-dot {
+  fill: #22c55e;
+  stroke: #121316;
+  stroke-width: 1.5;
+}
+
+/* Invisible - purely a bigger tap/click target than the visible dot,
+   since an 8px dot alone is too small to reliably tap on a phone. */
+.distance-chart-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.distance-chart-baseline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.distance-chart-detail {
+  margin-top: var(--space-xs);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  min-height: 15px;
+}
+
+/* Full calendar view */
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.calendar-nav-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  font-size: 1.4rem;
+  font-family: inherit;
+  background: #1c1c1f66;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: var(--space-sm);
+}
+
+.calendar-weekdays span {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: var(--space-lg);
+}
+
+.calendar-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: #1c1c1f66;
+}
+
+.calendar-day.empty {
+  background: none;
+}
+
+.calendar-day.completed {
+  background-color: #22c55e;
+  color: white;
+  font-weight: 800;
+}
+
+.calendar-day.is-today {
+  border: 2px solid #22c55e;
+}
+
 .section-heading {
   font-size: 0.7rem;
   font-weight: 700;
@@ -1019,20 +1341,40 @@ body {
   margin-bottom: var(--space-sm);
 }
 
+.record-past-routes-heading {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
+}
+
+/* iOS's "Large Title" pattern: each screen gets its own bold heading
+   instead of repeating the app's logo on every tab - this is what a
+   native app's navigation title looks like at the top of a screen. */
+.large-title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  text-align: left;
+  margin-bottom: var(--space-lg);
+}
+
 /* A calendar-style grid: 7 cells per row (Sun-Sat), wrapping to a new
    row each week automatically - no horizontal scrolling needed. */
+/* Fixed small cells instead of stretching to the card's full width -
+   before, each of the 8 rows was as tall as 1/7 of the card's width
+   (roughly 45px), making the whole grid nearly 400px tall on its own. */
 .heatmap-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  padding: 10px 0;
+  grid-template-columns: repeat(7, 14px);
+  grid-auto-rows: 14px;
+  gap: 3px;
+  padding: 6px 0;
 }
 
 .heatmap-day {
-  width: 100%;
-  aspect-ratio: 1;
+  border-radius: 3px;
   background-color: #27272a;
-  border-radius: 4px;
   transition: transform 0.2s ease;
 }
 
