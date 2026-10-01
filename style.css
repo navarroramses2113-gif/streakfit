@@ -50,6 +50,19 @@ input[type="number"]::-webkit-inner-spin-button {
   --teal: #8a9a8e;
   --teal-light: #a8b8ac;
 
+  /* Closure ring colors - deliberately bold/saturated (unlike the rest of
+     the app's muted palette above), for the same high-contrast, energetic
+     feel as Apple's Activity rings - but an original palette, not their
+     actual hues. Squats leans toward Forja's own brand green (#22c55e)
+     rather than Apple's cyan, so the boldest UI in the app still reads as
+     Forja's own. Kept as their own variables rather than reusing
+     --orange-light/--teal-light, since those are shared with other UI
+     (streak flame, stat numbers) that should stay muted. */
+  --ring-pushups: #ff5a5f;
+  --ring-situps: #ffc233;
+  --ring-squats: #2dd4bf;
+  --ring-walkrun: #7c5cff;
+
   /* Background: a quiet, neutral charcoal gradient - no bright color
      blooms, just subtle depth. */
   --bg-start: #1a1b1f;
@@ -70,6 +83,16 @@ input[type="number"]::-webkit-inner-spin-button {
   --safe-left: env(safe-area-inset-left, 0px);
 }
 
+/* Belt-and-suspenders against side-to-side dragging: this stops the
+   BROWSER's default response to a sideways swipe (panning/bouncing the
+   whole page horizontally). It doesn't fix an actual layout overflow bug
+   by itself - if something is wider than the screen, overflow-x: hidden
+   below clips it rather than letting it scroll into view. Both belong
+   here together; neither one alone is enough. */
+html {
+  overflow-x: hidden;
+}
+
 body {
   /* Apple's actual system font (San Francisco) first, so the app matches
      every native iOS app's typography instead of a downloaded web font -
@@ -82,6 +105,8 @@ body {
   align-items: center;
   justify-content: center;
   padding: var(--space-lg) var(--space-md);
+  overflow-x: hidden;
+  touch-action: pan-y;
 }
 
 /* Full-screen overlay shown while the app loads, hidden via JavaScript
@@ -229,8 +254,23 @@ body {
 }
 
 .tab-icon {
+  position: relative;
   opacity: 0.6;
   transition: opacity 0.15s ease;
+}
+
+/* A small unread-style dot on a tab icon (e.g. a pending friend request
+   on Competition) - visible the moment the app opens, so it doesn't rely
+   on someone happening to tap into that specific tab to find out. */
+.tab-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 1.5px solid #09090b;
 }
 
 .tab-text {
@@ -244,6 +284,36 @@ body {
 
 .tab-btn.active .tab-icon {
   opacity: 1;
+}
+
+/* This has to come AFTER the unconditional .tab-bar rule above, not
+   before it - CSS resolves equal-specificity conflicts by source order,
+   so if this block appeared earlier in the file (as it briefly did),
+   the unconditional rule's negative margins would win back on mobile and
+   push the bar wider than the screen, which is exactly what let the
+   whole page be dragged sideways. */
+@media (max-width: 480px) {
+  /* Pin the tab bar to the bottom of the actual screen instead of
+     leaving it in normal document flow - otherwise it sits right after
+     whichever tab's content happens to be visible, so it visually jumps
+     to a different height every time you switch tabs. Fixed positioning
+     also means the negative-margin edge-to-edge trick above is no longer
+     needed here, since left:0/right:0 already spans the full viewport. */
+  .tab-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    padding-bottom: calc(var(--space-xs) + var(--safe-bottom));
+    z-index: 100;
+  }
+
+  /* Leaves room at the bottom of every tab's content so its last item
+     isn't hidden underneath the now-floating tab bar. */
+  .tab-panel {
+    padding-bottom: 90px;
+  }
 }
 
 .preview-note {
@@ -351,6 +421,57 @@ body {
   color: white;
 }
 
+.accept-request-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* The non-interactive "Friends" / "Pending" state shown next to a search
+   result when there's a relationship this row doesn't let you act on
+   (already friends, or they requested you - handled via Friend Requests
+   instead). */
+.friend-status-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Self-contained sizing for the search result row's own Add/Requested
+   buttons - unlike .accept-request-button/.decline-request-button above,
+   these don't sit inside a .friend-request-actions wrapper, so they need
+   their own padding/font-size/radius rather than inheriting it. */
+.friend-search-action-button {
+  min-height: 32px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 7px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.friend-search-action-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.friend-search-add-button {
+  background-color: #22c55e;
+  color: white;
+  border: none;
+}
+
+/* Tapping this cancels the request and reverts back to Add - same
+   outlined, muted treatment as .decline-request-button, so it visually
+   reads as "undoable" rather than a dead-end confirmation label. */
+.friend-search-requested-button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
 .decline-request-button {
   background: none;
   border: 1px solid var(--border) !important;
@@ -449,6 +570,41 @@ body {
   font-size: 1rem;
 }
 
+/* Edit Profile's fields (username/email/phone) need real room to type
+   and read back what you typed - unlike the Daily Minimums boxes above,
+   which are genuinely just 1-2 digit numbers, so stack label-over-input
+   instead of squeezing a full-width value into a small inline box. */
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--space-sm);
+  text-align: left;
+}
+
+.profile-field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.profile-field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: #232326;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+}
+
+.profile-field input:focus {
+  outline: none;
+  border-color: #22c55e;
+}
+
 .settings-row select {
   min-height: 44px;
   padding: 6px 10px;
@@ -518,22 +674,88 @@ body {
   transform: scale(1.18);
 }
 
-.progress-track {
-  width: 100%;
-  height: 8px;
-  background: #1a1a1c;
-  border-radius: 999px;
-  overflow: hidden;
+.rings-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-sm);
+}
+
+.rings-svg {
+  width: 170px;
+  height: 170px;
+}
+
+/* One ring, split into arc segments (one per exercise) rather than
+   Apple's stack of separate concentric rings - every segment shares the
+   same radius, and dasharray/dashoffset (set in script.js) carve out
+   each one's own slice of the circle, with a gap between slices. */
+.ring-track {
+  fill: none;
+  stroke: #ffffff12;
+  stroke-width: 14;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 60px 60px;
+}
+
+.ring-progress {
+  fill: none;
+  stroke-width: 14;
+  stroke-linecap: round;
+  /* Starts each segment's fill at its slice's own start point instead of
+     SVG's default 3 o'clock, and fills clockwise within that slice. */
+  transform: rotate(-90deg);
+  transform-origin: 60px 60px;
+  transition: stroke-dasharray 0.4s ease;
+}
+
+.ring-pushups { stroke: var(--ring-pushups); }
+.ring-situps { stroke: var(--ring-situps); }
+.ring-squats { stroke: var(--ring-squats); }
+.ring-walkrun { stroke: var(--ring-walkrun); }
+
+/* Plays once, right when a ring crosses into 100% - the actual "closure"
+   moment the whole feature exists for. Re-triggered by the JS removing
+   and re-adding this class, since merely having a class present doesn't
+   replay a CSS animation on its own. */
+.ring-closed {
+  animation: ring-close-pulse 0.5s ease;
+}
+
+@keyframes ring-close-pulse {
+  0% { filter: brightness(1); }
+  40% { filter: brightness(1.6); }
+  100% { filter: brightness(1); }
+}
+
+.rings-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
   margin-bottom: var(--space-md);
 }
 
-.progress-fill {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, var(--orange-light), var(--orange));
-  border-radius: 999px;
-  transition: width 0.3s ease;
+.rings-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
+
+.rings-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rings-dot-pushups { background: var(--ring-pushups); }
+.rings-dot-situps { background: var(--ring-situps); }
+.rings-dot-squats { background: var(--ring-squats); }
+.rings-dot-walkrun { background: var(--ring-walkrun); }
 
 #status-message {
   color: var(--text-secondary);
@@ -1357,6 +1579,44 @@ body {
   color: var(--text-primary);
   text-align: left;
   margin-bottom: var(--space-lg);
+}
+
+/* Puts a screen's title and a top-right action (like the Me tab's gear
+   icon) on one row instead of stacking them - the title keeps its usual
+   spacing below, so screens that don't need a header button are unaffected. */
+.tab-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.tab-header-row .large-title {
+  margin-bottom: 0;
+}
+
+.gear-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: #1c1c1f66;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.gear-button svg {
+  width: 19px;
+  height: 19px;
+}
+
+.gear-button:hover {
+  background: #ffffff12;
 }
 
 /* A calendar-style grid: 7 cells per row (Sun-Sat), wrapping to a new

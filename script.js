@@ -41,6 +41,14 @@ function defaultData() {
     // encodedRoute}. encodedRoute is a compressed string (see the
     // simplifyRoute/encodePolyline functions below), not raw GPS points.
     routes: [],
+    // The local hour (0-23) the daily reminder push should fire at, and
+    // the IANA timezone (e.g. "America/New_York") to interpret it in -
+    // captured automatically when reminders are enabled, not asked for
+    // directly. reminderTimezone is null until reminders are turned on at
+    // least once; the server-side reminder function treats that as "never
+    // configured" and skips sending to that user.
+    reminderHour: 19,
+    reminderTimezone: null,
   };
 }
 
@@ -56,6 +64,8 @@ function migrateData(parsed) {
     parsed.weekStartDate = null;
   }
   if (!parsed.units) parsed.units = "miles";
+  if (parsed.reminderHour === undefined) parsed.reminderHour = 19;
+  if (parsed.reminderTimezone === undefined) parsed.reminderTimezone = null;
 
   // One-time migration from the old lastRoute/routeLog fields (which
   // only ever kept one full route plus a distance-only log of the rest)
@@ -110,14 +120,14 @@ async function loadUserData(userId) {
     .maybeSingle(); // returns null instead of an error if no row exists yet
 
   if (row) {
-    return migrateData(row.data);
+    return { data: migrateData(row.data), isNewAccount: false };
   }
 
   // Brand new account - seed it from any existing local progress, or
   // plain defaults if there isn't any.
   const initialData = loadLocalData() || defaultData();
   await saveUserData(userId, initialData);
-  return initialData;
+  return { data: initialData, isNewAccount: true };
 }
 
 // Saves the given data into this user's row, creating it if it doesn't
@@ -154,13 +164,91 @@ const statusMessageEl = document.getElementById("status-message");
 const logButtonEl = document.getElementById("log-button");
 const errorMessageEl = document.getElementById("error-message");
 const bestStreakCountEl = document.getElementById("best-streak-count");
-const progressFillEl = document.getElementById("progress-fill");
 
 const pushupsEl = document.getElementById("pushups");
 const situpsEl = document.getElementById("situps");
 const squatsEl = document.getElementById("squats");
 const walkrunEl = document.getElementById("walkrun");
 const walkrunRowEl = document.getElementById("walkrun-row");
+
+// Closure ring: ONE circle's worth of circumference, divided into equal
+// arc segments (one per active exercise) instead of Apple's separate
+// concentric ring per metric. All segments share the same radius, so
+// "dividing the ring" just means giving each segment its own slice of
+// one shared circumference via dasharray/dashoffset.
+const RING_RADIUS = 50;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+// Gap between segments, in the same path-length units as the
+// circumference above. Needs to be at least roughly one stroke-width so
+// the rounded caps on either side of a gap (which each bulge outward by
+// half the stroke-width) don't visually touch or overlap.
+const RING_SEGMENT_GAP = 20;
+
+const RING_CONFIG = [
+  { key: "pushups", trackEl: document.getElementById("segment-track-pushups"), progressEl: document.getElementById("ring-pushups") },
+  { key: "situps", trackEl: document.getElementById("segment-track-situps"), progressEl: document.getElementById("ring-situps") },
+  { key: "squats", trackEl: document.getElementById("segment-track-squats"), progressEl: document.getElementById("ring-squats") },
+  { key: "walkrun", trackEl: document.getElementById("segment-track-walkrun"), progressEl: document.getElementById("ring-walkrun") },
+];
+
+RING_CONFIG.forEach((ring) => {
+  ring.wasClosed = false;
+});
+
+// Carves this ring's own slice out of the shared circle: `startOffset` is
+// how far clockwise (in path-length units) this slice begins, `span` is
+// how much of the circle it's allotted, and `fraction` (0-1) is how much
+// of ITS OWN slice is currently filled. Plays the "closure" pulse exactly
+// once, the moment this segment crosses from not-yet-done into done.
+function setSegmentProgress(ring, startOffset, span, fraction) {
+  const trackLength = Math.max(span - RING_SEGMENT_GAP, 0);
+  const clamped = Math.max(0, Math.min(1, fraction));
+  const progressLength = trackLength * clamped;
+
+  ring.trackEl.style.strokeDasharray = `${trackLength} ${RING_CIRCUMFERENCE - trackLength}`;
+  ring.trackEl.style.strokeDashoffset = `${-startOffset}`;
+
+  ring.progressEl.style.strokeDasharray = `${progressLength} ${RING_CIRCUMFERENCE - progressLength}`;
+  ring.progressEl.style.strokeDashoffset = `${-startOffset}`;
+
+  const isClosed = clamped >= 1;
+  if (isClosed && !ring.wasClosed) {
+    ring.progressEl.classList.remove("ring-closed");
+    // Forces the browser to acknowledge the class is gone before adding
+    // it back, so the animation replays instead of silently no-op'ing
+    // (a class that's already present doesn't restart a CSS animation).
+    void ring.progressEl.offsetWidth;
+    ring.progressEl.classList.add("ring-closed");
+  }
+  ring.wasClosed = isClosed;
+}
+
+// `forceComplete` mirrors how the old single progress bar worked: once
+// the day is actually logged, every segment shows fully closed regardless
+// of the (now-disabled) input values - including when a rest day was used
+// to cover a gap rather than every exercise truly hitting its minimum.
+function updateRings(forceComplete) {
+  const walkRunEnabled = data.minimums.walkRun !== null;
+  document.getElementById("segment-track-walkrun").classList.toggle("hidden", !walkRunEnabled);
+  document.getElementById("ring-walkrun").classList.toggle("hidden", !walkRunEnabled);
+  document.getElementById("rings-legend-walkrun").classList.toggle("hidden", !walkRunEnabled);
+
+  const activeRings = walkRunEnabled ? RING_CONFIG : RING_CONFIG.slice(0, 3);
+  const segmentSpan = RING_CIRCUMFERENCE / activeRings.length;
+
+  const fractions = forceComplete
+    ? activeRings.map(() => 1)
+    : [
+        Number(pushupsEl.value) / Math.max(data.minimums.pushups, 1),
+        Number(situpsEl.value) / Math.max(data.minimums.situps, 1),
+        Number(squatsEl.value) / Math.max(data.minimums.squats, 1),
+        walkRunEnabled ? Number(walkrunEl.value) / Math.max(data.minimums.walkRun, 1) : 0,
+      ];
+
+  activeRings.forEach((ring, index) => {
+    setSegmentProgress(ring, index * segmentSpan, segmentSpan, fractions[index]);
+  });
+}
 
 const pushupsMinTagEl = document.getElementById("pushups-min-tag");
 const situpsMinTagEl = document.getElementById("situps-min-tag");
@@ -191,6 +279,14 @@ enableWalkrunEl.addEventListener("change", () => {
 
 const editProfilePanelEl = document.getElementById("edit-profile-panel");
 const settingsPanelEl = document.getElementById("settings-panel");
+
+document.getElementById("open-account-screen-button").addEventListener("click", () => {
+  showScreen("account-screen");
+});
+
+document.getElementById("account-screen-close-button").addEventListener("click", () => {
+  showScreen("app-screen");
+});
 
 document.getElementById("open-settings-button").addEventListener("click", () => {
   editProfilePanelEl.classList.add("hidden");
@@ -348,6 +444,18 @@ saveSettingsEl.addEventListener("click", () => {
 
 const enableRemindersEl = document.getElementById("enable-reminders");
 const remindersStatusEl = document.getElementById("reminders-status");
+const reminderHourRowEl = document.getElementById("reminder-hour-row");
+const reminderHourEl = document.getElementById("reminder-hour");
+
+// Populate the hour dropdown once, in 12-hour display form but storing
+// the 24-hour value the server actually compares against.
+for (let hour = 0; hour < 24; hour++) {
+  const option = document.createElement("option");
+  option.value = hour;
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  option.textContent = `${displayHour}:00 ${hour < 12 ? "AM" : "PM"}`;
+  reminderHourEl.appendChild(option);
+}
 
 // atob() gives raw bytes for a base64 string, but the push API wants a
 // Uint8Array in its own url-safe base64 variant - this converts between
@@ -359,6 +467,49 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
+// Shared by the Settings toggle and the one-time onboarding prompt, so
+// there's exactly one place that knows how to turn reminders on. Returns
+// true/false so each caller can update its own surrounding UI.
+async function enableReminderNotifications() {
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") return false;
+
+  const registration = await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+  }
+
+  const subscriptionJson = subscription.toJSON();
+  const { error } = await supabaseClient.from("push_subscriptions").upsert({
+    endpoint: subscriptionJson.endpoint,
+    user_id: currentUserId,
+    p256dh: subscriptionJson.keys.p256dh,
+    auth_key: subscriptionJson.keys.auth,
+  });
+  if (error) return false;
+
+  // Captured automatically rather than asked for - this is what lets the
+  // server-side function compare against each person's own local time
+  // instead of one fixed hour for everyone.
+  data.reminderTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  saveData(data);
+
+  return true;
+}
+
+async function disableReminderNotifications() {
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (subscription) {
+    await supabaseClient.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint);
+    await subscription.unsubscribe();
+  }
+}
+
 // Reflects whatever this browser's actual subscription state is (not just
 // a saved preference) into the checkbox, every time Settings is opened.
 async function refreshRemindersToggle() {
@@ -367,6 +518,7 @@ async function refreshRemindersToggle() {
   if (!currentUserId) {
     enableRemindersEl.checked = false;
     enableRemindersEl.disabled = true;
+    reminderHourRowEl.classList.add("hidden");
     remindersStatusEl.textContent = "Sign in to enable reminders.";
     return;
   }
@@ -374,6 +526,7 @@ async function refreshRemindersToggle() {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
     enableRemindersEl.checked = false;
     enableRemindersEl.disabled = true;
+    reminderHourRowEl.classList.add("hidden");
     remindersStatusEl.textContent = "Reminders aren't supported in this browser. On iPhone, add Forja to your Home Screen first.";
     return;
   }
@@ -382,6 +535,8 @@ async function refreshRemindersToggle() {
   const registration = await navigator.serviceWorker.ready;
   const existingSubscription = await registration.pushManager.getSubscription();
   enableRemindersEl.checked = !!existingSubscription;
+  reminderHourEl.value = data.reminderHour;
+  reminderHourRowEl.classList.toggle("hidden", !existingSubscription);
 }
 
 enableRemindersEl.addEventListener("change", async () => {
@@ -389,64 +544,44 @@ enableRemindersEl.addEventListener("change", async () => {
   remindersStatusEl.classList.remove("success");
 
   if (enableRemindersEl.checked) {
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") {
+    const success = await enableReminderNotifications();
+    if (!success) {
       enableRemindersEl.checked = false;
-      remindersStatusEl.textContent = "Notification permission was denied.";
+      remindersStatusEl.textContent = "Couldn't enable reminders. Try again.";
       return;
     }
-
-    const registration = await navigator.serviceWorker.ready;
-    let subscription = await registration.pushManager.getSubscription();
-    if (!subscription) {
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-    }
-
-    const subscriptionJson = subscription.toJSON();
-    const { error } = await supabaseClient.from("push_subscriptions").upsert({
-      endpoint: subscriptionJson.endpoint,
-      user_id: currentUserId,
-      p256dh: subscriptionJson.keys.p256dh,
-      auth_key: subscriptionJson.keys.auth,
-    });
-
-    if (error) {
-      remindersStatusEl.textContent = "Couldn't save that. Try again.";
-      enableRemindersEl.checked = false;
-      return;
-    }
-
+    reminderHourEl.value = data.reminderHour;
+    reminderHourRowEl.classList.remove("hidden");
     remindersStatusEl.textContent = "Reminders enabled.";
     remindersStatusEl.classList.add("success");
   } else {
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-    if (subscription) {
-      await supabaseClient.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint);
-      await subscription.unsubscribe();
-    }
+    await disableReminderNotifications();
+    reminderHourRowEl.classList.add("hidden");
     remindersStatusEl.textContent = "Reminders turned off.";
   }
 });
 
-// Temporary diagnostic button (not the real reminder system) - calls
-// showNotification() directly from the page instead of via a push message,
-// so it can confirm permission + service worker + display all work on this
-// phone before we build the actual server-side sending piece next.
-document.getElementById("test-notification-button").addEventListener("click", async () => {
-  if (Notification.permission !== "granted") {
-    remindersStatusEl.textContent = "Enable reminders above first.";
+reminderHourEl.addEventListener("change", () => {
+  data.reminderHour = Number(reminderHourEl.value);
+  // Timezones aren't permanent - re-capturing it here as well means
+  // someone who's since traveled gets corrected the next time they touch
+  // this setting, not just the first time they ever enabled it.
+  data.reminderTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  saveData(data);
+});
+
+document.getElementById("reminder-setup-enable-button").addEventListener("click", async () => {
+  const statusEl = document.getElementById("reminder-setup-status");
+  const success = await enableReminderNotifications();
+  if (!success) {
+    statusEl.textContent = "Couldn't enable reminders. You can try again anytime in Settings.";
     return;
   }
-  const registration = await navigator.serviceWorker.ready;
-  registration.showNotification("Forja", {
-    body: "If you can see this, notifications work on this device!",
-    icon: "./icons/icon-192.png",
-    badge: "./icons/icon-192.png",
-  });
+  showScreen("app-screen");
+});
+
+document.getElementById("reminder-setup-skip-button").addEventListener("click", () => {
+  showScreen("app-screen");
 });
 
 // Turns a Date object into a "YYYY-MM-DD" string using LOCAL time.
@@ -466,24 +601,6 @@ function todayString() {
   return dateToString(new Date());
 }
 
-// Counts how many of the 3 exercises currently meet their minimum,
-// so we can show a progress bar even before the day is logged.
-// How many activities count toward today - 3 normally, or 4 if walk/run
-// tracking is turned on. Used both to size the progress bar correctly
-// and to know how many boxes need to be filled in to log the day.
-function totalActivityCount() {
-  return data.minimums.walkRun !== null ? 4 : 3;
-}
-
-function completedCount() {
-  let count = 0;
-  if (Number(pushupsEl.value) >= data.minimums.pushups) count += 1;
-  if (Number(situpsEl.value) >= data.minimums.situps) count += 1;
-  if (Number(squatsEl.value) >= data.minimums.squats) count += 1;
-  if (data.minimums.walkRun !== null && Number(walkrunEl.value) >= data.minimums.walkRun) count += 1;
-  return count;
-}
-
 // Updates everything visible on the page to match the current `data`.
 function render() {
   streakCountEl.textContent = data.streak;
@@ -495,13 +612,13 @@ function render() {
     statusMessageEl.textContent = "Nice work! You're done for today.";
     logButtonEl.disabled = true;
     logButtonEl.textContent = "Completed Today";
-    progressFillEl.style.width = "100%";
   } else {
     statusMessageEl.textContent = "Do your reps, then log today's workout.";
     logButtonEl.disabled = false;
     logButtonEl.textContent = "Log Today's Workout";
-    progressFillEl.style.width = `${(completedCount() / totalActivityCount()) * 100}%`;
   }
+
+  updateRings(loggedToday);
 
   pushupsEl.disabled = loggedToday;
   situpsEl.disabled = loggedToday;
@@ -803,7 +920,7 @@ function hideSplash() {
 // "hide this one" line added into every other show-a-different-screen
 // function (which is exactly how the reset-password screen almost got
 // left out of revealApp() below).
-const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "calendar-screen", "follow-list-screen", "user-actions-screen"];
+const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "reminder-setup-screen"];
 
 function showScreen(idToShow) {
   SCREEN_IDS.forEach((id) => {
@@ -831,8 +948,39 @@ function revealApp() {
 // database, then reveals the app.
 async function showApp(userId) {
   currentUserId = userId;
-  data = await loadUserData(userId);
+  const result = await loadUserData(userId);
+  data = result.data;
   revealApp();
+  updateFriendRequestBadge();
+
+  // A brand new account (not a returning login) gets one chance to turn
+  // on reminders right away, instead of needing to find the toggle
+  // buried in Settings themselves. This can't happen during the earlier
+  // guest onboarding carousel - a push subscription needs a real account
+  // (a user_id) to attach to, and guests don't have one yet.
+  if (result.isNewAccount) {
+    showScreen("reminder-setup-screen");
+  }
+}
+
+// Checked right away on app load (not just when the Competition tab
+// happens to be opened) so a pending friend request is actually visible
+// somewhere, instead of silently sitting in the database until someone
+// happens to tap into that specific tab.
+async function updateFriendRequestBadge() {
+  const badgeEl = document.getElementById("competition-tab-badge");
+  if (!currentUserId) {
+    badgeEl.classList.add("hidden");
+    return;
+  }
+
+  const { count } = await supabaseClient
+    .from("friendships")
+    .select("id", { count: "exact", head: true })
+    .eq("addressee_id", currentUserId)
+    .eq("status", "pending");
+
+  badgeEl.classList.toggle("hidden", !count);
 }
 
 // Lets someone use the full app without an account yet. Their data is
@@ -1185,50 +1333,153 @@ document.getElementById("save-username-button").addEventListener("click", async 
   loadLeaderboard();
 });
 
-document.getElementById("send-friend-request-button").addEventListener("click", async () => {
-  const input = document.getElementById("friend-username-input");
+// Live search, like looking someone up in any other social app - type a
+// few letters and matching usernames appear below, each with its own
+// Add button that flips to "Requested" the moment the request is sent,
+// instead of typing an exact username blind and hoping it matches.
+
+let friendSearchDebounceTimer = null;
+
+// "Requested" is a real button, not a dead-end label - tapping it cancels
+// the request and swaps back to Add, so sending one by accident is a
+// one-tap undo instead of something only fixable from Friend Requests.
+function createAddButton(userId) {
+  const addButton = document.createElement("button");
+  addButton.className = "friend-search-action-button friend-search-add-button";
+  addButton.textContent = "Add";
+  addButton.addEventListener("click", async () => {
+    addButton.disabled = true;
+    const { data: inserted, error } = await supabaseClient
+      .from("friendships")
+      .insert({ requester_id: currentUserId, addressee_id: userId, status: "pending" })
+      .select("id")
+      .single();
+
+    if (error) {
+      addButton.disabled = false;
+      document.getElementById("friend-add-error").textContent = "Couldn't send the request. Try again.";
+      return;
+    }
+
+    addButton.replaceWith(createRequestedButton(userId, inserted.id));
+  });
+  return addButton;
+}
+
+function createRequestedButton(userId, friendshipId) {
+  const button = document.createElement("button");
+  button.className = "friend-search-action-button friend-search-requested-button";
+  button.textContent = "Requested";
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    const { error } = await supabaseClient.from("friendships").delete().eq("id", friendshipId);
+
+    if (error) {
+      button.disabled = false;
+      document.getElementById("friend-add-error").textContent = "Couldn't cancel the request. Try again.";
+      return;
+    }
+
+    button.replaceWith(createAddButton(userId));
+  });
+  return button;
+}
+
+function buildFriendSearchRow(userId, username, statusInfo) {
+  const row = document.createElement("div");
+  row.className = "leaderboard-row";
+
+  row.innerHTML = `
+    <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
+    <span class="leaderboard-name"></span>
+  `;
+  row.querySelector(".leaderboard-name").textContent = username;
+
+  if (statusInfo.type === "friends" || statusInfo.type === "pending-received") {
+    const label = document.createElement("span");
+    label.className = "friend-status-label";
+    label.textContent = statusInfo.type === "friends" ? "Friends" : "Pending";
+    row.appendChild(label);
+  } else if (statusInfo.type === "pending-sent") {
+    row.appendChild(createRequestedButton(userId, statusInfo.friendshipId));
+  } else {
+    row.appendChild(createAddButton(userId));
+  }
+
+  return row;
+}
+
+async function runFriendSearch(query) {
+  const resultsEl = document.getElementById("friend-search-results");
   const errorEl = document.getElementById("friend-add-error");
-  const targetUsername = input.value.trim();
-
   errorEl.textContent = "";
-  errorEl.classList.remove("success");
 
-  if (!targetUsername) {
-    errorEl.textContent = "Enter a username.";
-    return;
-  }
-
-  if (targetUsername.toLowerCase() === myUsername.toLowerCase()) {
-    errorEl.textContent = "You can't add yourself.";
-    return;
-  }
-
-  const { data: targetProfile } = await supabaseClient
+  const { data: matches } = await supabaseClient
     .from("profiles")
-    .select("user_id")
-    .ilike("username", targetUsername)
-    .maybeSingle();
+    .select("user_id, username")
+    .ilike("username", `${query}%`)
+    .neq("user_id", currentUserId)
+    .limit(8);
 
-  if (!targetProfile) {
-    errorEl.textContent = "No user found with that username.";
+  resultsEl.innerHTML = "";
+  resultsEl.classList.remove("hidden");
+
+  if (!matches || matches.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "preview-note";
+    empty.textContent = "No users found.";
+    resultsEl.appendChild(empty);
     return;
   }
 
-  const { error } = await supabaseClient.from("friendships").insert({
-    requester_id: currentUserId,
-    addressee_id: targetProfile.user_id,
-    status: "pending",
+  const matchIds = matches.map((m) => m.user_id);
+  const { data: relations } = await supabaseClient
+    .from("friendships")
+    .select("id, requester_id, addressee_id, status")
+    .or(
+      `and(requester_id.eq.${currentUserId},addressee_id.in.(${matchIds.join(",")})),and(addressee_id.eq.${currentUserId},requester_id.in.(${matchIds.join(",")}))`
+    );
+
+  const statusByUserId = {};
+  (relations || []).forEach((rel) => {
+    const otherId = rel.requester_id === currentUserId ? rel.addressee_id : rel.requester_id;
+    if (rel.status === "accepted") {
+      statusByUserId[otherId] = { type: "friends" };
+    } else if (rel.requester_id === currentUserId) {
+      statusByUserId[otherId] = { type: "pending-sent", friendshipId: rel.id };
+    } else {
+      statusByUserId[otherId] = { type: "pending-received" };
+    }
   });
 
-  if (error) {
-    errorEl.textContent =
-      error.code === "23505" ? "You've already sent a request to this user." : "Couldn't send the request. Try again.";
+  matches.forEach((match) => {
+    resultsEl.appendChild(
+      buildFriendSearchRow(match.user_id, match.username, statusByUserId[match.user_id] || { type: "none" })
+    );
+  });
+}
+
+document.getElementById("friend-username-input").addEventListener("input", () => {
+  clearTimeout(friendSearchDebounceTimer);
+  const query = document.getElementById("friend-username-input").value.trim();
+  const resultsEl = document.getElementById("friend-search-results");
+
+  if (query.length < 2) {
+    resultsEl.classList.add("hidden");
+    resultsEl.innerHTML = "";
     return;
   }
 
-  errorEl.textContent = "Friend request sent!";
-  errorEl.classList.add("success");
-  input.value = "";
+  friendSearchDebounceTimer = setTimeout(() => runFriendSearch(query), 300);
+});
+
+// The on-screen keyboard's "Search" key runs the search immediately
+// instead of waiting out the debounce delay.
+document.getElementById("friend-username-input").addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  clearTimeout(friendSearchDebounceTimer);
+  const query = document.getElementById("friend-username-input").value.trim();
+  if (query.length >= 2) runFriendSearch(query);
 });
 
 async function loadFriendRequests() {
@@ -1240,6 +1491,8 @@ async function loadFriendRequests() {
     .select("id, requester_id")
     .eq("addressee_id", currentUserId)
     .eq("status", "pending");
+
+  updateFriendRequestBadge();
 
   if (!requests || requests.length === 0) {
     sectionEl.classList.add("hidden");
@@ -1315,13 +1568,12 @@ async function loadLeaderboard() {
   });
 }
 
-// The Me tab's profile header (avatar, username, follower/following
-// counts). There's no separate one-way-follow system yet, so this reuses
-// the existing mutual friendship data: adding a friend makes the
-// REQUESTER a follower of the ADDRESSEE.
+// The Me tab's profile header (avatar, username, friend count). Friendship
+// is mutual - accepting a request makes both people each other's friend,
+// not an asymmetric follow - so there's a single "Friends" stat rather
+// than separate Followers/Following counts that would always be identical.
 
-let followerIds = [];
-let followingIds = [];
+let friendIds = [];
 
 async function enterMeTab() {
   const headerEl = document.getElementById("profile-header");
@@ -1362,28 +1614,26 @@ async function loadFollowCounts() {
     .eq("status", "accepted")
     .or(`requester_id.eq.${currentUserId},addressee_id.eq.${currentUserId}`);
 
-  // I added them (I'm the requester) -> I'm following them.
-  followingIds = (friendships || []).filter((f) => f.requester_id === currentUserId).map((f) => f.addressee_id);
+  // Accepting a request makes it mutual, regardless of who sent it
+  // originally - a "friend" is a two-way relationship here, not an
+  // asymmetric follow.
+  friendIds = (friendships || []).map((f) => (f.requester_id === currentUserId ? f.addressee_id : f.requester_id));
 
-  // They added me (I'm the addressee) -> they're my follower.
-  followerIds = (friendships || []).filter((f) => f.addressee_id === currentUserId).map((f) => f.requester_id);
-
-  document.getElementById("followers-count").textContent = followerIds.length;
-  document.getElementById("following-count").textContent = followingIds.length;
+  document.getElementById("friends-count").textContent = friendIds.length;
 }
 
-async function showFollowList(title, userIds) {
-  document.getElementById("follow-list-title").textContent = title;
+async function showFriendsList() {
+  document.getElementById("follow-list-title").textContent = "Friends";
   const listEl = document.getElementById("follow-list");
   listEl.innerHTML = "";
 
-  if (userIds.length === 0) {
+  if (friendIds.length === 0) {
     const empty = document.createElement("p");
     empty.className = "preview-note";
     empty.textContent = "Nobody here yet.";
     listEl.appendChild(empty);
   } else {
-    const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username").in("user_id", userIds);
+    const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username").in("user_id", friendIds);
     (profiles || []).forEach((profile) => {
       const row = document.createElement("div");
       row.className = "leaderboard-row";
@@ -1394,7 +1644,7 @@ async function showFollowList(title, userIds) {
       `;
       row.querySelector(".leaderboard-name").textContent = profile.username;
       row.querySelector(".row-options-button").addEventListener("click", () =>
-        openUserActions(profile.user_id, profile.username, "follow-list-screen", title === "Followers" ? "followers" : "following")
+        openUserActions(profile.user_id, profile.username, "follow-list-screen", true)
       );
       listEl.appendChild(row);
     });
@@ -1403,8 +1653,7 @@ async function showFollowList(title, userIds) {
   showScreen("follow-list-screen");
 }
 
-document.getElementById("followers-button").addEventListener("click", () => showFollowList("Followers", followerIds));
-document.getElementById("following-button").addEventListener("click", () => showFollowList("Following", followingIds));
+document.getElementById("friends-button").addEventListener("click", showFriendsList);
 document.getElementById("follow-list-close-button").addEventListener("click", () => showScreen("app-screen"));
 
 // Block/report another user - satisfies Apple's Guideline 1.2 (user-generated
@@ -1418,12 +1667,12 @@ document.getElementById("follow-list-close-button").addEventListener("click", ()
 
 let userActionsTargetId = null;
 let userActionsReturnScreen = "app-screen";
-let userActionsReturnFollowList = null; // "followers" | "following" | null
+let userActionsReturnToFriendsList = false;
 
-function openUserActions(userId, username, returnScreen, returnFollowList) {
+function openUserActions(userId, username, returnScreen, returnToFriendsList) {
   userActionsTargetId = userId;
   userActionsReturnScreen = returnScreen;
-  userActionsReturnFollowList = returnFollowList;
+  userActionsReturnToFriendsList = !!returnToFriendsList;
 
   document.getElementById("user-actions-subtitle").textContent = `@${username}`;
   document.getElementById("user-actions-menu").classList.remove("hidden");
@@ -1439,12 +1688,9 @@ function openUserActions(userId, username, returnScreen, returnFollowList) {
 }
 
 async function closeUserActionsAndRefresh() {
-  if (userActionsReturnFollowList) {
+  if (userActionsReturnToFriendsList) {
     await loadFollowCounts();
-    await showFollowList(
-      userActionsReturnFollowList === "followers" ? "Followers" : "Following",
-      userActionsReturnFollowList === "followers" ? followerIds : followingIds
-    );
+    await showFriendsList();
   } else {
     showScreen(userActionsReturnScreen);
     await Promise.all([loadFriendRequests(), loadLeaderboard()]);
