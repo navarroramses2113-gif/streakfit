@@ -57,7 +57,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg>
       </div>
       <h2 class="onboarding-title">Quick Daily Check-Ins</h2>
-      <p class="onboarding-text">Push-ups, planks, squats. Hit your minimums, log your day, and keep the streak alive.</p>
+      <p class="onboarding-text">Push-ups, planks, squats - verified by your camera, so every rep counts for real. Hit your minimums and keep the streak alive.</p>
     </div>
     <div class="onboarding-slide hidden" data-slide="2">
       <div class="onboarding-icon">
@@ -350,6 +350,37 @@
     <p id="reminder-setup-status" class="error"></p>
   </main>
 
+  <!-- Records one camera-verified set. Every exercise count in Forja comes
+       from here - there is deliberately no way to type a number in. -->
+  <main id="camera-screen" class="card hidden">
+    <h1 id="camera-title" class="large-title">Push-ups</h1>
+    <p id="camera-tip" class="preview-note"></p>
+
+    <div id="camera-stage" class="camera-stage mirrored">
+      <video id="camera-video" playsinline muted autoplay></video>
+      <canvas id="camera-overlay"></canvas>
+    </div>
+
+    <div id="camera-count" class="camera-count">0</div>
+    <p id="camera-count-label" class="camera-count-label"></p>
+    <p id="camera-state" class="camera-state"></p>
+    <p id="camera-feedback" class="camera-feedback"></p>
+
+    <div id="camera-review" class="camera-review hidden">
+      <p id="camera-result" class="camera-result"></p>
+      <p id="camera-result-note" class="preview-note"></p>
+      <div class="tracking-buttons">
+        <button id="camera-redo-button" class="tracking-cancel-button">Redo set</button>
+        <button id="camera-save-button" class="auth-submit-button">Save set</button>
+      </div>
+    </div>
+
+    <button id="camera-start-button" class="auth-submit-button">Start set</button>
+    <button id="camera-finish-button" class="auth-submit-button hidden">Finish set</button>
+    <button id="camera-flip-button" class="tracking-cancel-button full-width-button">Flip camera</button>
+    <button id="camera-close-button" class="tracking-cancel-button full-width-button">Close</button>
+  </main>
+
   <!-- Shown once after finishing a tracked walk/run. -->
   <main id="tracking-summary-screen" class="card hidden">
     <p id="tracking-summary-heading" class="motivation">Nice work!</p>
@@ -431,19 +462,22 @@
           <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg></span>
           <label for="pushups">Push-ups</label>
           <span id="pushups-min-tag" class="min-tag">min 10</span>
-          <input type="number" id="pushups" min="0" value="0">
+          <input type="number" id="pushups" value="0" readonly tabindex="-1" aria-label="Verified push-ups today">
+          <button class="verify-button" data-exercise="pushup">Verify</button>
         </div>
         <div class="exercise-tile">
           <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg></span>
           <label for="planks">Plank (seconds)</label>
           <span id="planks-min-tag" class="min-tag">min 30s</span>
-          <input type="number" id="planks" min="0" value="0">
+          <input type="number" id="planks" value="0" readonly tabindex="-1" aria-label="Best verified plank today, in seconds">
+          <button class="verify-button" data-exercise="plank">Verify</button>
         </div>
         <div class="exercise-tile">
           <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg></span>
           <label for="squats">Squats</label>
           <span id="squats-min-tag" class="min-tag">min 10</span>
-          <input type="number" id="squats" min="0" value="0">
+          <input type="number" id="squats" value="0" readonly tabindex="-1" aria-label="Verified squats today">
+          <button class="verify-button" data-exercise="squat">Verify</button>
         </div>
       </div>
 
@@ -454,7 +488,7 @@
         <button id="start-tracking-button" class="start-tracking-button" title="Track with GPS">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
         </button>
-        <input type="number" id="walkrun" min="0" value="0">
+        <input type="number" id="walkrun" value="0" readonly tabindex="-1" aria-label="Verified walk or run minutes today">
       </div>
 
       <p id="error-message" class="error"></p>
@@ -615,6 +649,8 @@
   <!-- Supabase's client library - lets our JavaScript talk to our
        database and handle user accounts/login. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js?v=2"></script>
+  <script src="exercise-counter.js?v=3"></script>
+  <script src="camera-verify.js?v=1"></script>
+  <script src="script.js?v=3"></script>
 </body>
 </html>

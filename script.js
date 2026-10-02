@@ -49,6 +49,12 @@ function defaultData() {
     // configured" and skips sending to that user.
     reminderHour: 19,
     reminderTimezone: null,
+    // Today's camera-verified totals, kept here (not in the page) so they
+    // survive a reload and sync with the account:
+    // {date, pushups, planks (best single hold, seconds), squats, walkRun
+    // (minutes), sets: [{exercise, value, at}]}. Replaced by a fresh one
+    // the first time it's read on a new day - see todayProgress().
+    today: null,
   };
 }
 
@@ -70,6 +76,7 @@ function migrateData(parsed) {
   if (!parsed.units) parsed.units = "miles";
   if (parsed.reminderHour === undefined) parsed.reminderHour = 19;
   if (parsed.reminderTimezone === undefined) parsed.reminderTimezone = null;
+  if (parsed.today === undefined) parsed.today = null;
 
   // One-time migration from the old lastRoute/routeLog fields (which
   // only ever kept one full route plus a distance-only log of the rest)
@@ -632,10 +639,44 @@ function todayString() {
   return dateToString(new Date());
 }
 
+// Today's camera-verified totals. Lives in `data` so it survives a reload;
+// a new day starts a fresh set of zeros the first time it's read.
+function todayProgress() {
+  const today = todayString();
+  if (!data.today || data.today.date !== today) {
+    data.today = { date: today, pushups: 0, planks: 0, squats: 0, walkRun: 0, sets: [] };
+  }
+  return data.today;
+}
+
+// The only way an exercise count gets into the app: called with the
+// result of a set the camera verified. Reps add up across sets (two sets
+// of 5 is 10); a plank keeps the best single hold, since the minimum is
+// one unbroken hold, not a total.
+function recordVerifiedSet(exerciseKey, value) {
+  if (data.lastLoggedDate === todayString() || !(value > 0)) return;
+
+  const progress = todayProgress();
+  if (exerciseKey === "pushup") progress.pushups += value;
+  else if (exerciseKey === "squat") progress.squats += value;
+  else if (exerciseKey === "plank") progress.planks = Math.max(progress.planks, value);
+  else return;
+
+  progress.sets.push({ exercise: exerciseKey, value, at: new Date().toISOString() });
+  saveData(data);
+  render();
+}
+
 // Updates everything visible on the page to match the current `data`.
 function render() {
   streakCountEl.textContent = data.streak;
   bestStreakCountEl.textContent = data.bestStreak;
+
+  const progress = todayProgress();
+  pushupsEl.value = progress.pushups;
+  planksEl.value = progress.planks;
+  squatsEl.value = progress.squats;
+  walkrunEl.value = progress.walkRun;
 
   const loggedToday = data.lastLoggedDate === todayString();
 
@@ -644,20 +685,19 @@ function render() {
     logButtonEl.disabled = true;
     logButtonEl.textContent = "Completed Today";
   } else {
-    statusMessageEl.textContent = "Do your reps, then log today's workout.";
+    statusMessageEl.textContent = "Verify each exercise with the camera, then log today's workout.";
     logButtonEl.disabled = false;
     logButtonEl.textContent = "Log Today's Workout";
   }
 
   updateRings(loggedToday);
 
-  pushupsEl.disabled = loggedToday;
-  planksEl.disabled = loggedToday;
-  squatsEl.disabled = loggedToday;
+  document.querySelectorAll(".verify-button").forEach((button) => {
+    button.disabled = loggedToday;
+  });
 
   const walkRunEnabled = data.minimums.walkRun !== null;
   walkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
-  walkrunEl.disabled = loggedToday;
   startTrackingButtonEl.disabled = loggedToday;
 
   const beforeReset = data.weekStartDate;
@@ -694,11 +734,12 @@ function renderGraceStatus() {
   restDaysCountEl.textContent = REST_DAYS_PER_WEEK - data.restDaysUsed;
 }
 
-// Recalculate the progress bar live as the user types in any exercise box.
-pushupsEl.addEventListener("input", render);
-planksEl.addEventListener("input", render);
-squatsEl.addEventListener("input", render);
-walkrunEl.addEventListener("input", render);
+document.querySelectorAll(".verify-button").forEach((button) => {
+  button.addEventListener("click", () => {
+    const exerciseKey = button.dataset.exercise;
+    ForjaCamera.open(exerciseKey, (value) => recordVerifiedSet(exerciseKey, value));
+  });
+});
 
 // Builds the "last 12 weeks" grid of small squares, one per day, colored
 // based on whether that day is in data.history.
@@ -951,7 +992,7 @@ function hideSplash() {
 // "hide this one" line added into every other show-a-different-screen
 // function (which is exactly how the reset-password screen almost got
 // left out of revealApp() below).
-const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "reminder-setup-screen"];
+const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "reminder-setup-screen", "camera-screen"];
 
 function showScreen(idToShow) {
   SCREEN_IDS.forEach((id) => {
@@ -1108,13 +1149,12 @@ function logWorkout() {
     return;
   }
 
-  // Number(...) converts the text from the input box into an actual number.
-  // Input values are ALWAYS strings, even for type="number" inputs.
-  const pushups = Number(pushupsEl.value);
-  const plankSeconds = Number(planksEl.value);
-  const squats = Number(squatsEl.value);
+  const progress = todayProgress();
+  const pushups = progress.pushups;
+  const plankSeconds = progress.planks;
+  const squats = progress.squats;
   const walkRunEnabled = data.minimums.walkRun !== null;
-  const walkrunMinutes = Number(walkrunEl.value);
+  const walkrunMinutes = progress.walkRun;
 
   const missedMinimum =
     pushups < data.minimums.pushups ||
@@ -1123,7 +1163,7 @@ function logWorkout() {
     (walkRunEnabled && walkrunMinutes < data.minimums.walkRun);
 
   if (missedMinimum) {
-    let message = `You need at least ${data.minimums.pushups} push-ups, a ${data.minimums.planks}-second plank, and ${data.minimums.squats} squats`;
+    let message = `You need ${data.minimums.pushups} verified push-ups, a ${data.minimums.planks}-second plank, and ${data.minimums.squats} squats`;
     if (walkRunEnabled) {
       message += `, plus ${data.minimums.walkRun} minutes of walk/run`;
     }
@@ -2505,16 +2545,27 @@ trackingFinishEl.addEventListener("click", () => {
   const durationMinutes = Math.max(1, Math.round(durationMs / 60000));
   const { route, distanceKm, elevationGainM } = session;
 
-  // Auto-fill the manual minutes field, same as if it had been typed in -
-  // this counts toward today regardless of whether the route itself gets
-  // kept or discarded afterward.
-  walkrunEl.value = durationMinutes;
+  // The GPS track is the verification for walk/run, but GPS alone can't
+  // tell walking from sitting with the tracker running - so the minutes
+  // only count if the route actually covered ground at walking pace or
+  // faster. This counts toward today regardless of whether the route
+  // itself gets kept or discarded afterward.
+  const MIN_WALK_KMH = 2.5;
+  const averageKmh = durationMs > 0 ? distanceKm / (durationMs / 3600000) : 0;
+  const countsTowardToday = averageKmh >= MIN_WALK_KMH && data.lastLoggedDate !== todayString();
+  if (countsTowardToday) {
+    todayProgress().walkRun += durationMinutes;
+    saveData(data);
+  }
   render();
 
   pendingRoute = { date: todayString(), distanceKm, durationMs, route, elevationGainM };
 
   resetRecordToIdle();
   showTrackingSummary(route, distanceKm, durationMs, elevationGainM, "new");
+  if (!countsTowardToday && data.lastLoggedDate !== todayString()) {
+    document.getElementById("tracking-summary-heading").textContent = "Too slow to count toward today - walk/run minutes need real movement.";
+  }
 });
 
 // mode is "new" (just finished tracking - shows the Keep/Discard prompt)
