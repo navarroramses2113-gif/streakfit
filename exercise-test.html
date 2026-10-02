@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Forja - Exercise Counter Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #09090b;
+      color: #f4f4f5;
+      padding: 20px 16px 40px;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    .sub { color: #9a9a96; font-size: 0.85rem; margin-bottom: 14px; line-height: 1.4; min-height: 3.6em; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+    .tabs button { min-height: 40px; background: #1c1c1f; color: #9a9a96; }
+    .tabs button.active { background: #22c55e; color: #fff; }
+    .stage { position: relative; width: 100%; background: #1c1c1f; border-radius: 12px; overflow: hidden; aspect-ratio: 4 / 3; }
+    .stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .stage.mirrored video, .stage.mirrored canvas { transform: scaleX(-1); }
+    .count { font-size: 4.5rem; font-weight: 800; text-align: center; line-height: 1.1; margin-top: 14px; }
+    .count-label { text-align: center; color: #9a9a96; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; }
+    .state { text-align: center; font-weight: 700; margin: 10px 0 4px; min-height: 1.4em; }
+    .feedback { text-align: center; color: #9a9a96; font-size: 0.9rem; min-height: 1.3em; margin-bottom: 12px; }
+    .feedback.good { color: #22c55e; }
+    .feedback.bad { color: #ff5a5f; }
+    .live { text-align: center; color: #6b6b68; font-size: 0.75rem; min-height: 1.1em; margin: -6px 0 10px; }
+    .row { display: flex; gap: 8px; margin-bottom: 12px; }
+    button {
+      flex: 1; min-height: 46px; font: inherit; font-weight: 700; color: #fff;
+      background: #22c55e; border: none; border-radius: 10px; cursor: pointer;
+    }
+    button.secondary { background: #3a3a3a; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .graph-label { color: #6b6b68; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; margin: 6px 0 4px; }
+    #graph { width: 100%; height: 90px; background: #1c1c1f; border-radius: 8px; display: block; }
+    .tuning { margin-top: 14px; display: grid; gap: 8px; font-size: 0.85rem; color: #9a9a96; }
+    .tuning label { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+    .tuning input { flex: 1; }
+    .reps { margin-top: 14px; font-size: 0.85rem; color: #9a9a96; list-style: none; }
+    .reps li { padding: 6px 0; border-bottom: 1px solid #3a3a3a80; display: flex; justify-content: space-between; }
+    .meta { margin-top: 10px; font-size: 0.72rem; color: #6b6b68; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>Exercise counter test</h1>
+  <p class="sub" id="tip"></p>
+
+  <div class="row tabs" id="tabs">
+    <button data-exercise="squat" class="active">Squats</button>
+    <button data-exercise="pushup">Push-ups</button>
+    <button data-exercise="plank">Plank</button>
+  </div>
+
+  <div id="stage" class="stage mirrored">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div class="count" id="count">0</div>
+  <div class="count-label" id="count-label">Verified squats</div>
+  <div class="state" id="state">Camera is off</div>
+  <div class="feedback" id="feedback"></div>
+  <div class="live" id="live"></div>
+
+  <div class="row">
+    <button id="start-button">Start camera</button>
+    <button id="flip-button" class="secondary" disabled>Flip camera</button>
+    <button id="reset-button" class="secondary" disabled>Reset</button>
+  </div>
+
+  <div class="graph-label" id="graph-label">Knee angle (last 8 seconds)</div>
+  <canvas id="graph" width="480" height="90"></canvas>
+
+  <div class="tuning">
+    <label><span id="s1-text"></span> <span id="s1-value"></span>&deg;
+      <input type="range" id="s1">
+    </label>
+    <label><span id="s2-text"></span> <span id="s2-value"></span>&deg;
+      <input type="range" id="s2">
+    </label>
+  </div>
+
+  <ul class="reps" id="reps"></ul>
+  <div class="meta" id="meta"></div>
+
+  <script src="exercise-counter.js?v=3"></script>
+  <script type="module">
+    import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs";
+
+    const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm";
+    const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+    const GRAPH_SECONDS = 8;
+
+    // MediaPipe pose landmark indexes for each side of the body.
+    const JOINTS = {
+      left: { shoulder: 11, elbow: 13, wrist: 15, hip: 23, knee: 25, ankle: 27 },
+      right: { shoulder: 12, elbow: 14, wrist: 16, hip: 24, knee: 26, ankle: 28 },
+    };
+
+    const { jointAngle, tiltFromHorizontal } = ForjaCounter;
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+    // Everything exercise-specific lives here: what to track, what to
+    // measure from it, and how to word the feedback. The counting logic
+    // itself is in exercise-counter.js and knows nothing about cameras.
+    const EXERCISES = {
+      squat: {
+        kind: "reps",
+        countLabel: "Verified squats",
+        graphLabel: "Knee angle (last 8 seconds)",
+        tip: "Prop the camera at about hip height, 6-8 feet away, and stand <b>side-on</b> so your whole leg (hip, knee, ankle) is in frame. Everything runs on this device - no video is sent anywhere.",
+        needs: ["hip", "knee", "ankle"],
+        minVisibility: 0.5,
+        draw: ["shoulder", "hip", "knee", "ankle"],
+        sliders: [
+          { text: 'Counts as "down" below', min: 60, max: 130, value: 100 },
+          { text: 'Counts as "standing" above', min: 140, max: 178, value: 160 },
+        ],
+        lost: "Can't see your leg - stand side-on and step back",
+        states: { waiting: "Stand tall and hold still to start", up: "Ready - squat down", down: "Down - now stand all the way up" },
+        events: {
+          no_drop: (r) => "Ignored - hips didn't drop enough (" + pct(r.drop) + " of leg). Sit down and back.",
+          anchor_moved: (r) => "Ignored - feet moved (" + pct(r.anchorMove) + " of leg). Keep them planted.",
+          bad_posture: () => "Ignored - keep your posture steady.",
+        },
+        create: (v) => ForjaCounter.createSquatCounter({ downBelow: v[0], upAbove: v[1] }),
+        measure(pt) {
+          const hip = pt("hip"), knee = pt("knee"), ankle = pt("ankle");
+          return {
+            angle: jointAngle(hip, knee, ankle),
+            // A knee bend alone isn't a squat (walking and leg lifts bend
+            // it too), so the hips must drop and the feet stay planted.
+            extra: { dropY: hip.y, anchorX: ankle.x, anchorY: ankle.y, scale: dist(hip, ankle) },
+          };
+        },
+        graphLines: (v) => [v[0], v[1]],
+      },
+
+      pushup: {
+        kind: "reps",
+        countLabel: "Verified push-ups",
+        graphLabel: "Elbow angle (last 8 seconds)",
+        tip: "Put the phone on the floor about 6 feet away and get into a plank <b>side-on</b>, with your whole body from head to feet in frame. Landscape works best. Arms straight to start, body flat and straight.",
+        needs: ["shoulder", "elbow", "wrist", "hip", "ankle"],
+        minVisibility: 0.4,
+        draw: ["wrist", "elbow", "shoulder", "hip", "ankle"],
+        sliders: [
+          { text: 'Counts as "down" below', min: 60, max: 130, value: 95 },
+          { text: 'Counts as "arms straight" above', min: 135, max: 178, value: 155 },
+        ],
+        lost: "Can't see your arm and body - turn side-on, full body in frame",
+        states: { waiting: "Get into plank position - arms straight, body flat", up: "Ready - lower yourself", down: "Down - now push all the way up" },
+        events: {
+          no_drop: (r) => "Ignored - chest didn't lower (" + pct(r.drop) + " of body). Go lower.",
+          anchor_moved: (r) => "Ignored - hands moved (" + pct(r.anchorMove) + " of body). Keep them planted.",
+          bad_posture: () => "Ignored - keep your body in one straight line.",
+        },
+        create: (v) => ForjaCounter.createPushupCounter({ downBelow: v[0], upAbove: v[1] }),
+        measure(pt) {
+          const shoulder = pt("shoulder"), elbow = pt("elbow"), wrist = pt("wrist"), hip = pt("hip"), ankle = pt("ankle");
+          const bodyAngle = jointAngle(shoulder, hip, ankle);
+          const tilt = tiltFromHorizontal(shoulder, ankle);
+          return {
+            angle: jointAngle(shoulder, elbow, wrist),
+            // The body must be flat and straight the whole time - this is
+            // what stops standing arm curls or sagging "worm" reps.
+            extra: {
+              dropY: shoulder.y,
+              anchorX: wrist.x,
+              anchorY: wrist.y,
+              scale: dist(shoulder, ankle),
+              posture: bodyAngle !== null && bodyAngle >= 150 && tilt <= 35,
+            },
+            live: "body line " + Math.round(bodyAngle ?? 0) + "°  ·  tilt " + Math.round(tilt) + "°",
+          };
+        },
+        graphLines: (v) => [v[0], v[1]],
+      },
+
+      plank: {
+        kind: "plank",
+        countLabel: "Plank hold (seconds)",
+        graphLabel: "Body line angle - 180 is perfectly straight (last 8 seconds)",
+        tip: "Put the phone on the floor about 6 feet away and hold a plank <b>side-on</b>, with your whole body from head to feet in frame. The clock starts after one second of good form and keeps running while you stay flat and straight.",
+        needs: ["shoulder", "hip", "ankle"],
+        minVisibility: 0.4,
+        draw: ["elbow", "shoulder", "hip", "ankle"],
+        sliders: [
+          { text: "Body must be straighter than", min: 140, max: 178, value: 160 },
+          { text: "Must be flatter than (tilt)", min: 10, max: 45, value: 30 },
+        ],
+        lost: "Can't see your body - turn side-on, full body in frame",
+        create: (v) => ForjaCounter.createPlankTimer({ minBodyAngle: v[0], maxTilt: v[1] }),
+        measure(pt) {
+          const shoulder = pt("shoulder"), hip = pt("hip"), ankle = pt("ankle");
+          const bodyAngle = jointAngle(shoulder, hip, ankle);
+          return {
+            sample: bodyAngle === null ? null : { bodyAngle, tilt: tiltFromHorizontal(shoulder, ankle) },
+          };
+        },
+        graphLines: (v) => [v[0]],
+      },
+    };
+
+    function pct(x) { return Math.round((x ?? 0) * 100) + "%"; }
+
+    const $ = (id) => document.getElementById(id);
+    const stageEl = $("stage"), videoEl = $("video"), overlayEl = $("overlay");
+    const overlayCtx = overlayEl.getContext("2d");
+    const graphEl = $("graph"), graphCtx = graphEl.getContext("2d");
+    const countEl = $("count"), stateEl = $("state"), feedbackEl = $("feedback"), liveEl = $("live");
+    const startButton = $("start-button"), flipButton = $("flip-button"), resetButton = $("reset-button");
+    const repsEl = $("reps"), metaEl = $("meta");
+    const sliderEls = [$("s1"), $("s2")];
+
+    let poseLandmarker = null;
+    let stream = null;
+    let running = false;
+    let facing = "user";
+    let lastVideoTime = -1;
+    let exerciseKey = "squat";
+    let engine = null;
+    let graphPoints = [];
+    let frameTimes = [];
+    let currentSideName = null;
+    let lastRenderedHolds = -1;
+
+    const exercise = () => EXERCISES[exerciseKey];
+    const sliderValues = () => sliderEls.map((el) => Number(el.value));
+
+    function makeEngine() {
+      engine = exercise().create(sliderValues());
+    }
+
+    function setFeedback(text, kind) {
+      feedbackEl.textContent = text;
+      feedbackEl.className = "feedback" + (kind ? " " + kind : "");
+    }
+
+    function renderReps() {
+      repsEl.innerHTML = "";
+      if (exercise().kind === "plank") {
+        engine.holds.slice(-6).reverse().forEach((ms, i) => {
+          const li = document.createElement("li");
+          li.innerHTML = "<span></span><span></span>";
+          li.children[0].textContent = "Hold " + (engine.holds.length - i);
+          li.children[1].textContent = (ms / 1000).toFixed(1) + "s";
+          repsEl.appendChild(li);
+        });
+        return;
+      }
+      const jointName = exerciseKey === "squat" ? "knee" : "elbow";
+      const dropName = exerciseKey === "squat" ? "hips" : "chest";
+      engine.reps.slice(-6).reverse().forEach((rep, i) => {
+        const li = document.createElement("li");
+        li.innerHTML = "<span></span><span></span>";
+        li.children[0].textContent = "Rep " + (engine.reps.length - i);
+        li.children[1].textContent = jointName + " " + Math.round(rep.depth) + "°  ·  " + dropName + " " + pct(rep.drop) + "  ·  " + (rep.durationMs / 1000).toFixed(1) + "s";
+        repsEl.appendChild(li);
+      });
+    }
+
+    function applyExercise(key) {
+      exerciseKey = key;
+      const ex = exercise();
+      document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.exercise === key));
+      $("tip").innerHTML = ex.tip;
+      $("count-label").textContent = ex.countLabel;
+      $("graph-label").textContent = ex.graphLabel;
+      ex.sliders.forEach((s, i) => {
+        sliderEls[i].min = s.min;
+        sliderEls[i].max = s.max;
+        sliderEls[i].value = s.value;
+        $("s" + (i + 1) + "-text").textContent = s.text;
+        $("s" + (i + 1) + "-value").textContent = s.value;
+      });
+      resetAll();
+      if (!running) stateEl.textContent = "Camera is off";
+      else stateEl.textContent = ex.states ? ex.states.waiting : "Get into plank position";
+    }
+
+    function resetAll() {
+      makeEngine();
+      currentSideName = null;
+      graphPoints = [];
+      lastRenderedHolds = -1;
+      countEl.textContent = exercise().kind === "plank" ? "0.0" : "0";
+      repsEl.innerHTML = "";
+      liveEl.textContent = "";
+      setFeedback("", "");
+    }
+
+    async function loadModel() {
+      stateEl.textContent = "Loading pose model (about 6 MB)...";
+      const vision = await FilesetResolver.forVisionTasks(WASM_URL);
+      const create = (delegate) =>
+        PoseLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: MODEL_URL, delegate },
+          runningMode: "VIDEO",
+          numPoses: 1,
+        });
+      try {
+        poseLandmarker = await create("GPU");
+        metaEl.textContent = "Model running on GPU";
+      } catch (err) {
+        poseLandmarker = await create("CPU");
+        metaEl.textContent = "Model running on CPU (GPU unavailable)";
+      }
+    }
+
+    async function startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        stateEl.textContent = "Camera needs HTTPS (or localhost).";
+        return false;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false,
+        });
+      } catch (err) {
+        stateEl.textContent = err.name === "NotAllowedError" ? "Camera permission was denied." : "Couldn't start the camera: " + err.name;
+        return false;
+      }
+      videoEl.srcObject = stream;
+      await videoEl.play();
+      overlayEl.width = videoEl.videoWidth;
+      overlayEl.height = videoEl.videoHeight;
+      stageEl.classList.toggle("mirrored", facing === "user");
+      return true;
+    }
+
+    function stopCamera() {
+      running = false;
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      stream = null;
+      videoEl.srcObject = null;
+      overlayCtx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+    }
+
+    // Sticks with whichever side of the body it's already tracking unless
+    // the other is clearly better - flipping between left and right every
+    // few frames would swap which joints are measured and look like a
+    // sudden jump.
+    function pickSide(landmarks, ex) {
+      const scores = {};
+      const weakest = {};
+      for (const [name, idx] of Object.entries(JOINTS)) {
+        let min = 1, minJoint = "";
+        for (const joint of ex.needs) {
+          const v = landmarks[idx[joint]].visibility ?? 0;
+          if (v < min) { min = v; minJoint = joint; }
+        }
+        scores[name] = min;
+        weakest[name] = minJoint;
+      }
+      let name = currentSideName;
+      const other = name === "left" ? "right" : "left";
+      if (!name || scores[name] < ex.minVisibility || scores[other] > scores[name] + 0.2) {
+        name = scores.left >= scores.right ? "left" : "right";
+      }
+      if (scores[name] < ex.minVisibility) {
+        currentSideName = null;
+        return { side: null, hint: weakest[name] + " " + scores[name].toFixed(2) };
+      }
+      currentSideName = name;
+      return { side: { name, idx: JOINTS[name] }, hint: null };
+    }
+
+    function drawBody(landmarks, side, ex, good) {
+      const w = overlayEl.width, h = overlayEl.height;
+      const points = ex.draw.map((j) => ({ x: landmarks[side.idx[j]].x * w, y: landmarks[side.idx[j]].y * h }));
+      overlayCtx.clearRect(0, 0, w, h);
+      overlayCtx.lineWidth = 5;
+      overlayCtx.lineCap = "round";
+      overlayCtx.strokeStyle = good ? "#22c55e" : "#ffc233";
+      overlayCtx.beginPath();
+      points.forEach((p, i) => (i === 0 ? overlayCtx.moveTo(p.x, p.y) : overlayCtx.lineTo(p.x, p.y)));
+      overlayCtx.stroke();
+      overlayCtx.fillStyle = "#fff";
+      points.forEach((p) => { overlayCtx.beginPath(); overlayCtx.arc(p.x, p.y, 6, 0, Math.PI * 2); overlayCtx.fill(); });
+    }
+
+    function drawGraph(nowMs) {
+      const ex = exercise();
+      const w = graphEl.width, h = graphEl.height;
+      const yFor = (angle) => h - ((angle - 40) / 150) * h;
+      graphCtx.clearRect(0, 0, w, h);
+      graphCtx.setLineDash([4, 4]);
+      graphCtx.lineWidth = 1;
+      ex.graphLines(sliderValues()).forEach((value, i) => {
+        graphCtx.strokeStyle = i === 0 ? "#ffc23380" : "#22c55e80";
+        graphCtx.beginPath();
+        graphCtx.moveTo(0, yFor(value));
+        graphCtx.lineTo(w, yFor(value));
+        graphCtx.stroke();
+      });
+      graphCtx.setLineDash([]);
+      graphCtx.strokeStyle = "#f4f4f5";
+      graphCtx.lineWidth = 2;
+      graphCtx.beginPath();
+      let started = false;
+      graphPoints.forEach((p) => {
+        const x = w - ((nowMs - p.t) / (GRAPH_SECONDS * 1000)) * w;
+        const y = yFor(p.value);
+        if (!started) { graphCtx.moveTo(x, y); started = true; } else graphCtx.lineTo(x, y);
+      });
+      graphCtx.stroke();
+    }
+
+    function pushGraph(nowMs, value) {
+      if (value === null || value === undefined) return;
+      graphPoints.push({ t: nowMs, value });
+      graphPoints = graphPoints.filter((p) => nowMs - p.t <= GRAPH_SECONDS * 1000);
+    }
+
+    function renderRepFrame(r, ex, nowMs) {
+      pushGraph(nowMs, r.angle);
+      countEl.textContent = r.count;
+      stateEl.textContent = ex.states[r.state] || "";
+
+      if (r.event === "rep") {
+        setFeedback("Counted - depth " + Math.round(r.lastRep.depth) + "°", "good");
+        renderReps();
+      } else if (r.event === "shallow") {
+        setFeedback("Not deep enough (" + Math.round(r.depth) + "°) - go lower", "bad");
+      } else if (r.event === "too_fast") {
+        setFeedback("Too fast - control the movement", "bad");
+      } else if (r.event === "abandoned") {
+        setFeedback("Lost tracking mid-rep - not counted. Reset your position.", "bad");
+      } else if (r.event && ex.events[r.event]) {
+        setFeedback(ex.events[r.event](r), "bad");
+      }
+    }
+
+    function handleFrame(result, nowMs) {
+      const ex = exercise();
+      const landmarks = result.landmarks && result.landmarks[0];
+      const picked = landmarks ? pickSide(landmarks, ex) : { side: null, hint: null };
+
+      if (!picked.side) {
+        engine.update(null, nowMs);
+        overlayCtx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+        stateEl.textContent = ex.lost;
+        liveEl.textContent = picked.hint ? "weakest joint: " + picked.hint : "";
+        return;
+      }
+
+      const w = overlayEl.width, h = overlayEl.height;
+      const pt = (joint) => ({ x: landmarks[picked.side.idx[joint]].x * w, y: landmarks[picked.side.idx[joint]].y * h });
+      const m = ex.measure(pt);
+
+      if (ex.kind === "plank") {
+        const r = engine.update(m.sample, nowMs);
+        drawBody(landmarks, picked.side, ex, r.state === "holding");
+        pushGraph(nowMs, r.bodyAngle);
+        countEl.textContent = (r.holdMs / 1000).toFixed(1);
+        if (r.state === "holding") {
+          stateEl.textContent = r.reason ? "Holding - fix your form!" : "Holding - keep it straight";
+        } else {
+          stateEl.textContent = r.reason === "not_horizontal" ? "Get flat - body should be horizontal" : r.reason === "hips_sagging_or_piking" ? "Straighten your body - hips level with shoulders and ankles" : "Get into plank position";
+        }
+        if (engine.holds.length !== lastRenderedHolds) {
+          lastRenderedHolds = engine.holds.length;
+          renderReps();
+        }
+        setFeedback(r.bestMs > 0 ? "Best hold: " + (r.bestMs / 1000).toFixed(1) + "s" : "", r.bestMs > 0 ? "good" : "");
+        liveEl.textContent = m.sample ? "body line " + Math.round(m.sample.bodyAngle) + "°  ·  tilt " + Math.round(m.sample.tilt) + "°" : "";
+        return;
+      }
+
+      const r = engine.update(m.angle, nowMs, m.extra);
+      drawBody(landmarks, picked.side, ex, r.state !== "down");
+      renderRepFrame(r, ex, nowMs);
+      const progress = r.drop === null ? "" : (exerciseKey === "squat" ? "hips down " : "chest down ") + pct(r.drop) + "  ·  " + (exerciseKey === "squat" ? "feet" : "hands") + " moved " + pct(r.anchorMove);
+      liveEl.textContent = [progress, m.live].filter(Boolean).join("   |   ");
+    }
+
+    function loop() {
+      if (!running) return;
+      if (videoEl.readyState >= 2 && videoEl.currentTime !== lastVideoTime) {
+        lastVideoTime = videoEl.currentTime;
+        const now = performance.now();
+        handleFrame(poseLandmarker.detectForVideo(videoEl, now), now);
+        drawGraph(now);
+
+        frameTimes.push(now);
+        frameTimes = frameTimes.filter((t) => now - t < 1000);
+        metaEl.textContent = frameTimes.length + " fps";
+      }
+      requestAnimationFrame(loop);
+    }
+
+    async function start() {
+      startButton.disabled = true;
+      if (!poseLandmarker) {
+        try { await loadModel(); } catch (err) {
+          stateEl.textContent = "Couldn't load the pose model: " + err.message;
+          startButton.disabled = false;
+          return;
+        }
+      }
+      stateEl.textContent = "Starting camera...";
+      if (!(await startCamera())) { startButton.disabled = false; return; }
+      running = true;
+      startButton.textContent = "Stop";
+      startButton.disabled = false;
+      flipButton.disabled = false;
+      resetButton.disabled = false;
+      resetAll();
+      stateEl.textContent = "Get in position";
+      loop();
+    }
+
+    function stop() {
+      if (exercise().kind === "plank") { engine.finish(performance.now()); renderReps(); }
+      stopCamera();
+      startButton.textContent = "Start camera";
+      flipButton.disabled = true;
+      stateEl.textContent = "Camera is off";
+    }
+
+    startButton.addEventListener("click", () => (running ? stop() : start()));
+    resetButton.addEventListener("click", resetAll);
+    flipButton.addEventListener("click", async () => {
+      facing = facing === "user" ? "environment" : "user";
+      stopCamera();
+      resetAll();
+      if (await startCamera()) { running = true; loop(); }
+    });
+    document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => applyExercise(b.dataset.exercise)));
+    sliderEls.forEach((el, i) => el.addEventListener("input", () => {
+      $("s" + (i + 1) + "-value").textContent = el.value;
+      resetAll();
+    }));
+
+    applyExercise("squat");
+
+    // Exposed only so an automated smoke test can confirm the page's
+    // wiring loaded without needing a real person in front of the camera.
+    window.__exerciseTest = { start, applyExercise, get running() { return running; }, get exercise() { return exerciseKey; } };
+  </script>
+</body>
+</html>
