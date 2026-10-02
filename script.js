@@ -464,9 +464,11 @@ function renderSettingsInputs() {
 }
 
 saveSettingsEl.addEventListener("click", () => {
-  data.minimums.pushups = Number(minPushupsEl.value) || 1;
-  data.minimums.planks = Number(minPlanksEl.value) || 1;
-  data.minimums.squats = Number(minSquatsEl.value) || 1;
+  // Minimums can be raised, never lowered below the game's floors -
+  // otherwise someone could rank on a day that asks for 1 push-up.
+  data.minimums.pushups = Math.max(Number(minPushupsEl.value) || 0, ForjaRules.FLOORS.pushups);
+  data.minimums.planks = Math.max(Number(minPlanksEl.value) || 0, ForjaRules.FLOORS.planks);
+  data.minimums.squats = Math.max(Number(minSquatsEl.value) || 0, ForjaRules.FLOORS.squats);
   data.minimums.walkRun = enableWalkrunEl.checked ? (Number(minWalkrunEl.value) || 1) : null;
   data.units = distanceUnitsEl.value;
 
@@ -667,6 +669,56 @@ function recordVerifiedSet(exerciseKey, value) {
   render();
 }
 
+// For a signed-in player the server is the source of truth for the streak:
+// replace the local copy with what it has. If the request fails (offline,
+// or the table doesn't exist yet) leave the local numbers alone rather
+// than overwriting a real streak with zeros.
+async function loadServerStats() {
+  if (!currentUserId) return;
+  const { data: row, error } = await supabaseClient.from("player_stats").select("*").eq("user_id", currentUserId).maybeSingle();
+  if (error) return;
+  applyStats({
+    streak: row ? row.streak : 0,
+    bestStreak: row ? row.best_streak : 0,
+    lastLoggedDate: row ? row.last_logged_date : null,
+    restDaysUsed: row ? row.rest_days_used : 0,
+    weekStartDate: row ? row.week_start_date : null,
+  });
+}
+
+// Today's totals for a signed-in player come from the sets the server
+// verified, not from anything stored on this device.
+async function refreshVerifiedProgress() {
+  if (!currentUserId) return;
+  const { data: sets, error } = await supabaseClient
+    .from("verified_sets")
+    .select("exercise, value")
+    .eq("user_id", currentUserId)
+    .eq("day", todayString());
+  if (error) return;
+  const totals = ForjaRules.totalsFromSets(sets);
+  const progress = todayProgress();
+  progress.pushups = totals.pushups;
+  progress.planks = totals.planks;
+  progress.squats = totals.squats;
+  render();
+}
+
+// What the camera screen calls when a set is saved. Signed in: send the
+// recorded movement to the server, which recounts it and replies with the
+// number it actually verified. Guest: nothing to verify against, so it's
+// just kept locally.
+async function saveCameraSet({ exercise, value, trace }) {
+  if (!currentUserId) {
+    recordVerifiedSet(exercise, value);
+    return { ok: true, value };
+  }
+  const reply = await callServerFunction("submit-set", { trace, day: todayString() });
+  if (!reply.ok) return { ok: false, error: serverErrorMessage(reply) };
+  await refreshVerifiedProgress();
+  return { ok: true, value: reply.value };
+}
+
 // Updates everything visible on the page to match the current `data`.
 function render() {
   streakCountEl.textContent = data.streak;
@@ -737,7 +789,7 @@ function renderGraceStatus() {
 document.querySelectorAll(".verify-button").forEach((button) => {
   button.addEventListener("click", () => {
     const exerciseKey = button.dataset.exercise;
-    ForjaCamera.open(exerciseKey, (value) => recordVerifiedSet(exerciseKey, value));
+    ForjaCamera.open(exerciseKey, saveCameraSet);
   });
 });
 
@@ -1022,6 +1074,9 @@ async function showApp(userId) {
   currentUserId = userId;
   const result = await loadUserData(userId);
   data = result.data;
+  // The streak and today's verified totals belong to the server - pull
+  // them in before the first draw so nothing shows a stale local copy.
+  await Promise.all([loadServerStats(), refreshVerifiedProgress()]);
   revealApp();
   updateFriendRequestBadge();
 
@@ -1139,7 +1194,56 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
 
 // STEP 3: Handle the button click and the actual streak logic.
 
-function logWorkout() {
+// Copies the streak numbers (from the server, or computed for a guest)
+// into the local data the rest of the screen reads from.
+function applyStats(stats) {
+  data.streak = stats.streak;
+  data.bestStreak = stats.bestStreak;
+  data.lastLoggedDate = stats.lastLoggedDate;
+  data.restDaysUsed = stats.restDaysUsed;
+  data.weekStartDate = stats.weekStartDate;
+}
+
+// Calls an Edge Function and always hands back an object with `ok`. A
+// failed call (non-2xx) still carries the server's error code in its
+// body, which supabase-js tucks inside the error's response - read it
+// back out so callers can show a real reason instead of "something broke".
+async function callServerFunction(name, body) {
+  const { data: reply, error } = await supabaseClient.functions.invoke(name, { body });
+  if (!error && reply) return reply;
+  if (error && error.context && typeof error.context.json === "function") {
+    try {
+      return await error.context.json();
+    } catch (e) {
+      // not JSON - fall through to the generic failure
+    }
+  }
+  return { ok: false, error: "network" };
+}
+
+function serverErrorMessage(reply) {
+  switch (reply.error) {
+    case "below_minimum":
+      return "The server doesn't have enough verified sets for today yet.";
+    case "already_logged":
+      return "Today is already logged.";
+    case "bad_day":
+      return "Your phone's date looks wrong - check it and try again.";
+    case "too_many_sets":
+    case "daily_limit":
+      return "You've hit today's limit for verified sets.";
+    case "implausible":
+      return "That set didn't look like real reps, so it wasn't counted.";
+    case "bad_trace":
+      return "That recording couldn't be verified. Try the set again.";
+    case "unauthorized":
+      return "Please log in again.";
+    default:
+      return "Couldn't reach the server. Check your connection and try again.";
+  }
+}
+
+async function logWorkout() {
   errorMessageEl.textContent = "";
 
   const today = todayString();
@@ -1177,34 +1281,36 @@ function logWorkout() {
     return;
   }
 
-  refreshRestDayWeek();
-
-  if (!data.lastLoggedDate) {
-    // First workout ever logged.
-    data.streak = 1;
-  } else {
-    const gap = daysBetween(data.lastLoggedDate, today);
-    const missedDays = gap - 1; // gap of 1 means no days were skipped
-
-    if (missedDays <= 0) {
-      // Logged yesterday -> the streak continues normally.
-      data.streak += 1;
-    } else if (data.restDaysUsed + missedDays <= REST_DAYS_PER_WEEK) {
-      // The missed day(s) fit within this week's rest day allowance ->
-      // the streak survives, and those rest days are spent.
-      data.streak += 1;
-      data.restDaysUsed += missedDays;
-    } else {
-      // Missed more days than the remaining rest day allowance covers.
-      data.streak = 1;
+  // A signed-in player's day is logged by the server, which checks ITS OWN
+  // record of their verified sets before moving the streak - the numbers
+  // on this screen are just a copy of what it says. A guest has no server
+  // record (and isn't ranked), so their day is logged here, with the same
+  // streak rules.
+  let stats;
+  if (currentUserId) {
+    logButtonEl.disabled = true;
+    logButtonEl.textContent = "Logging...";
+    const reply = await callServerFunction("log-day", { day: today });
+    if (!reply.ok) {
+      if (reply.error === "already_logged" && reply.stats) applyStats(reply.stats);
+      render();
+      errorMessageEl.textContent = serverErrorMessage(reply);
+      return;
     }
+    stats = reply.stats;
+  } else {
+    stats = ForjaRules.nextStats(
+      {
+        streak: data.streak,
+        bestStreak: data.bestStreak,
+        lastLoggedDate: data.lastLoggedDate,
+        restDaysUsed: data.restDaysUsed,
+        weekStartDate: data.weekStartDate,
+      },
+      today
+    );
   }
-
-  data.lastLoggedDate = today;
-
-  if (data.streak > data.bestStreak) {
-    data.bestStreak = data.streak;
-  }
+  applyStats(stats);
 
   if (!data.history.includes(today)) {
     data.history.push(today);
@@ -1225,7 +1331,7 @@ function logWorkout() {
     setTimeout(() => {
       authMode = "signup";
       applyAuthMode();
-      authSubtitleEl.textContent = "Day 1 complete! Create an account so you never lose this streak.";
+      authSubtitleEl.textContent = "Day 1 complete! Create an account to compete with friends - leaderboard streaks start fresh, so every day on it is camera-verified.";
       showAuthScreen();
     }, 1800);
   }
@@ -1611,22 +1717,30 @@ async function loadLeaderboard() {
   const combined = [{ name: myUsername, streak: data.streak, isYou: true, userId: currentUserId }];
 
   if (friendIds.length > 0) {
-    const [{ data: profiles }, { data: progressRows }] = await Promise.all([
+    // Streaks come from player_stats, which only the server can write.
+    // (They used to be read out of each friend's user_progress, which the
+    // friend could edit - and which also exposed their GPS routes.)
+    const [{ data: profiles }, { data: statsRows }] = await Promise.all([
       supabaseClient.from("profiles").select("user_id, username").in("user_id", friendIds),
-      supabaseClient.from("user_progress").select("user_id, data").in("user_id", friendIds),
+      supabaseClient.from("player_stats").select("user_id, streak").in("user_id", friendIds),
     ]);
 
     const usernameByUserId = {};
     (profiles || []).forEach((p) => {
       usernameByUserId[p.user_id] = p.username;
     });
+    const streakByUserId = {};
+    (statsRows || []).forEach((row) => {
+      streakByUserId[row.user_id] = row.streak;
+    });
 
-    (progressRows || []).forEach((row) => {
+    // Everyone who's a friend appears, even with no logged day yet (0).
+    friendIds.forEach((id) => {
       combined.push({
-        name: usernameByUserId[row.user_id] || "Unknown",
-        streak: (row.data && row.data.streak) || 0,
+        name: usernameByUserId[id] || "Unknown",
+        streak: streakByUserId[id] || 0,
         isYou: false,
-        userId: row.user_id,
+        userId: id,
       });
     });
   }

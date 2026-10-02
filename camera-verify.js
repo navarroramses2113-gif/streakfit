@@ -1,11 +1,14 @@
 // The in-app camera screen: records one verified set of an exercise and
 // hands the result back. All the "is this a real rep" logic lives in
-// exercise-counter.js; this file is just the camera, the pose model and
-// the on-screen feedback around it. Nothing here ever uploads video - the
-// pose model runs on the device and only the resulting count is kept.
+// supabase/functions/_shared/exercise-counter.js (the same file the server
+// runs to recount every set); this file is just the camera, the pose model
+// and the on-screen feedback around it. Nothing here ever uploads video -
+// the pose model runs on the device, and all that's sent is the recorded
+// joint movement, which the server replays and counts for itself.
 //
-// Usage: ForjaCamera.open("pushup", (result) => { ...save it... })
-//   result is a whole number: reps counted, or seconds for a plank.
+// Usage: ForjaCamera.open("pushup", async ({ exercise, value, trace }) => {
+//   ...save it...; return { ok: true, value } or { ok: false, error: "text" }
+// })
 const ForjaCamera = (function () {
   const VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs";
   const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm";
@@ -17,6 +20,13 @@ const ForjaCamera = (function () {
     right: { shoulder: 12, elbow: 14, wrist: 16, hip: 24, knee: 26, ankle: 28 },
   };
 
+  // Frames are processed at most this often. It keeps the recorded set
+  // small and gives the server a fixed rate to replay, instead of whatever
+  // frame rate a given phone's camera happens to run at.
+  const MIN_FRAME_GAP_MS = 33;
+  // Stop a set before the server's length limit would reject it.
+  const AUTO_FINISH_MS = ForjaCounter.MAX_SET_MS - 10000;
+
   const $ = (id) => document.getElementById(id);
 
   let poseLandmarker = null;
@@ -25,11 +35,15 @@ const ForjaCamera = (function () {
   let running = false;
   let facing = "user";
   let lastVideoTime = -1;
+  let exerciseKey = null;
   let exercise = null;
-  let engine = null;
+  let session = null;
+  let setStartMs = 0;
+  let lastProcessedMs = -Infinity;
   let onSave = null;
   let currentSideName = null;
   let result = 0;
+  let resultUnit = "";
 
   // The pose model is ~6 MB, so it only downloads the first time someone
   // actually opens the camera - not on every app load.
@@ -134,25 +148,24 @@ const ForjaCamera = (function () {
     el.className = "camera-feedback" + (kind ? " " + kind : "");
   }
 
-  function handleFrame(output, nowMs) {
+  // t is milliseconds since the set started - the same clock the server
+  // replays the recording with.
+  function handleFrame(output, t) {
     const landmarks = output.landmarks && output.landmarks[0];
     const side = landmarks ? pickSide(landmarks) : null;
 
     if (!side) {
-      engine.update(null, nowMs);
+      session.push(t, null);
       const overlay = $("camera-overlay");
       overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
       $("camera-state").textContent = exercise.lost;
       return;
     }
 
-    const w = $("camera-overlay").width;
-    const h = $("camera-overlay").height;
-    const pt = (joint) => ({ x: landmarks[side.idx[joint]].x * w, y: landmarks[side.idx[joint]].y * h });
-    const m = exercise.measure(pt);
+    const joints = exercise.needs.map((joint) => [landmarks[side.idx[joint]].x, landmarks[side.idx[joint]].y]);
+    const { r } = session.push(t, joints);
 
     if (exercise.kind === "plank") {
-      const r = engine.update(m.sample, nowMs);
       drawBody(landmarks, side, r.state === "holding");
       $("camera-count").textContent = (r.holdMs / 1000).toFixed(1);
       if (r.state === "holding") {
@@ -169,7 +182,6 @@ const ForjaCamera = (function () {
       return;
     }
 
-    const r = engine.update(m.angle, nowMs, m.extra);
     drawBody(landmarks, side, r.state !== "down");
     $("camera-count").textContent = r.count;
     $("camera-state").textContent = exercise.states[r.state] || "";
@@ -193,7 +205,15 @@ const ForjaCamera = (function () {
     if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
       lastVideoTime = video.currentTime;
       const now = performance.now();
-      handleFrame(poseLandmarker.detectForVideo(video, now), now);
+      if (now - lastProcessedMs >= MIN_FRAME_GAP_MS) {
+        lastProcessedMs = now;
+        const t = Math.round(now - setStartMs);
+        handleFrame(poseLandmarker.detectForVideo(video, now), t);
+        if (t >= AUTO_FINISH_MS) {
+          finishSet();
+          return;
+        }
+      }
     }
     requestAnimationFrame(loop);
   }
@@ -233,8 +253,11 @@ const ForjaCamera = (function () {
       return;
     }
 
-    engine = exercise.create(exercise.sliders.map((s) => s.value));
+    const video = $("camera-video");
+    session = ForjaCounter.createSetSession(exerciseKey, video.videoWidth, video.videoHeight);
     currentSideName = null;
+    setStartMs = performance.now();
+    lastProcessedMs = -Infinity;
     $("camera-count").textContent = exercise.kind === "plank" ? "0.0" : "0";
     $("camera-state").textContent = "Get in position";
     running = true;
@@ -244,27 +267,49 @@ const ForjaCamera = (function () {
   }
 
   function finishSet() {
-    const now = performance.now();
-    if (exercise.kind === "plank") {
-      result = Math.floor(engine.finish(now).bestMs / 1000);
-    } else {
-      result = engine.reps.length;
-    }
+    result = session.value();
     stopStream();
 
-    const unit = exercise.kind === "plank" ? "s hold" : " verified " + exercise.title.toLowerCase();
-    $("camera-result").textContent = result + unit;
+    resultUnit = exercise.kind === "plank" ? "s hold" : " verified " + exercise.title.toLowerCase();
+    $("camera-result").textContent = result + resultUnit;
     $("camera-save-button").classList.toggle("hidden", result === 0);
+    $("camera-save-button").disabled = false;
+    $("camera-save-button").textContent = "Save set";
     $("camera-result-note").textContent =
       result === 0
         ? "Nothing was counted. Make sure your whole body is in frame, side-on, and try again."
-        : "Only reps with full depth and good form are counted. Not what you expected? Redo the set - results can't be edited.";
+        : "Only reps with full depth and good form are counted, and the server double-checks every set. Not what you expected? Redo the set - results can't be edited.";
     setMode("review");
   }
 
   function close() {
     stopStream();
     showScreen("app-screen");
+  }
+
+  async function saveSet() {
+    const button = $("camera-save-button");
+    button.disabled = true;
+    button.textContent = "Verifying...";
+
+    const outcome = await onSave({ exercise: exerciseKey, value: result, trace: session.trace() });
+
+    if (!outcome || !outcome.ok) {
+      button.disabled = false;
+      button.textContent = "Try again";
+      $("camera-result-note").textContent = (outcome && outcome.error) || "Couldn't verify this set. Check your connection and try again.";
+      return;
+    }
+
+    if (outcome.value !== result) {
+      // The server's recount is the one that counts. Show it instead of
+      // quietly saving a different number than the one on screen.
+      $("camera-result").textContent = outcome.value + resultUnit;
+      $("camera-result-note").textContent = "Saved as " + outcome.value + " - the server's recount of this set is the official number.";
+      button.classList.add("hidden");
+      return;
+    }
+    close();
   }
 
   function wireButtonsOnce() {
@@ -276,12 +321,7 @@ const ForjaCamera = (function () {
       setMode("idle");
       startSet();
     });
-    $("camera-save-button").addEventListener("click", () => {
-      const value = result;
-      const callback = onSave;
-      close();
-      if (callback) callback(value);
-    });
+    $("camera-save-button").addEventListener("click", saveSet);
     $("camera-close-button").addEventListener("click", close);
     $("camera-flip-button").addEventListener("click", async () => {
       facing = facing === "user" ? "environment" : "user";
@@ -298,9 +338,10 @@ const ForjaCamera = (function () {
   }
 
   return {
-    open(exerciseKey, saveCallback) {
+    open(key, saveCallback) {
       wireButtonsOnce();
-      exercise = ForjaCounter.EXERCISES[exerciseKey];
+      exerciseKey = key;
+      exercise = ForjaCounter.EXERCISES[key];
       onSave = saveCallback;
       result = 0;
       $("camera-title").textContent = exercise.title;

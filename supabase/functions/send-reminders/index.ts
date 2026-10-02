@@ -3,7 +3,8 @@
 // checks every user's OWN chosen local hour against the current time in
 // their OWN timezone, and only sends to the ones where it actually
 // matches right now, plus hasn't logged a workout yet today.
-import { createAdminClient, sendPushToUsers } from "../_shared/push.ts";
+import { createAdminClient } from "../_shared/http.ts";
+import { sendPushToUsers } from "../_shared/push.ts";
 
 Deno.serve(async (req) => {
   const supabaseAdmin = createAdminClient();

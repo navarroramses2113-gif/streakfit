@@ -481,5 +481,113 @@
     },
   };
 
-  return { jointAngle, tiltFromHorizontal, createRepCounter, createSquatCounter, createPushupCounter, createPlankTimer, EXERCISES };
+  // ---- Recording a set, and recounting it on the server ----
+  // The phone records the movement as it counts; the server replays that
+  // exact record through this exact code and trusts only its own count.
+  // Because both sides run the same file, "recount" can't drift from
+  // "count" - and a client that lies about its total has nothing to back
+  // the lie up with.
+
+  const COORD_SCALE = 10000; // positions are stored as whole numbers of 1/10000 of the frame
+  const MAX_TRACE_FRAMES = 15000;
+  const MAX_SET_MS = 8 * 60 * 1000;
+
+  // The most reps per second a human can plausibly sustain. A made-up
+  // record could otherwise "do" one rep every 0.4s for eight straight minutes.
+  const MAX_REPS_PER_SECOND = { squat: 1.2, pushup: 1.5 };
+
+  // One set in progress. push() takes the joints this exercise needs as
+  // normalized [x, y] pairs (0-1 across the video), in EXERCISES[x].needs
+  // order, or null when the body isn't visible. It quantizes them, records
+  // the frame, and runs it through the counter - the same steps replay()
+  // takes on the server.
+  function createSetSession(exerciseKey, videoWidth, videoHeight) {
+    const ex = EXERCISES[exerciseKey];
+    if (!ex) throw new Error("unknown exercise");
+    const engine = ex.create(ex.sliders.map((s) => s.value));
+    const frames = [];
+    let lastT = 0;
+
+    function feed(t, ints) {
+      lastT = t;
+      if (!ints) return { r: engine.update(null, t), m: null };
+      const pt = (joint) => {
+        const i = ex.needs.indexOf(joint);
+        return { x: (ints[2 * i] / COORD_SCALE) * videoWidth, y: (ints[2 * i + 1] / COORD_SCALE) * videoHeight };
+      };
+      const m = ex.measure(pt);
+      return { r: ex.kind === "plank" ? engine.update(m.sample, t) : engine.update(m.angle, t, m.extra), m };
+    }
+
+    return {
+      engine,
+      frames,
+      push(t, joints) {
+        const ints = joints ? joints.flatMap(([x, y]) => [Math.round(x * COORD_SCALE), Math.round(y * COORD_SCALE)]) : null;
+        frames.push(ints ? [t, 1, ...ints] : [t, 0]);
+        return feed(t, ints);
+      },
+      replay(frame) {
+        return feed(frame[0], frame[1] === 1 ? frame.slice(2) : null);
+      },
+      // Reps counted, or whole seconds for a plank (best unbroken hold,
+      // rounded - a 29.97s hold shouldn't fail a 30s minimum over the
+      // length of a single video frame).
+      value() {
+        return ex.kind === "plank" ? Math.round(engine.finish(lastT).bestMs / 1000) : engine.reps.length;
+      },
+      durationMs: () => lastT,
+      trace: () => ({ v: 1, exercise: exerciseKey, w: videoWidth, h: videoHeight, frames }),
+    };
+  }
+
+  // Server side: rebuild a set from its record. Throws on anything
+  // malformed (the record comes from an untrusted client), otherwise
+  // returns what this code - not the client - says was done.
+  function recountTrace(trace) {
+    const fail = (why) => {
+      throw new Error("bad trace: " + why);
+    };
+    if (!trace || trace.v !== 1) fail("version");
+    const ex = EXERCISES[trace.exercise];
+    if (!ex) fail("exercise");
+    if (!Number.isFinite(trace.w) || !Number.isFinite(trace.h) || trace.w < 100 || trace.h < 100 || trace.w > 4000 || trace.h > 4000) fail("size");
+    if (!Array.isArray(trace.frames) || trace.frames.length === 0 || trace.frames.length > MAX_TRACE_FRAMES) fail("frame count");
+
+    const width = 2 + 2 * ex.needs.length;
+    const session = createSetSession(trace.exercise, trace.w, trace.h);
+    let prevT = -1;
+    for (const frame of trace.frames) {
+      if (!Array.isArray(frame) || !Number.isInteger(frame[0]) || frame[0] <= prevT || frame[0] > MAX_SET_MS) fail("timestamps");
+      prevT = frame[0];
+      if (frame[1] === 0) {
+        if (frame.length !== 2) fail("lost frame shape");
+      } else if (frame[1] === 1) {
+        if (frame.length !== width) fail("frame shape");
+        for (let i = 2; i < width; i++) if (!Number.isInteger(frame[i]) || frame[i] < -20000 || frame[i] > 30000) fail("coordinate");
+      } else {
+        fail("frame flag");
+      }
+      session.replay(frame);
+    }
+
+    const durationMs = session.durationMs();
+    const value = session.value();
+    const maxRate = MAX_REPS_PER_SECOND[trace.exercise];
+    const plausible = ex.kind === "plank" ? value <= Math.ceil(durationMs / 1000) : value <= Math.ceil((durationMs / 1000) * maxRate) + 2;
+    return { value, exercise: trace.exercise, frames: trace.frames.length, durationMs, plausible };
+  }
+
+  return {
+    jointAngle,
+    tiltFromHorizontal,
+    createRepCounter,
+    createSquatCounter,
+    createPushupCounter,
+    createPlankTimer,
+    EXERCISES,
+    createSetSession,
+    recountTrace,
+    MAX_SET_MS,
+  };
 });

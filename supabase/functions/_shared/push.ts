@@ -11,10 +11,6 @@ webpush.setVapidDetails(
   Deno.env.get("VAPID_PRIVATE_KEY")!
 );
 
-export function createAdminClient() {
-  return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-}
-
 // Sends one notification to every subscription belonging to the given
 // users, cleaning up any subscription the push service reports as dead
 // (404/410 - uninstalled, permission revoked, etc.) instead of retrying

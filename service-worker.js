@@ -11,7 +11,8 @@ const FILES_TO_CACHE = [
   "./index.html",
   "./style.css",
   "./script.js",
-  "./exercise-counter.js",
+  "./supabase/functions/_shared/game-rules.js",
+  "./supabase/functions/_shared/exercise-counter.js",
   "./camera-verify.js",
   "./manifest.json",
 ];

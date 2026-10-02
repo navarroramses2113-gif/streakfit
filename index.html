@@ -281,15 +281,15 @@
       <p class="settings-title">Daily Minimums</p>
       <div class="settings-row">
         <label for="min-pushups">Push-ups</label>
-        <input type="number" id="min-pushups" min="1" value="10">
+        <input type="number" id="min-pushups" min="5" value="10">
       </div>
       <div class="settings-row">
         <label for="min-planks">Plank (seconds)</label>
-        <input type="number" id="min-planks" min="1" value="30">
+        <input type="number" id="min-planks" min="20" value="30">
       </div>
       <div class="settings-row">
         <label for="min-squats">Squats</label>
-        <input type="number" id="min-squats" min="1" value="10">
+        <input type="number" id="min-squats" min="10" value="10">
       </div>
 
       <div class="settings-row settings-checkbox-row">
@@ -649,8 +649,9 @@
   <!-- Supabase's client library - lets our JavaScript talk to our
        database and handle user accounts/login. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="exercise-counter.js?v=3"></script>
-  <script src="camera-verify.js?v=1"></script>
-  <script src="script.js?v=3"></script>
+  <script src="supabase/functions/_shared/game-rules.js?v=1"></script>
+  <script src="supabase/functions/_shared/exercise-counter.js?v=4"></script>
+  <script src="camera-verify.js?v=2"></script>
+  <script src="script.js?v=4"></script>
 </body>
 </html>

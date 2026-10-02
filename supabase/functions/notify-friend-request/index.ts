@@ -2,7 +2,8 @@
 // migrations) the instant a new row lands in `friendships`, instead of
 // waiting for anyone to open the app and happen to check the Competition
 // tab. Takes the new row's id and pushes a notification to the addressee.
-import { createAdminClient, sendPushToUsers } from "../_shared/push.ts";
+import { createAdminClient } from "../_shared/http.ts";
+import { sendPushToUsers } from "../_shared/push.ts";
 
 Deno.serve(async (req) => {
   const { friendshipId } = await req.json();
