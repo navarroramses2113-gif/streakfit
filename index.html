@@ -6,6 +6,16 @@
   <title>Forja</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Applies a saved Light theme before first paint, so it doesn't flash
+       dark for a moment on every load. (Dark is the default - no
+       attribute needed.) -->
+  <script>
+    try {
+      if (localStorage.getItem("forja-theme") === "light") {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    } catch (e) {}
+  </script>
   <link rel="stylesheet" href="style.css?v=2">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
@@ -47,7 +57,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg>
       </div>
       <h2 class="onboarding-title">Quick Daily Check-Ins</h2>
-      <p class="onboarding-text">Push-ups, sit-ups, squats. Hit your minimums, log your day, and keep the streak alive.</p>
+      <p class="onboarding-text">Push-ups, planks, squats. Hit your minimums, log your day, and keep the streak alive.</p>
     </div>
     <div class="onboarding-slide hidden" data-slide="2">
       <div class="onboarding-icon">
@@ -63,15 +73,15 @@
       <div class="onboarding-choices">
         <button class="onboarding-choice" data-level="beginner">
           <span class="onboarding-choice-title">Beginner</span>
-          <span class="onboarding-choice-detail">5 push-ups · 10 sit-ups · 10 squats</span>
+          <span class="onboarding-choice-detail">5 push-ups · 20s plank · 10 squats</span>
         </button>
         <button class="onboarding-choice" data-level="intermediate">
           <span class="onboarding-choice-title">Intermediate</span>
-          <span class="onboarding-choice-detail">15 push-ups · 20 sit-ups · 20 squats</span>
+          <span class="onboarding-choice-detail">15 push-ups · 45s plank · 20 squats</span>
         </button>
         <button class="onboarding-choice" data-level="advanced">
           <span class="onboarding-choice-title">Advanced</span>
-          <span class="onboarding-choice-detail">30 push-ups · 30 sit-ups · 40 squats</span>
+          <span class="onboarding-choice-detail">30 push-ups · 90s plank · 40 squats</span>
         </button>
       </div>
     </div>
@@ -274,8 +284,8 @@
         <input type="number" id="min-pushups" min="1" value="10">
       </div>
       <div class="settings-row">
-        <label for="min-situps">Sit-ups</label>
-        <input type="number" id="min-situps" min="1" value="10">
+        <label for="min-planks">Plank (seconds)</label>
+        <input type="number" id="min-planks" min="1" value="30">
       </div>
       <div class="settings-row">
         <label for="min-squats">Squats</label>
@@ -307,6 +317,14 @@
         <select id="reminder-hour"></select>
       </div>
       <p id="reminders-status" class="error"></p>
+
+      <div class="settings-row settings-checkbox-row">
+        <label for="theme-select">Appearance</label>
+        <select id="theme-select">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </div>
 
       <button id="save-settings">Save</button>
     </div>
@@ -388,8 +406,8 @@
           <circle id="segment-track-pushups" class="ring-track" cx="60" cy="60" r="50"></circle>
           <circle id="ring-pushups" class="ring-progress ring-pushups" cx="60" cy="60" r="50"></circle>
 
-          <circle id="segment-track-situps" class="ring-track" cx="60" cy="60" r="50"></circle>
-          <circle id="ring-situps" class="ring-progress ring-situps" cx="60" cy="60" r="50"></circle>
+          <circle id="segment-track-planks" class="ring-track" cx="60" cy="60" r="50"></circle>
+          <circle id="ring-planks" class="ring-progress ring-planks" cx="60" cy="60" r="50"></circle>
 
           <circle id="segment-track-squats" class="ring-track" cx="60" cy="60" r="50"></circle>
           <circle id="ring-squats" class="ring-progress ring-squats" cx="60" cy="60" r="50"></circle>
@@ -401,7 +419,7 @@
 
       <div class="rings-legend">
         <span class="rings-legend-item"><span class="rings-dot rings-dot-pushups"></span>Push-ups</span>
-        <span class="rings-legend-item"><span class="rings-dot rings-dot-situps"></span>Sit-ups</span>
+        <span class="rings-legend-item"><span class="rings-dot rings-dot-planks"></span>Plank</span>
         <span class="rings-legend-item"><span class="rings-dot rings-dot-squats"></span>Squats</span>
         <span id="rings-legend-walkrun" class="rings-legend-item hidden"><span class="rings-dot rings-dot-walkrun"></span>Walk/Run</span>
       </div>
@@ -417,9 +435,9 @@
         </div>
         <div class="exercise-tile">
           <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg></span>
-          <label for="situps">Sit-ups</label>
-          <span id="situps-min-tag" class="min-tag">min 10</span>
-          <input type="number" id="situps" min="0" value="0">
+          <label for="planks">Plank (seconds)</label>
+          <span id="planks-min-tag" class="min-tag">min 30s</span>
+          <input type="number" id="planks" min="0" value="0">
         </div>
         <div class="exercise-tile">
           <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg></span>

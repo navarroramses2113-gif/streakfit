@@ -1,4 +1,4 @@
-/* Reset some default browser spacing so we control layout ourselves */
+﻿/* Reset some default browser spacing so we control layout ourselves */
 * {
   margin: 0;
   padding: 0;
@@ -59,7 +59,7 @@ input[type="number"]::-webkit-inner-spin-button {
      --orange-light/--teal-light, since those are shared with other UI
      (streak flame, stat numbers) that should stay muted. */
   --ring-pushups: #ff5a5f;
-  --ring-situps: #ffc233;
+  --ring-planks: #ffc233;
   --ring-squats: #2dd4bf;
   --ring-walkrun: #7c5cff;
 
@@ -69,9 +69,26 @@ input[type="number"]::-webkit-inner-spin-button {
   --bg-mid: #17181b;
   --bg-end: #121316;
 
+  /* Theme colors. Dark is the default; [data-theme="light"] below
+     overrides every one of these, so no rule elsewhere in this file
+     needs to know which theme is active. */
+  color-scheme: dark;
+  --page-bg: #09090b;
+  --surface: #1c1c1f66;
+  --surface-strong: #1c1c1f80;
+  --surface-solid: #1c1c1f;
+  --field-bg: #232326;
+  --field-bg-hover: #28282b;
+  --control-bg: #3a3a3a;
+  --overlay: #ffffff12;
+  --nav-bg: rgba(20, 20, 22, 0.75);
+  --heatmap-empty: #27272a;
+  --streak-gradient: linear-gradient(135deg, #ffffff 0%, #a1a1aa 100%);
   --text-primary: #f4f4f5;
   --text-secondary: #9a9a96;
   --text-muted: #6b6b68;
+  --text-soft: #e4e3e0;
+  --text-faint: #71717a;
   --border: #3a3a3880;
 
   /* The area an iPhone's notch/Dynamic Island/home indicator/rounded
@@ -81,6 +98,27 @@ input[type="number"]::-webkit-inner-spin-button {
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page-bg: #f2f2f7;
+  --surface: #ffffff;
+  --surface-strong: #ffffff;
+  --surface-solid: #e5e5ea;
+  --field-bg: #f2f2f7;
+  --field-bg-hover: #e9e9ee;
+  --control-bg: #d1d1d6;
+  --overlay: #0000001a;
+  --nav-bg: rgba(255, 255, 255, 0.8);
+  --heatmap-empty: #e5e5ea;
+  --streak-gradient: linear-gradient(135deg, #1c1c1e 0%, #6b6b72 100%);
+  --text-primary: #1c1c1e;
+  --text-secondary: #636366;
+  --text-muted: #8e8e93;
+  --text-soft: #3a3a3c;
+  --text-faint: #6e6e73;
+  --border: #3c3c4340;
 }
 
 /* Belt-and-suspenders against side-to-side dragging: this stops the
@@ -98,8 +136,8 @@ body {
      every native iOS app's typography instead of a downloaded web font -
      "Inter" is now just the fallback for non-Apple devices. */
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
-  background-color: #09090b;
-  color: #f4f4f5;
+  background-color: var(--page-bg);
+  color: var(--text-primary);
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -117,7 +155,7 @@ body {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: #09090b; /* Matches premium dark fitness themes */
+  background-color: var(--page-bg); /* Matches premium dark fitness themes */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -144,7 +182,7 @@ body {
 .splash-loader {
   width: 28px;
   height: 28px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
+  border: 3px solid var(--overlay);
   border-top-color: #22c55e;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -228,7 +266,7 @@ body {
   padding-right: calc(var(--space-sm) + var(--safe-right));
   /* iOS's native tab bars are frosted glass, not a flat color - this is
      one of the most recognizable Apple UI materials. */
-  background: rgba(20, 20, 22, 0.75);
+  background: var(--nav-bg);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
 }
@@ -270,7 +308,7 @@ body {
   height: 9px;
   border-radius: 50%;
   background: #ef4444;
-  border: 1.5px solid #09090b;
+  border: 1.5px solid var(--page-bg);
 }
 
 .tab-text {
@@ -343,7 +381,7 @@ body {
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm);
-  background: #1c1c1f66;
+  background: var(--surface);
   border: 1px solid transparent;
   border-radius: 10px;
 }
@@ -368,7 +406,7 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #3a3a3a;
+  background: var(--control-bg);
   color: var(--text-secondary);
   flex-shrink: 0;
 }
@@ -496,7 +534,7 @@ body {
 }
 
 .row-options-button:hover {
-  background: #ffffff12;
+  background: var(--overlay);
 }
 
 .full-width-button {
@@ -513,7 +551,7 @@ body {
 }
 
 .settings-panel {
-  background: #1c1c1f80;
+  background: var(--surface-strong);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-md);
@@ -542,7 +580,7 @@ body {
   justify-content: space-between;
   margin-bottom: var(--space-sm);
   font-size: 0.85rem;
-  color: #e4e3e0;
+  color: var(--text-soft);
 }
 
 .settings-checkbox-row {
@@ -562,7 +600,7 @@ body {
   min-height: 44px;
   padding: 6px;
   text-align: center;
-  background: #232326;
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text-primary);
@@ -594,7 +632,7 @@ body {
   padding: 10px 12px;
   font-size: 1rem;
   font-family: inherit;
-  background: #232326;
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--text-primary);
@@ -608,7 +646,7 @@ body {
 .settings-row select {
   min-height: 44px;
   padding: 6px 10px;
-  background: #232326;
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text-primary);
@@ -661,7 +699,7 @@ body {
   letter-spacing: -0.03em;
   color: transparent;
   /* Subtle white-to-gray gradient text instead of a solid color */
-  background: linear-gradient(135deg, #ffffff 0%, #a1a1aa 100%);
+  background: var(--streak-gradient);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -691,7 +729,7 @@ body {
    each one's own slice of the circle, with a gap between slices. */
 .ring-track {
   fill: none;
-  stroke: #ffffff12;
+  stroke: var(--overlay);
   stroke-width: 14;
   stroke-linecap: round;
   transform: rotate(-90deg);
@@ -710,7 +748,7 @@ body {
 }
 
 .ring-pushups { stroke: var(--ring-pushups); }
-.ring-situps { stroke: var(--ring-situps); }
+.ring-planks { stroke: var(--ring-planks); }
 .ring-squats { stroke: var(--ring-squats); }
 .ring-walkrun { stroke: var(--ring-walkrun); }
 
@@ -753,7 +791,7 @@ body {
 }
 
 .rings-dot-pushups { background: var(--ring-pushups); }
-.rings-dot-situps { background: var(--ring-situps); }
+.rings-dot-planks { background: var(--ring-planks); }
 .rings-dot-squats { background: var(--ring-squats); }
 .rings-dot-walkrun { background: var(--ring-walkrun); }
 
@@ -782,7 +820,7 @@ body {
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   margin-bottom: var(--space-sm);
-  background: #1c1c1f66;
+  background: var(--surface);
   border-radius: var(--radius);
 }
 
@@ -791,7 +829,7 @@ body {
   text-align: left;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #e4e3e0;
+  color: var(--text-soft);
 }
 
 .walkrun-row input {
@@ -802,7 +840,7 @@ body {
   font-weight: 700;
   font-family: inherit;
   text-align: center;
-  background: #232326;
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text-primary);
@@ -837,7 +875,7 @@ body {
 }
 
 .start-tracking-button:disabled {
-  background: #3a3a3a;
+  background: var(--control-bg);
   color: var(--text-muted);
   cursor: not-allowed;
 }
@@ -878,7 +916,7 @@ body {
   height: 240px;
   border-radius: var(--radius);
   margin-bottom: var(--space-md);
-  background: #1c1c1f;
+  background: var(--surface-solid);
 }
 
 
@@ -911,7 +949,7 @@ body {
   font-size: 0.95rem;
   font-weight: 700;
   color: white;
-  background: #3a3a3a;
+  background: var(--control-bg);
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -923,7 +961,7 @@ body {
   align-items: center;
   gap: 4px;
   padding: var(--space-sm) 4px;
-  background: #1c1c1f66;
+  background: var(--surface);
   border: 1px solid transparent;
   border-radius: var(--radius);
   transition: border-color 0.15s ease;
@@ -944,7 +982,7 @@ body {
 
 .exercise-tile label {
   font-size: 0.78rem;
-  color: #e4e3e0;
+  color: var(--text-soft);
   font-weight: 600;
 }
 
@@ -963,7 +1001,7 @@ body {
   font-weight: 700;
   font-family: inherit;
   text-align: center;
-  background: #232326;
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text-primary);
@@ -973,7 +1011,7 @@ body {
 .exercise-tile input:focus {
   outline: none;
   border-color: var(--orange);
-  background: #28282b;
+  background: var(--field-bg-hover);
 }
 
 .exercise-tile input:disabled {
@@ -1028,7 +1066,7 @@ body {
 }
 
 #log-button:disabled {
-  background: #3a3a3a;
+  background: var(--control-bg);
   color: var(--text-muted);
   cursor: not-allowed;
   box-shadow: none;
@@ -1074,7 +1112,7 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #3a3a3a;
+  background: var(--control-bg);
   transition: background 0.2s ease, width 0.2s ease;
 }
 
@@ -1117,7 +1155,7 @@ body {
   width: 100%;
   padding: var(--space-md);
   font-family: inherit;
-  background: #1c1c1f80;
+  background: var(--surface-strong);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   cursor: pointer;
@@ -1153,7 +1191,7 @@ body {
   padding: 10px 12px;
   font-size: 1rem;
   font-family: inherit;
-  background: #232326;
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--text-primary);
@@ -1184,7 +1222,7 @@ body {
 }
 
 .auth-submit-button:disabled {
-  background: #3a3a3a;
+  background: var(--control-bg);
   color: var(--text-muted);
   cursor: not-allowed;
 }
@@ -1254,7 +1292,7 @@ body {
 .account-menu {
   display: flex;
   flex-direction: column;
-  background: #1c1c1f66;
+  background: var(--surface);
   border-radius: var(--radius);
   overflow: hidden;
   margin-bottom: var(--space-md);
@@ -1330,7 +1368,7 @@ body {
 .stat-label {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #71717a;
+  color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
@@ -1350,7 +1388,7 @@ body {
   height: 56px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: #3a3a3a;
+  background: var(--control-bg);
   color: var(--text-secondary);
 }
 
@@ -1460,7 +1498,7 @@ body {
 
 .distance-chart-dot {
   fill: #22c55e;
-  stroke: #121316;
+  stroke: var(--page-bg);
   stroke-width: 1.5;
 }
 
@@ -1499,7 +1537,7 @@ body {
   height: 44px;
   font-size: 1.4rem;
   font-family: inherit;
-  background: #1c1c1f66;
+  background: var(--surface);
   border: none;
   border-radius: var(--radius);
   color: var(--text-primary);
@@ -1536,7 +1574,7 @@ body {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-secondary);
-  background: #1c1c1f66;
+  background: var(--surface);
 }
 
 .calendar-day.empty {
@@ -1603,7 +1641,7 @@ body {
   width: 36px;
   height: 36px;
   flex-shrink: 0;
-  background: #1c1c1f66;
+  background: var(--surface);
   border: none;
   border-radius: 50%;
   color: var(--text-secondary);
@@ -1616,7 +1654,7 @@ body {
 }
 
 .gear-button:hover {
-  background: #ffffff12;
+  background: var(--overlay);
 }
 
 /* A calendar-style grid: 7 cells per row (Sun-Sat), wrapping to a new
@@ -1634,7 +1672,7 @@ body {
 
 .heatmap-day {
   border-radius: 3px;
-  background-color: #27272a;
+  background-color: var(--heatmap-empty);
   transition: transform 0.2s ease;
 }
 

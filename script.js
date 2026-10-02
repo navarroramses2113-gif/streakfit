@@ -33,7 +33,7 @@ function defaultData() {
     bestStreak: 0,
     lastLoggedDate: null,
     history: [],
-    minimums: { pushups: 10, situps: 10, squats: 10, walkRun: null },
+    minimums: { pushups: 10, planks: 30, squats: 10, walkRun: null },
     restDaysUsed: 0,
     weekStartDate: null,
     units: "miles",
@@ -57,7 +57,11 @@ function defaultData() {
 // both data sources below instead of duplicating the same checks twice.
 function migrateData(parsed) {
   if (!parsed.history) parsed.history = [];
-  if (!parsed.minimums) parsed.minimums = { pushups: 10, situps: 10, squats: 10, walkRun: null };
+  if (!parsed.minimums) parsed.minimums = { pushups: 10, planks: 30, squats: 10, walkRun: null };
+  // Planks replaced sit-ups. The old value was a rep count, so carrying it
+  // over as seconds would make the minimum trivially easy - start at 30s.
+  if (parsed.minimums.planks === undefined) parsed.minimums.planks = 30;
+  delete parsed.minimums.situps;
   if (parsed.minimums.walkRun === undefined) parsed.minimums.walkRun = null;
   if (parsed.restDaysUsed === undefined) {
     parsed.restDaysUsed = 0;
@@ -166,7 +170,7 @@ const errorMessageEl = document.getElementById("error-message");
 const bestStreakCountEl = document.getElementById("best-streak-count");
 
 const pushupsEl = document.getElementById("pushups");
-const situpsEl = document.getElementById("situps");
+const planksEl = document.getElementById("planks");
 const squatsEl = document.getElementById("squats");
 const walkrunEl = document.getElementById("walkrun");
 const walkrunRowEl = document.getElementById("walkrun-row");
@@ -186,7 +190,7 @@ const RING_SEGMENT_GAP = 20;
 
 const RING_CONFIG = [
   { key: "pushups", trackEl: document.getElementById("segment-track-pushups"), progressEl: document.getElementById("ring-pushups") },
-  { key: "situps", trackEl: document.getElementById("segment-track-situps"), progressEl: document.getElementById("ring-situps") },
+  { key: "planks", trackEl: document.getElementById("segment-track-planks"), progressEl: document.getElementById("ring-planks") },
   { key: "squats", trackEl: document.getElementById("segment-track-squats"), progressEl: document.getElementById("ring-squats") },
   { key: "walkrun", trackEl: document.getElementById("segment-track-walkrun"), progressEl: document.getElementById("ring-walkrun") },
 ];
@@ -240,7 +244,7 @@ function updateRings(forceComplete) {
     ? activeRings.map(() => 1)
     : [
         Number(pushupsEl.value) / Math.max(data.minimums.pushups, 1),
-        Number(situpsEl.value) / Math.max(data.minimums.situps, 1),
+        Number(planksEl.value) / Math.max(data.minimums.planks, 1),
         Number(squatsEl.value) / Math.max(data.minimums.squats, 1),
         walkRunEnabled ? Number(walkrunEl.value) / Math.max(data.minimums.walkRun, 1) : 0,
       ];
@@ -251,12 +255,12 @@ function updateRings(forceComplete) {
 }
 
 const pushupsMinTagEl = document.getElementById("pushups-min-tag");
-const situpsMinTagEl = document.getElementById("situps-min-tag");
+const planksMinTagEl = document.getElementById("planks-min-tag");
 const squatsMinTagEl = document.getElementById("squats-min-tag");
 const walkrunMinTagEl = document.getElementById("walkrun-min-tag");
 
 const minPushupsEl = document.getElementById("min-pushups");
-const minSitupsEl = document.getElementById("min-situps");
+const minPlanksEl = document.getElementById("min-planks");
 const minSquatsEl = document.getElementById("min-squats");
 const enableWalkrunEl = document.getElementById("enable-walkrun");
 const minWalkrunEl = document.getElementById("min-walkrun");
@@ -286,6 +290,33 @@ document.getElementById("open-account-screen-button").addEventListener("click", 
 
 document.getElementById("account-screen-close-button").addEventListener("click", () => {
   showScreen("app-screen");
+});
+
+// Light/Dark appearance. Stored on this device (localStorage) rather than
+// in the account data, because it's a per-screen preference - someone can
+// reasonably want a dark phone and a light laptop. The inline script in
+// index.html's <head> applies it before first paint; this handles
+// changing it afterward.
+const themeSelectEl = document.getElementById("theme-select");
+
+function applyTheme(theme) {
+  if (theme === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+}
+
+themeSelectEl.value = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+
+themeSelectEl.addEventListener("change", () => {
+  applyTheme(themeSelectEl.value);
+  try {
+    localStorage.setItem("forja-theme", themeSelectEl.value);
+  } catch (e) {
+    // Storage blocked (private browsing etc.) - the theme still applies
+    // for this session, it just won't be remembered.
+  }
 });
 
 document.getElementById("open-settings-button").addEventListener("click", () => {
@@ -402,7 +433,7 @@ document.getElementById("share-profile-button").addEventListener("click", async 
 // Shows the current minimums next to each exercise (e.g. "min 15").
 function renderMinTags() {
   pushupsMinTagEl.textContent = `min ${data.minimums.pushups}`;
-  situpsMinTagEl.textContent = `min ${data.minimums.situps}`;
+  planksMinTagEl.textContent = `min ${data.minimums.planks}s`;
   squatsMinTagEl.textContent = `min ${data.minimums.squats}`;
   if (data.minimums.walkRun !== null) {
     walkrunMinTagEl.textContent = `min ${data.minimums.walkRun}`;
@@ -414,7 +445,7 @@ function renderMinTags() {
 // instead of only being filled in when a toggle was clicked.
 function renderSettingsInputs() {
   minPushupsEl.value = data.minimums.pushups;
-  minSitupsEl.value = data.minimums.situps;
+  minPlanksEl.value = data.minimums.planks;
   minSquatsEl.value = data.minimums.squats;
 
   const walkRunEnabled = data.minimums.walkRun !== null;
@@ -427,7 +458,7 @@ function renderSettingsInputs() {
 
 saveSettingsEl.addEventListener("click", () => {
   data.minimums.pushups = Number(minPushupsEl.value) || 1;
-  data.minimums.situps = Number(minSitupsEl.value) || 1;
+  data.minimums.planks = Number(minPlanksEl.value) || 1;
   data.minimums.squats = Number(minSquatsEl.value) || 1;
   data.minimums.walkRun = enableWalkrunEl.checked ? (Number(minWalkrunEl.value) || 1) : null;
   data.units = distanceUnitsEl.value;
@@ -621,7 +652,7 @@ function render() {
   updateRings(loggedToday);
 
   pushupsEl.disabled = loggedToday;
-  situpsEl.disabled = loggedToday;
+  planksEl.disabled = loggedToday;
   squatsEl.disabled = loggedToday;
 
   const walkRunEnabled = data.minimums.walkRun !== null;
@@ -665,7 +696,7 @@ function renderGraceStatus() {
 
 // Recalculate the progress bar live as the user types in any exercise box.
 pushupsEl.addEventListener("input", render);
-situpsEl.addEventListener("input", render);
+planksEl.addEventListener("input", render);
 squatsEl.addEventListener("input", render);
 walkrunEl.addEventListener("input", render);
 
@@ -1080,19 +1111,19 @@ function logWorkout() {
   // Number(...) converts the text from the input box into an actual number.
   // Input values are ALWAYS strings, even for type="number" inputs.
   const pushups = Number(pushupsEl.value);
-  const situps = Number(situpsEl.value);
+  const plankSeconds = Number(planksEl.value);
   const squats = Number(squatsEl.value);
   const walkRunEnabled = data.minimums.walkRun !== null;
   const walkrunMinutes = Number(walkrunEl.value);
 
   const missedMinimum =
     pushups < data.minimums.pushups ||
-    situps < data.minimums.situps ||
+    plankSeconds < data.minimums.planks ||
     squats < data.minimums.squats ||
     (walkRunEnabled && walkrunMinutes < data.minimums.walkRun);
 
   if (missedMinimum) {
-    let message = `You need at least ${data.minimums.pushups} push-ups, ${data.minimums.situps} sit-ups, and ${data.minimums.squats} squats`;
+    let message = `You need at least ${data.minimums.pushups} push-ups, a ${data.minimums.planks}-second plank, and ${data.minimums.squats} squats`;
     if (walkRunEnabled) {
       message += `, plus ${data.minimums.walkRun} minutes of walk/run`;
     }
@@ -1980,9 +2011,9 @@ onboardingNextEl.addEventListener("click", () => {
 
 // Starting minimums per fitness level - chosen on the first question slide.
 const FITNESS_LEVELS = {
-  beginner: { pushups: 5, situps: 10, squats: 10 },
-  intermediate: { pushups: 15, situps: 20, squats: 20 },
-  advanced: { pushups: 30, situps: 30, squats: 40 },
+  beginner: { pushups: 5, planks: 20, squats: 10 },
+  intermediate: { pushups: 15, planks: 45, squats: 20 },
+  advanced: { pushups: 30, planks: 90, squats: 40 },
 };
 
 let selectedFitnessLevel = "beginner";
