@@ -16,7 +16,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. -->
@@ -514,7 +514,9 @@
 
       <p id="error-message" class="error"></p>
 
-      <button id="log-button">Log Today's Workout</button>
+      <!-- Today logs itself once every minimum is hit; this only appears if
+           saving the day failed (e.g. no signal). -->
+      <button id="retry-log-button" class="hidden">Try Again</button>
     </div>
 
     <div id="tab-competition" class="tab-panel hidden">
@@ -686,6 +688,6 @@
   <script src="supabase/functions/_shared/game-rules.js?v=2"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=8"></script>
   <script src="camera-verify.js?v=6"></script>
-  <script src="script.js?v=6"></script>
+  <script src="script.js?v=7"></script>
 </body>
 </html>

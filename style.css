@@ -966,6 +966,12 @@ body {
   min-height: 20px;
 }
 
+/* The day just completed itself - the one line worth noticing. */
+#status-message.is-done {
+  color: #22c55e;
+  font-weight: 700;
+}
+
 /* Exercises as a row of 3 tiles instead of stacked list rows - reads
    more like a dashboard, and puts equal visual weight on all 3. */
 .exercise-list {
@@ -1192,17 +1198,7 @@ body {
   color: #22c55e;
 }
 
-.error.shake {
-  animation: shake 0.3s ease;
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
-}
-
-#log-button {
+#retry-log-button {
   width: 100%;
   min-height: 48px;
   padding: 12px 24px;
@@ -1218,22 +1214,14 @@ body {
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
-#log-button:hover {
+#retry-log-button:hover {
   background-color: #1d4ed8;
   transform: translateY(-1px);
 }
 
-#log-button:active {
+#retry-log-button:active {
   transform: translateY(1px);
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
-}
-
-#log-button:disabled {
-  background: var(--control-bg);
-  color: var(--text-muted);
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
 }
 
 .onboarding-slide {

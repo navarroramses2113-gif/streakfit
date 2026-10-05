@@ -25,6 +25,13 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUserId = null;
 let data = null;
 
+// Today logs itself (see maybeCompleteDay): true while it's being saved,
+// and true after a save that failed, until the next attempt.
+let savingDay = false;
+let saveDayFailed = false;
+// A guest's first completed day earns a sign-up invite (inviteGuestToSignUp).
+let signupInvitePending = false;
+
 // `minimums.walkRun` is either a number of minutes (tracking enabled)
 // or null (not tracking walk/run at all).
 function defaultData() {
@@ -172,7 +179,7 @@ function saveData(dataToSave) {
 
 const streakCountEl = document.getElementById("streak-count");
 const statusMessageEl = document.getElementById("status-message");
-const logButtonEl = document.getElementById("log-button");
+const retryLogButtonEl = document.getElementById("retry-log-button");
 const errorMessageEl = document.getElementById("error-message");
 const bestStreakCountEl = document.getElementById("best-streak-count");
 
@@ -475,6 +482,8 @@ saveSettingsEl.addEventListener("click", () => {
   saveData(data);
   renderMinTags();
   render();
+  // Lowering a minimum (or turning walk/run off) can complete today.
+  maybeCompleteDay();
 });
 
 // STEP 2c: Push notification reminders. Requires an account (subscriptions
@@ -667,6 +676,7 @@ function recordVerifiedSet(exerciseKey, value) {
   progress.sets.push({ exercise: exerciseKey, value, at: new Date().toISOString() });
   saveData(data);
   render();
+  maybeCompleteDay();
 }
 
 // For a signed-in player the server is the source of truth for the streak:
@@ -716,6 +726,8 @@ async function saveCameraSet({ exercise, value, trace }) {
   const reply = await callServerFunction("submit-set", { trace, day: todayString() });
   if (!reply.ok) return { ok: false, error: serverErrorMessage(reply) };
   await refreshVerifiedProgress();
+  // Not awaited: the camera screen can close while the day is being saved.
+  maybeCompleteDay();
   return { ok: true, value: reply.value };
 }
 
@@ -733,14 +745,14 @@ function render() {
   const loggedToday = data.lastLoggedDate === todayString();
 
   if (loggedToday) {
-    statusMessageEl.textContent = "Nice work! You're done for today.";
-    logButtonEl.disabled = true;
-    logButtonEl.textContent = "Completed Today";
+    statusMessageEl.textContent = "Day complete! See you tomorrow.";
+  } else if (savingDay) {
+    statusMessageEl.textContent = "Minimums hit! Saving your day...";
   } else {
-    statusMessageEl.textContent = "Verify each exercise with the camera, then log today's workout.";
-    logButtonEl.disabled = false;
-    logButtonEl.textContent = "Log Today's Workout";
+    statusMessageEl.textContent = "Hit every minimum and your day logs itself.";
   }
+  statusMessageEl.classList.toggle("is-done", loggedToday);
+  retryLogButtonEl.classList.toggle("hidden", loggedToday || savingDay || !saveDayFailed);
 
   updateRings(loggedToday);
 
@@ -1051,6 +1063,7 @@ function showScreen(idToShow) {
     document.getElementById(id).classList.toggle("hidden", id !== idToShow);
   });
   hideSplash();
+  if (idToShow === "app-screen" && signupInvitePending && !currentUserId) inviteGuestToSignUp();
 }
 
 // Shows the app's main tabs and fills in every part of the page from
@@ -1078,6 +1091,8 @@ async function showApp(userId) {
   // them in before the first draw so nothing shows a stale local copy.
   await Promise.all([loadServerStats(), refreshVerifiedProgress()]);
   revealApp();
+  // Catches a day that hit its minimums but didn't get saved (no signal).
+  maybeCompleteDay();
   updateFriendRequestBadge();
 
   // A brand new account (not a returning login) gets one chance to turn
@@ -1117,6 +1132,7 @@ function showAppAsGuest() {
   currentUserId = null;
   data = loadLocalData() || defaultData();
   revealApp();
+  maybeCompleteDay();
 }
 
 // Shows/hides the right button at the bottom of the Me tab depending on
@@ -1248,43 +1264,32 @@ function serverErrorMessage(reply) {
   }
 }
 
-async function logWorkout() {
-  errorMessageEl.textContent = "";
+// Has today reached every minimum - the camera-verified exercises, plus
+// walk/run minutes if that goal is turned on?
+function minimumsMet() {
+  const progress = todayProgress();
+  const walkRunEnabled = data.minimums.walkRun !== null;
+  return (
+    progress.pushups >= data.minimums.pushups &&
+    progress.planks >= data.minimums.planks &&
+    progress.squats >= data.minimums.squats &&
+    (!walkRunEnabled || progress.walkRun >= data.minimums.walkRun)
+  );
+}
+
+// Today logs itself: there's no button to remember to press. This runs
+// after anything that can complete the day (a saved set, a finished walk,
+// lowered minimums, opening the app) and logs it the moment every minimum
+// is hit. If saving fails - no signal, say - a Try Again button appears,
+// and the next app open tries again on its own.
+async function maybeCompleteDay() {
+  if (!data || savingDay || data.lastLoggedDate === todayString() || !minimumsMet()) return;
 
   const today = todayString();
-
-  if (data.lastLoggedDate === today) {
-    // Already logged today - button should be disabled, but guard anyway.
-    return;
-  }
-
-  const progress = todayProgress();
-  const pushups = progress.pushups;
-  const plankSeconds = progress.planks;
-  const squats = progress.squats;
-  const walkRunEnabled = data.minimums.walkRun !== null;
-  const walkrunMinutes = progress.walkRun;
-
-  const missedMinimum =
-    pushups < data.minimums.pushups ||
-    plankSeconds < data.minimums.planks ||
-    squats < data.minimums.squats ||
-    (walkRunEnabled && walkrunMinutes < data.minimums.walkRun);
-
-  if (missedMinimum) {
-    let message = `You need ${data.minimums.pushups} verified push-ups, a ${data.minimums.planks}-second plank, and ${data.minimums.squats} squats`;
-    if (walkRunEnabled) {
-      message += `, plus ${data.minimums.walkRun} minutes of walk/run`;
-    }
-    errorMessageEl.textContent = message + " to log today.";
-
-    // Retrigger the shake animation even if it's already mid-shake:
-    // removing the class, forcing the browser to notice, then re-adding it.
-    errorMessageEl.classList.remove("shake");
-    void errorMessageEl.offsetWidth;
-    errorMessageEl.classList.add("shake");
-    return;
-  }
+  savingDay = true;
+  saveDayFailed = false;
+  errorMessageEl.textContent = "";
+  render();
 
   // A signed-in player's day is logged by the server, which checks ITS OWN
   // record of their verified sets before moving the streak - the numbers
@@ -1293,13 +1298,18 @@ async function logWorkout() {
   // streak rules.
   let stats;
   if (currentUserId) {
-    logButtonEl.disabled = true;
-    logButtonEl.textContent = "Logging...";
     const reply = await callServerFunction("log-day", { day: today });
+    savingDay = false;
     if (!reply.ok) {
-      if (reply.error === "already_logged" && reply.stats) applyStats(reply.stats);
+      if (reply.error === "already_logged" && reply.stats) {
+        // Already done (e.g. from another device) - nothing went wrong.
+        applyStats(reply.stats);
+        saveData(data);
+      } else {
+        saveDayFailed = true;
+        errorMessageEl.textContent = serverErrorMessage(reply);
+      }
       render();
-      errorMessageEl.textContent = serverErrorMessage(reply);
       return;
     }
     stats = reply.stats;
@@ -1314,6 +1324,7 @@ async function logWorkout() {
       },
       today
     );
+    savingDay = false;
   }
   applyStats(stats);
 
@@ -1329,22 +1340,29 @@ async function logWorkout() {
   streakCountEl.classList.add("pulse");
   setTimeout(() => streakCountEl.classList.remove("pulse"), 250);
 
-  // A guest who just logged their very first day gets invited to create
-  // an account right at that "high point" - after a short pause so they
-  // actually get to see the streak update first, not instead of it.
   if (!currentUserId && data.history.length === 1) {
-    setTimeout(() => {
-      authMode = "signup";
-      applyAuthMode();
-      authSubtitleEl.textContent = "Day 1 complete! Create an account to compete with friends - leaderboard streaks start fresh, so every day on it is camera-verified.";
-      showAuthScreen();
-    }, 1800);
+    signupInvitePending = true;
+    if (!document.getElementById("app-screen").classList.contains("hidden")) inviteGuestToSignUp();
   }
 }
 
-// addEventListener attaches a function to run whenever a specific event
-// happens on an element - here, whenever the button is clicked.
-logButtonEl.addEventListener("click", logWorkout);
+retryLogButtonEl.addEventListener("click", maybeCompleteDay);
+
+// A guest who just completed their very first day gets invited to create
+// an account right at that "high point" - after a short pause so they
+// actually get to see the streak update first, not instead of it. The day
+// can complete on another screen (the camera, or a finished walk's
+// summary), so the invite waits until they're back on the main screen
+// rather than interrupting whatever they're doing (see showScreen).
+function inviteGuestToSignUp() {
+  signupInvitePending = false;
+  setTimeout(() => {
+    authMode = "signup";
+    applyAuthMode();
+    authSubtitleEl.textContent = "Day 1 complete! Create an account to compete with friends - leaderboard streaks start fresh, so every day on it is camera-verified.";
+    showAuthScreen();
+  }, 1800);
+}
 
 
 // STEP 4: Tabs (Today / Feed / Competition / Record / Me) and the leaderboard.
@@ -2968,6 +2986,7 @@ trackingFinishEl.addEventListener("click", () => {
     saveData(data);
   }
   render();
+  maybeCompleteDay();
 
   pendingRoute = { date: todayString(), distanceKm, durationMs, route, elevationGainM };
 
