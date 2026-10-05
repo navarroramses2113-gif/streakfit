@@ -1904,3 +1904,18 @@ body {
     display: none;
   }
 }
+/* Every rep attempt from the set just finished, with the reason any didn't count. */
+.camera-attempts {
+  list-style: none;
+  text-align: left;
+  font-size: 0.95rem;
+  margin: 0 0 var(--space-md);
+}
+
+.camera-attempts li {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.camera-attempts li.ok { color: #22c55e; }
+.camera-attempts li.no { color: #ff5a5f; }

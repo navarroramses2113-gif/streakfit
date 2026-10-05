@@ -140,6 +140,8 @@ const ForjaCamera = (function () {
   let onSave = null;
   let currentSideName = null;
   let prevState = "waiting";
+  let lastBuzzAt = -Infinity;
+  let attempts = [];
   let result = 0;
   let resultUnit = "";
 
@@ -247,10 +249,39 @@ const ForjaCamera = (function () {
   }
 
   // Plays whatever sound this frame calls for (counted, rejected, ready...).
+  // The rejection buzz is also rate-limited: a flurry of fidgeting should
+  // never turn into a flurry of buzzing.
   function cue(result) {
     const name = ForjaCounter.soundCue(prevState, result, exercise.kind);
     prevState = result.state;
-    if (name) Sound.play(name);
+    if (!name) return;
+    if (name === "reject") {
+      const now = performance.now();
+      if (now - lastBuzzAt < 1500) return;
+      lastBuzzAt = now;
+    }
+    Sound.play(name);
+  }
+
+  // What a rep event means in words - used for the live feedback line AND
+  // the per-attempt list on the review screen, so a rep that did not count
+  // always comes with its reason.
+  function describeEvent(r) {
+    if (r.event === "rep") {
+      return { kind: "good", text: "Counted - " + exercise.jointName + " " + Math.round(r.lastRep.depth) + "\u00b0, " + exercise.dropName + " down " + pct(r.lastRep.drop) };
+    }
+    if (r.event === "shallow") return { kind: "bad", text: "Not deep enough (" + Math.round(r.depth) + "\u00b0) - go lower" };
+    if (r.event === "too_fast") return { kind: "bad", text: "Too fast - control the movement" };
+    if (r.event === "abandoned") return { kind: "bad", text: "Lost tracking mid-rep - not counted. Reset your position." };
+    if (r.event && exercise.events[r.event]) return { kind: "bad", text: exercise.events[r.event](r) };
+    return null;
+  }
+
+  function noteEvent(r) {
+    const described = describeEvent(r);
+    if (!described) return;
+    setFeedback(described.text, described.kind);
+    attempts.push({ ok: described.kind === "good", text: described.text });
   }
 
   // t is milliseconds since the set started - the same clock the server
@@ -260,7 +291,9 @@ const ForjaCamera = (function () {
     const side = landmarks ? pickSide(landmarks) : null;
 
     if (!side) {
-      cue(session.push(t, null).r);
+      const lost = session.push(t, null).r;
+      cue(lost);
+      noteEvent(lost);
       const overlay = $("camera-overlay");
       overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
       $("camera-state").textContent = exercise.lost;
@@ -299,17 +332,7 @@ const ForjaCamera = (function () {
     $("camera-live").textContent =
       r.drop === null ? "" : exercise.dropName + " down " + pct(r.drop) + "  ·  " + exercise.anchorName + " moved " + pct(r.anchorMove);
 
-    if (r.event === "rep") {
-      setFeedback("Counted - " + exercise.jointName + " " + Math.round(r.lastRep.depth) + "°, " + exercise.dropName + " down " + pct(r.lastRep.drop), "good");
-    } else if (r.event === "shallow") {
-      setFeedback("Not deep enough (" + Math.round(r.depth) + "°) - go lower", "bad");
-    } else if (r.event === "too_fast") {
-      setFeedback("Too fast - control the movement", "bad");
-    } else if (r.event === "abandoned") {
-      setFeedback("Lost tracking mid-rep - not counted. Reset your position.", "bad");
-    } else if (r.event && exercise.events[r.event]) {
-      setFeedback(exercise.events[r.event](r), "bad");
-    }
+    noteEvent(r);
   }
 
   function loop() {
@@ -375,6 +398,8 @@ const ForjaCamera = (function () {
     session = ForjaCounter.createSetSession(exerciseKey, video.videoWidth, video.videoHeight);
     currentSideName = null;
     prevState = "waiting";
+    lastBuzzAt = -Infinity;
+    attempts = [];
     setStartMs = performance.now();
     lastProcessedMs = -Infinity;
     $("camera-count").textContent = exercise.kind === "plank" ? "0.0" : "0";
@@ -398,7 +423,19 @@ const ForjaCamera = (function () {
       result === 0
         ? "Nothing was counted. Make sure your whole body is in frame, side-on, and try again."
         : "Only reps with full depth and good form are counted, and the server double-checks every set. Not what you expected? Redo the set - results can't be edited.";
+    renderAttempts();
     setMode("review");
+  }
+
+  function renderAttempts() {
+    const list = $("camera-attempts");
+    list.innerHTML = "";
+    attempts.slice(-12).forEach((attempt) => {
+      const li = document.createElement("li");
+      li.className = attempt.ok ? "ok" : "no";
+      li.textContent = (attempt.ok ? "\u2713 " : "\u2717 ") + attempt.text;
+      list.appendChild(li);
+    });
   }
 
   function close() {

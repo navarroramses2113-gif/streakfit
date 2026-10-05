@@ -65,9 +65,14 @@
         maxBadPostureMs: 400, // bad posture longer than this during a rep voids it
         maxDegPerSec: 900, // faster angle change than this is a tracking glitch
         maxLostMs: 700, // lose tracking this long mid-rep and the rep is dropped
+        attemptBelow: null, // see below
       },
       options
     );
+    // A dip only counts as an ATTEMPT at a rep - worth a 'not deep enough'
+    // message or a buzz - if the joint bent at least this far. Shifting your
+    // weight or a slight knee bend shouldn't set anything off.
+    if (cfg.attemptBelow === null) cfg.attemptBelow = cfg.downBelow + 30;
 
     let state = "waiting"; // waiting -> up <-> down
     let smoothed = null;
@@ -202,6 +207,7 @@
             // Went down some, came back up without reaching depth.
             const depth = shallowDeepest;
             endDescent();
+            if (depth >= cfg.attemptBelow) return result(null); // too small a movement to call an attempt
             return Object.assign(result("shallow"), { depth });
           }
           return result(null);
@@ -220,7 +226,7 @@
 
           if (durationMs < cfg.minRepMs) return Object.assign(result("too_fast"), { depth });
           if (extra && measures.drop !== null) {
-            if (postureMs > cfg.maxBadPostureMs) return Object.assign(result("bad_posture"), { depth, ...measures });
+            if (postureMs > cfg.maxBadPostureMs) return Object.assign(result("bad_posture"), { depth, ...measures, badPostureMs: postureMs });
             if (measures.drop < cfg.minDrop) return Object.assign(result("no_drop"), { depth, ...measures });
             if (measures.anchorMove > cfg.maxAnchorMove) return Object.assign(result("anchor_moved"), { depth, ...measures });
           }
@@ -250,7 +256,7 @@
 
   // Squat: the knee angle is the rep; hips must drop and ankles stay put.
   function createSquatCounter(options) {
-    return createRepCounter(Object.assign({ downBelow: 100, upAbove: 160, minRepMs: 500, minDrop: 0.25, maxAnchorMove: 0.25 }, options));
+    return createRepCounter(Object.assign({ downBelow: 100, upAbove: 155, minRepMs: 500, minDrop: 0.2, maxAnchorMove: 0.25, maxBadPostureMs: 800 }, options));
   }
 
   // Push-up: the elbow angle is the rep; shoulders must lower, hands stay
@@ -387,14 +393,14 @@
       draw: ["shoulder", "hip", "knee", "ankle"],
       sliders: [
         { text: 'Counts as "down" below', min: 60, max: 130, value: 100 },
-        { text: 'Counts as "standing" above', min: 140, max: 178, value: 160 },
+        { text: 'Counts as "standing" above', min: 140, max: 178, value: 155 },
       ],
       lost: "Can't see your leg - stand side-on and step back",
       states: { waiting: "Stand tall and hold still to start", up: "Ready - squat down", down: "Down - now stand all the way up" },
       events: {
         no_drop: (r) => "Ignored - hips didn't drop enough (" + pct(r.drop) + " of leg). Sit down and back.",
         anchor_moved: (r) => "Ignored - feet moved (" + pct(r.anchorMove) + " of leg). Keep them planted.",
-        bad_posture: () => "Ignored - keep your chest up. Folding forward isn't a squat.",
+        bad_posture: (r) => "Ignored - chest folded forward for " + ((r.badPostureMs ?? 0) / 1000).toFixed(1) + "s. Keep your chest up.",
       },
       jointName: "knee",
       dropName: "hips",
@@ -409,8 +415,8 @@
           // too), so the hips must drop and the feet stay planted - and the
           // chest must stay up. Folding forward at the waist bends the
           // knees and drops the upper body, but the torso goes nearly
-          // horizontal; a real squat keeps it well above 35 degrees.
-          extra: { dropY: hip.y, anchorX: ankle.x, anchorY: ankle.y, scale: dist(hip, ankle), posture: torsoTilt >= 35 },
+          // horizontal; a real squat keeps it well above 30 degrees.
+          extra: { dropY: hip.y, anchorX: ankle.x, anchorY: ankle.y, scale: dist(hip, ankle), posture: torsoTilt >= 30 },
           torsoTilt,
         };
       },
@@ -442,7 +448,7 @@
       events: {
         no_drop: (r) => "Ignored - chest didn't lower (" + pct(r.drop) + " of body). Go lower.",
         anchor_moved: (r) => "Ignored - hands moved (" + pct(r.anchorMove) + " of body). Keep them planted.",
-        bad_posture: () => "Ignored - keep your body in one straight line.",
+        bad_posture: (r) => "Ignored - body out of line for " + ((r.badPostureMs ?? 0) / 1000).toFixed(1) + "s. Keep it in one straight line.",
       },
       jointName: "elbow",
       dropName: "chest",
