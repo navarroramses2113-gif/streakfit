@@ -1407,6 +1407,8 @@ const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
 // trusted. Building rows with a blank name span and setting it via
 // textContent (never interpolated into innerHTML) means a maliciously
 // crafted username can never inject HTML/scripts into someone else's page.
+// Number(...) on the streak is a second guard behind the database rule that
+// streaks must be numbers: whatever arrives, only a number reaches the HTML.
 function buildLeaderboardRow(name, streak, isYou, rank, userId) {
   const row = document.createElement("div");
   row.className = "leaderboard-row";
@@ -1416,7 +1418,7 @@ function buildLeaderboardRow(name, streak, isYou, rank, userId) {
     <span class="leaderboard-rank">#${rank}</span>
     <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
     <span class="leaderboard-name"></span>
-    <span class="leaderboard-streak">${streak} ${FLAME_ICON_SVG}</span>
+    <span class="leaderboard-streak">${Number(streak) || 0} ${FLAME_ICON_SVG}</span>
     ${isYou ? "" : '<button class="row-options-button" aria-label="More options">&#8942;</button>'}
   `;
   row.querySelector(".leaderboard-name").textContent = name;

@@ -1,0 +1,12 @@
+# Security headers Netlify adds to every response (HSTS is already added by Netlify itself).
+#  - X-Frame-Options: stops other sites from embedding Forja in a hidden frame and tricking
+#    someone into tapping buttons (like Delete Account) without realizing it.
+#  - X-Content-Type-Options: browsers must not guess file types (blocks a class of script tricks).
+#  - Referrer-Policy: other sites only learn the domain a visitor came from, never full app URLs.
+#  - Permissions-Policy: only Forja itself may ask for the camera and location; nothing it loads
+#    from elsewhere can, and features the app never uses are switched off entirely.
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), geolocation=(self), microphone=(), payment=(), usb=()
