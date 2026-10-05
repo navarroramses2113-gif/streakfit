@@ -100,5 +100,23 @@
     };
   }
 
-  return { FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats };
+  // A new best only makes the Feed from day 3 - "new best: 1 day" on
+  // someone's very first workout would be noise, not news.
+  const NEW_BEST_MIN_STREAK = 3;
+
+  // The Feed post friends see for a logged day, as a feed_events row. Built
+  // only from the server's own totals and streak math.
+  function feedPost(userId, day, totals, before, after) {
+    return {
+      user_id: userId,
+      day,
+      streak: after.streak,
+      pushups: totals.pushups,
+      plank_seconds: totals.planks,
+      squats: totals.squats,
+      new_best: after.streak > (before.bestStreak || 0) && after.streak >= NEW_BEST_MIN_STREAK,
+    };
+  }
+
+  return { FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, feedPost };
 });

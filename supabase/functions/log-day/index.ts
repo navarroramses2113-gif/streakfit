@@ -1,6 +1,7 @@
 // Logs a day for the caller if - and only if - the server's own record of
-// their verified sets meets the minimums, then advances their streak. The
-// streak lives in player_stats, which only this function can write.
+// their verified sets meets the minimums, then advances their streak and
+// posts the day to their friends' Feed. The streak lives in player_stats
+// and posts in feed_events; only this function can write either.
 import "../_shared/game-rules.js";
 import { authenticate, corsHeaders, createAdminClient, json } from "../_shared/http.ts";
 
@@ -63,6 +64,13 @@ Deno.serve(async (req) => {
     updated_at: new Date().toISOString(),
   });
   if (saveError) return json({ ok: false, error: "server_error" }, 500);
+
+  // Share the day with friends. The day is already logged at this point, so
+  // a Feed hiccup must never turn into an error for the player.
+  const { error: feedError } = await admin
+    .from("feed_events")
+    .upsert(rules.feedPost(user.id, day, totals, current, next), { onConflict: "user_id,day", ignoreDuplicates: true });
+  if (feedError) console.error("feed post failed", feedError.message);
 
   return json({ ok: true, stats: next });
 });

@@ -1177,6 +1177,8 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
 
   currentUserId = null;
   data = null;
+  // Nothing from the last account's Feed may linger for whoever signs in next.
+  document.getElementById("feed-list").innerHTML = "";
 
   if (justLoggedOut) {
     justLoggedOut = false;
@@ -1345,7 +1347,7 @@ async function logWorkout() {
 logButtonEl.addEventListener("click", logWorkout);
 
 
-// STEP 4: Tabs (Today / Competition / Me) and the leaderboard mockup.
+// STEP 4: Tabs (Today / Feed / Competition / Record / Me) and the leaderboard.
 
 // Each tab's name maps to its button and panel elements, so showTab()
 // can loop over them instead of needing a separate if/else per tab.
@@ -1353,6 +1355,10 @@ const TABS = {
   today: {
     button: document.getElementById("tab-btn-today"),
     panel: document.getElementById("tab-today"),
+  },
+  feed: {
+    button: document.getElementById("tab-btn-feed"),
+    panel: document.getElementById("tab-feed"),
   },
   competition: {
     button: document.getElementById("tab-btn-competition"),
@@ -1375,6 +1381,9 @@ function showTab(tabName) {
     TABS[name].button.classList.toggle("active", isActive);
   }
 
+  if (tabName === "feed") {
+    enterFeedTab();
+  }
   if (tabName === "competition") {
     enterCompetitionTab();
   }
@@ -1387,6 +1396,7 @@ function showTab(tabName) {
 }
 
 TABS.today.button.addEventListener("click", () => showTab("today"));
+TABS.feed.button.addEventListener("click", () => showTab("feed"));
 TABS.competition.button.addEventListener("click", () => showTab("competition"));
 TABS.me.button.addEventListener("click", () => showTab("me"));
 TABS.record.button.addEventListener("click", () => showTab("record"));
@@ -1756,6 +1766,233 @@ async function loadLeaderboard() {
   combined.forEach((person, index) => {
     leaderboardEl.appendChild(buildLeaderboardRow(person.name, person.streak, person.isYou, index + 1, person.userId));
   });
+}
+
+// The Feed: every day you or a friend logs shows up as a post, and friends
+// can give each other kudos. Posts are written by the server when it logs
+// a day (log-day), so everything here is camera-verified - the app only
+// reads posts, and adds or removes its own kudos.
+
+const FEED_DAYS_SHOWN = 14;
+const FEED_MAX_POSTS = 50;
+const STREAK_MILESTONES = [7, 14, 30, 50, 100, 150, 200, 365, 500, 1000];
+const KUDOS_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3z"/><path d="M7 10l4-7a2.5 2.5 0 0 1 3 2.6L13.5 9H19a2 2 0 0 1 2 2.3l-1.2 7.4a2 2 0 0 1-2 1.7H7"/></svg>';
+
+const feedListEl = document.getElementById("feed-list");
+const feedMessageEl = document.getElementById("feed-message");
+const feedMessageTextEl = document.getElementById("feed-message-text");
+const feedMessageButtonEl = document.getElementById("feed-message-button");
+let feedMessageAction = null;
+
+// Each load gets a number, and only the newest one is allowed to draw - so
+// tapping the tab twice quickly can't let a slower, older load win.
+// (See stillCurrent() in loadFeed.)
+let feedLoadNumber = 0;
+
+feedMessageButtonEl.addEventListener("click", () => {
+  if (feedMessageAction) feedMessageAction();
+});
+
+// The note above the posts (empty feed, errors, guests). Pass no text to hide it.
+function showFeedMessage(text, buttonLabel, action) {
+  feedMessageEl.classList.toggle("hidden", !text);
+  feedMessageTextEl.textContent = text || "";
+  feedMessageButtonEl.classList.toggle("hidden", !buttonLabel);
+  feedMessageButtonEl.textContent = buttonLabel || "";
+  feedMessageAction = action || null;
+}
+
+async function enterFeedTab() {
+  if (!currentUserId) {
+    feedListEl.innerHTML = "";
+    showFeedMessage("Create an account to see your friends' workouts and give them kudos.", "Create Account", () => {
+      authMode = "signup";
+      applyAuthMode();
+      showAuthScreen();
+    });
+    return;
+  }
+  // First visit: say something while it loads. Later visits keep showing
+  // the last posts while the fresh ones arrive.
+  if (!feedListEl.hasChildNodes()) showFeedMessage("Loading...");
+  await loadFeed();
+}
+
+async function loadFeed() {
+  const thisLoad = ++feedLoadNumber;
+  const viewerId = currentUserId;
+  // False once a newer load has started, or the person logged out meanwhile.
+  const stillCurrent = () => thisLoad === feedLoadNumber && viewerId === currentUserId;
+  const loadFailed = () => {
+    if (!stillCurrent()) return;
+    showFeedMessage("Couldn't load the Feed. Check your connection.", "Try Again", () => enterFeedTab());
+  };
+
+  const { data: friendships, error: friendsError } = await supabaseClient
+    .from("friendships")
+    .select("requester_id, addressee_id")
+    .eq("status", "accepted")
+    .or(`requester_id.eq.${currentUserId},addressee_id.eq.${currentUserId}`);
+  if (friendsError) return loadFailed();
+  const feedFriendIds = (friendships || []).map((f) => (f.requester_id === currentUserId ? f.addressee_id : f.requester_id));
+
+  // The database only ever hands back your own and your friends' posts;
+  // asking for exactly those just keeps the request small.
+  const oldestDay = new Date();
+  oldestDay.setDate(oldestDay.getDate() - (FEED_DAYS_SHOWN - 1));
+  const { data: postRows, error: postsError } = await supabaseClient
+    .from("feed_events")
+    .select("id, user_id, day, streak, pushups, plank_seconds, squats, new_best, created_at")
+    .in("user_id", [currentUserId, ...feedFriendIds])
+    .gte("day", dateToString(oldestDay))
+    .order("created_at", { ascending: false })
+    .limit(FEED_MAX_POSTS);
+  if (postsError) return loadFailed();
+  const posts = postRows || [];
+
+  let kudosRows = [];
+  if (posts.length > 0) {
+    const { data: rows, error: kudosError } = await supabaseClient
+      .from("kudos")
+      .select("event_id, giver_id")
+      .in("event_id", posts.map((p) => p.id));
+    if (kudosError) return loadFailed();
+    kudosRows = rows || [];
+  }
+
+  const peopleIds = [...new Set([...posts.map((p) => p.user_id), ...kudosRows.map((k) => k.giver_id)])];
+  const usernameByUserId = {};
+  if (peopleIds.length > 0) {
+    const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username").in("user_id", peopleIds);
+    (profiles || []).forEach((p) => {
+      usernameByUserId[p.user_id] = p.username;
+    });
+  }
+
+  if (!stillCurrent()) return;
+
+  feedListEl.innerHTML = "";
+  if (posts.length === 0) {
+    if (feedFriendIds.length === 0) {
+      showFeedMessage("Your friends' workouts show up here. Add some friends to get started.", "Find Friends", () => showTab("competition"));
+    } else {
+      showFeedMessage(`Nothing in the last ${FEED_DAYS_SHOWN} days yet. When you or a friend logs a workout, it shows up here.`);
+    }
+    return;
+  }
+
+  showFeedMessage(null);
+  posts.forEach((post) => {
+    const giverIds = kudosRows.filter((k) => k.event_id === post.id).map((k) => k.giver_id);
+    feedListEl.appendChild(buildFeedCard(post, giverIds, usernameByUserId));
+  });
+}
+
+// "Today · 7:42 PM", "Yesterday · 8:10 AM", or "Sat, Oct 3".
+function feedWhenText(post) {
+  const time = new Date(post.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (post.day === todayString()) return `Today · ${time}`;
+  if (post.day === dateToString(yesterday)) return `Yesterday · ${time}`;
+  const [year, month, day] = post.day.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+function feedHeadline(post) {
+  const streak = Number(post.streak) || 0;
+  if (STREAK_MILESTONES.includes(streak)) return `Hit a ${streak}-day streak`;
+  if (post.new_best) return `New personal best: ${streak} days`;
+  if (streak === 1) return "Started a new streak";
+  return `Day ${streak} of the streak`;
+}
+
+// "You and ana gave kudos", "ana, ben and 3 others gave kudos".
+function kudosSummaryText(names) {
+  if (names.length === 0) return "";
+  if (names.length === 1) return `${names[0]} gave kudos`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} gave kudos`;
+  if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]} gave kudos`;
+  return `${names[0]}, ${names[1]} and ${names.length - 2} others gave kudos`;
+}
+
+// Usernames come from other people, so - like the leaderboard - every bit of
+// text goes in through textContent, and only fixed markup goes in innerHTML.
+function buildFeedCard(post, giverIds, usernameByUserId) {
+  const isMine = post.user_id === currentUserId;
+  const card = document.createElement("article");
+  card.className = "feed-card";
+  if (isMine) card.classList.add("is-you");
+
+  card.innerHTML = `
+    <div class="feed-card-header">
+      <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
+      <div class="feed-card-who">
+        <span class="feed-card-name"></span>
+        <span class="feed-card-when"></span>
+      </div>
+      <span class="leaderboard-streak">${Number(post.streak) || 0} ${FLAME_ICON_SVG}</span>
+    </div>
+    <p class="feed-card-headline"></p>
+    <div class="feed-card-stats">
+      <div class="feed-stat"><span class="feed-stat-value" data-stat="pushups"></span><span class="feed-stat-label">push-ups</span></div>
+      <div class="feed-stat"><span class="feed-stat-value" data-stat="squats"></span><span class="feed-stat-label">squats</span></div>
+      <div class="feed-stat"><span class="feed-stat-value" data-stat="plank"></span><span class="feed-stat-label">plank</span></div>
+    </div>
+    <div class="feed-card-footer">
+      ${isMine ? "" : `<button class="kudos-button" aria-pressed="false">${KUDOS_ICON_SVG}<span>Kudos</span></button>`}
+      <span class="kudos-summary"></span>
+    </div>
+  `;
+  card.querySelector(".feed-card-name").textContent = isMine ? "You" : usernameByUserId[post.user_id] || "Unknown";
+  card.querySelector(".feed-card-when").textContent = feedWhenText(post);
+  card.querySelector(".feed-card-headline").textContent = feedHeadline(post);
+  card.querySelector('[data-stat="pushups"]').textContent = Number(post.pushups) || 0;
+  card.querySelector('[data-stat="squats"]').textContent = Number(post.squats) || 0;
+  card.querySelector('[data-stat="plank"]').textContent = formatDuration((Number(post.plank_seconds) || 0) * 1000);
+
+  // Everyone who gave kudos, with you first.
+  const kudos = { iGave: giverIds.includes(currentUserId), others: giverIds.filter((id) => id !== currentUserId), busy: false };
+  const button = card.querySelector(".kudos-button");
+  const summaryEl = card.querySelector(".kudos-summary");
+
+  const drawKudos = () => {
+    const names = [...(kudos.iGave ? ["You"] : []), ...kudos.others.map((id) => usernameByUserId[id] || "Someone")];
+    summaryEl.textContent = kudosSummaryText(names);
+    if (button) {
+      button.classList.toggle("is-given", kudos.iGave);
+      button.setAttribute("aria-pressed", String(kudos.iGave));
+    }
+  };
+  drawKudos();
+
+  if (button) button.addEventListener("click", () => toggleKudos(post.id, kudos, drawKudos, button));
+  return card;
+}
+
+// Shows the change straight away, then undoes it if the server says no.
+async function toggleKudos(postId, kudos, drawKudos, button) {
+  if (kudos.busy) return;
+  kudos.busy = true;
+  const giving = !kudos.iGave;
+  kudos.iGave = giving;
+  drawKudos();
+  if (giving) {
+    button.classList.remove("pop");
+    void button.offsetWidth;
+    button.classList.add("pop");
+  }
+
+  const { error } = giving
+    ? await supabaseClient.from("kudos").insert({ event_id: postId, giver_id: currentUserId })
+    : await supabaseClient.from("kudos").delete().eq("event_id", postId).eq("giver_id", currentUserId);
+
+  // 23505 = already there (given from another device) - that's the goal anyway.
+  if (error && error.code !== "23505") {
+    kudos.iGave = !giving;
+    drawKudos();
+  }
+  kudos.busy = false;
 }
 
 // The Me tab's profile header (avatar, username, friend count). Friendship
