@@ -30,6 +30,102 @@ const ForjaCamera = (function () {
   const $ = (id) => document.getElementById(id);
   const pct = (x) => Math.round((x ?? 0) * 100) + "%";
 
+  // Audio cues, so someone six feet away can tell a rep counted (or didn't)
+  // without looking. The tones are tiny WAV files built in code and played
+  // through ordinary <audio> elements rather than the Web Audio API,
+  // because iPhones mute Web Audio when the silent switch is on but still
+  // play <audio> - and that's exactly the situation people are in.
+  const Sound = (function () {
+    const RATE = 22050;
+    const STORAGE_KEY = "forja-sound";
+    const TONES = {
+      rep: [{ freq: 880, ms: 120 }], // short and bright: counted
+      ready: [{ freq: 660, ms: 90, gapMs: 40 }, { freq: 880, ms: 110 }], // rising chirp: in position
+      reject: [{ freq: 170, ms: 280, square: true, volume: 0.3 }], // low buzz: didn't count
+      end: [{ freq: 660, ms: 120, gapMs: 30 }, { freq: 440, ms: 200 }], // falling: hold ended
+    };
+
+    function buildWav(notes) {
+      const samples = [];
+      for (const { freq, ms, square, volume = 0.6, gapMs = 0 } of notes) {
+        const n = Math.round((RATE * ms) / 1000);
+        // A few ms of fade in and out stops the click of an abrupt start/stop.
+        const fade = Math.max(1, Math.min(Math.round(RATE * 0.008), Math.floor(n / 2)));
+        for (let i = 0; i < n; i++) {
+          let s = Math.sin((2 * Math.PI * freq * i) / RATE);
+          if (square) s = s >= 0 ? 1 : -1;
+          const envelope = Math.min(1, i / fade, (n - 1 - i) / fade);
+          samples.push(s * envelope * volume);
+        }
+        for (let i = 0; i < Math.round((RATE * gapMs) / 1000); i++) samples.push(0);
+      }
+      const buffer = new ArrayBuffer(44 + samples.length * 2);
+      const view = new DataView(buffer);
+      const text = (offset, s) => [...s].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
+      text(0, "RIFF");
+      view.setUint32(4, 36 + samples.length * 2, true);
+      text(8, "WAVE");
+      text(12, "fmt ");
+      view.setUint32(16, 16, true); // PCM header size
+      view.setUint16(20, 1, true); // PCM
+      view.setUint16(22, 1, true); // mono
+      view.setUint32(24, RATE, true);
+      view.setUint32(28, RATE * 2, true); // bytes per second
+      view.setUint16(32, 2, true); // bytes per sample
+      view.setUint16(34, 16, true); // bits per sample
+      text(36, "data");
+      view.setUint32(40, samples.length * 2, true);
+      samples.forEach((s, i) => view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, s)) * 32767, true));
+      return new Blob([buffer], { type: "audio/wav" });
+    }
+
+    const elements = {};
+    let enabled = true;
+    try {
+      enabled = localStorage.getItem(STORAGE_KEY) !== "off";
+    } catch (e) {
+      // storage blocked - sound just defaults to on
+    }
+
+    return {
+      isEnabled: () => enabled,
+      setEnabled(value) {
+        enabled = value;
+        try {
+          localStorage.setItem(STORAGE_KEY, value ? "on" : "off");
+        } catch (e) {
+          // not remembered, still applies this session
+        }
+      },
+      // Browsers only allow sound to start from a tap. Playing each clip
+      // once, muted, inside the Start tap "unlocks" it for later.
+      prime() {
+        if (Object.keys(elements).length > 0) return;
+        for (const [name, notes] of Object.entries(TONES)) {
+          const audio = new Audio(URL.createObjectURL(buildWav(notes)));
+          audio.preload = "auto";
+          elements[name] = audio;
+          audio.muted = true;
+          const started = audio.play();
+          const unmute = () => {
+            audio.pause();
+            audio.currentTime = 0;
+            audio.muted = false;
+          };
+          if (started && started.then) started.then(unmute).catch(() => (audio.muted = false));
+          else unmute();
+        }
+      },
+      play(name) {
+        const audio = elements[name];
+        if (!enabled || !audio) return;
+        audio.currentTime = 0;
+        const started = audio.play();
+        if (started && started.catch) started.catch(() => {});
+      },
+    };
+  })();
+
   let poseLandmarker = null;
   let modelLoading = null;
   let stream = null;
@@ -43,6 +139,7 @@ const ForjaCamera = (function () {
   let lastProcessedMs = -Infinity;
   let onSave = null;
   let currentSideName = null;
+  let prevState = "waiting";
   let result = 0;
   let resultUnit = "";
 
@@ -149,6 +246,13 @@ const ForjaCamera = (function () {
     el.className = "camera-feedback" + (kind ? " " + kind : "");
   }
 
+  // Plays whatever sound this frame calls for (counted, rejected, ready...).
+  function cue(result) {
+    const name = ForjaCounter.soundCue(prevState, result, exercise.kind);
+    prevState = result.state;
+    if (name) Sound.play(name);
+  }
+
   // t is milliseconds since the set started - the same clock the server
   // replays the recording with.
   function handleFrame(output, t) {
@@ -156,7 +260,7 @@ const ForjaCamera = (function () {
     const side = landmarks ? pickSide(landmarks) : null;
 
     if (!side) {
-      session.push(t, null);
+      cue(session.push(t, null).r);
       const overlay = $("camera-overlay");
       overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
       $("camera-state").textContent = exercise.lost;
@@ -166,6 +270,7 @@ const ForjaCamera = (function () {
 
     const joints = exercise.needs.map((joint) => [landmarks[side.idx[joint]].x, landmarks[side.idx[joint]].y]);
     const { r, m } = session.push(t, joints);
+    cue(r);
 
     if (exercise.kind === "plank") {
       drawBody(landmarks, side, r.state === "holding");
@@ -233,12 +338,16 @@ const ForjaCamera = (function () {
     $("camera-start-button").classList.toggle("hidden", mode !== "idle");
     $("camera-finish-button").classList.toggle("hidden", mode !== "running");
     $("camera-flip-button").classList.toggle("hidden", mode === "review");
+    $("camera-sound-button").classList.toggle("hidden", mode !== "idle");
     $("camera-review").classList.toggle("hidden", mode !== "review");
     $("camera-close-button").classList.toggle("hidden", mode === "running");
     $("camera-stage").classList.toggle("hidden", mode === "review");
   }
 
   async function startSet() {
+    // Must run in the tap itself, before anything is awaited, or the browser
+    // won't let the beeps play later.
+    Sound.prime();
     $("camera-start-button").disabled = true;
     setFeedback("", "");
     $("camera-state").textContent = "Loading pose model (first time only)...";
@@ -265,6 +374,7 @@ const ForjaCamera = (function () {
     const video = $("camera-video");
     session = ForjaCounter.createSetSession(exerciseKey, video.videoWidth, video.videoHeight);
     currentSideName = null;
+    prevState = "waiting";
     setStartMs = performance.now();
     lastProcessedMs = -Infinity;
     $("camera-count").textContent = exercise.kind === "plank" ? "0.0" : "0";
@@ -321,6 +431,10 @@ const ForjaCamera = (function () {
     close();
   }
 
+  function renderSoundButton() {
+    $("camera-sound-button").textContent = "Sound: " + (Sound.isEnabled() ? "On" : "Off");
+  }
+
   function wireButtonsOnce() {
     if (wireButtonsOnce.done) return;
     wireButtonsOnce.done = true;
@@ -332,6 +446,10 @@ const ForjaCamera = (function () {
     });
     $("camera-save-button").addEventListener("click", saveSet);
     $("camera-close-button").addEventListener("click", close);
+    $("camera-sound-button").addEventListener("click", () => {
+      Sound.setEnabled(!Sound.isEnabled());
+      renderSoundButton();
+    });
     $("camera-flip-button").addEventListener("click", async () => {
       facing = facing === "user" ? "environment" : "user";
       if (!running) return;
@@ -360,6 +478,7 @@ const ForjaCamera = (function () {
       $("camera-state").textContent = "Camera is off";
       $("camera-live").textContent = "";
       setFeedback("", "");
+      renderSoundButton();
       setMode("idle");
       showScreen("camera-screen");
     },

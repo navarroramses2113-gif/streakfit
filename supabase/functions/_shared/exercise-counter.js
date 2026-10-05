@@ -504,6 +504,23 @@
     },
   };
 
+  // What the person should HEAR for a frame, given the state before it and
+  // the counter's result - so they know from across the room, without
+  // looking at the screen, whether a rep counted. Returns a cue name
+  // ("rep", "reject", "ready", "end") or null for silence.
+  const REJECTED_EVENTS = ["shallow", "too_fast", "no_drop", "anchor_moved", "bad_posture", "abandoned"];
+  function soundCue(prevState, result, kind) {
+    if (kind === "plank") {
+      if (prevState === "waiting" && result.state === "holding") return "ready"; // the clock just started
+      if (prevState === "holding" && result.state === "waiting") return "end"; // the hold just ended
+      return null;
+    }
+    if (result.event === "rep") return "rep";
+    if (REJECTED_EVENTS.includes(result.event)) return "reject";
+    if (prevState === "waiting" && result.state === "up") return "ready"; // start position recognized
+    return null;
+  }
+
   // ---- Recording a set, and recounting it on the server ----
   // The phone records the movement as it counts; the server replays that
   // exact record through this exact code and trusts only its own count.
@@ -611,6 +628,7 @@
     EXERCISES,
     createSetSession,
     recountTrace,
+    soundCue,
     MAX_SET_MS,
   };
 });
