@@ -88,7 +88,7 @@
   <ul class="reps" id="reps"></ul>
   <div class="meta" id="meta"></div>
 
-  <script src="supabase/functions/_shared/exercise-counter.js?v=4"></script>
+  <script src="supabase/functions/_shared/exercise-counter.js?v=8"></script>
   <script type="module">
     import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs";
 
@@ -333,7 +333,7 @@
       } else if (r.event === "abandoned") {
         setFeedback("Lost tracking mid-rep - not counted. Reset your position.", "bad");
       } else if (r.event && ex.events[r.event]) {
-        setFeedback(ex.events[r.event](r), "bad");
+        setFeedback(ex.events[r.event].plain + " (" + ex.events[r.event].detail(r) + ")", "bad");
       }
     }
 

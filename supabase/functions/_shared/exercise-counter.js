@@ -398,9 +398,11 @@
       lost: "Can't see your leg - stand side-on and step back",
       states: { waiting: "Stand tall and hold still to start", up: "Ready - squat down", down: "Down - now stand all the way up" },
       events: {
-        no_drop: (r) => "Ignored - hips didn't drop enough (" + pct(r.drop) + " of leg). Sit down and back.",
-        anchor_moved: (r) => "Ignored - feet moved (" + pct(r.anchorMove) + " of leg). Keep them planted.",
-        bad_posture: (r) => "Ignored - chest folded forward for " + ((r.badPostureMs ?? 0) / 1000).toFixed(1) + "s. Keep your chest up.",
+        // `plain` is what a person sees; `detail` is the numbers behind it,
+        // shown only in debug mode.
+        no_drop: { plain: "Sit lower - drop your hips", detail: (r) => "hips dropped " + pct(r.drop) + " of leg length" },
+        anchor_moved: { plain: "Keep your feet planted", detail: (r) => "feet moved " + pct(r.anchorMove) + " of leg length" },
+        bad_posture: { plain: "Keep your chest up", detail: (r) => "chest folded for " + ((r.badPostureMs ?? 0) / 1000).toFixed(1) + "s" },
       },
       jointName: "knee",
       dropName: "hips",
@@ -446,9 +448,9 @@
       lost: "Can't see your arm and body - turn side-on, full body in frame",
       states: { waiting: "Get into plank position - arms straight, body flat", up: "Ready - lower yourself", down: "Down - now push all the way up" },
       events: {
-        no_drop: (r) => "Ignored - chest didn't lower (" + pct(r.drop) + " of body). Go lower.",
-        anchor_moved: (r) => "Ignored - hands moved (" + pct(r.anchorMove) + " of body). Keep them planted.",
-        bad_posture: (r) => "Ignored - body out of line for " + ((r.badPostureMs ?? 0) / 1000).toFixed(1) + "s. Keep it in one straight line.",
+        no_drop: { plain: "Go lower - chest toward the floor", detail: (r) => "chest dropped " + pct(r.drop) + " of body length" },
+        anchor_moved: { plain: "Keep your hands planted", detail: (r) => "hands moved " + pct(r.anchorMove) + " of body length" },
+        bad_posture: { plain: "Keep your body in a straight line", detail: (r) => "body out of line for " + ((r.badPostureMs ?? 0) / 1000).toFixed(1) + "s" },
       },
       jointName: "elbow",
       dropName: "chest",

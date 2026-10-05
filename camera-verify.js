@@ -30,6 +30,31 @@ const ForjaCamera = (function () {
   const $ = (id) => document.getElementById(id);
   const pct = (x) => Math.round((x ?? 0) * 100) + "%";
 
+  // Debug mode shows the numbers behind every decision (angles, percentages)
+  // - essential for tuning, noise for everyone else. It's off for users and
+  // switched by tapping the exercise title five times quickly, so there is
+  // no visible control to find by accident.
+  const Debug = (function () {
+    const STORAGE_KEY = "forja-debug";
+    let on = false;
+    try {
+      on = localStorage.getItem(STORAGE_KEY) === "on";
+    } catch (e) {
+      // storage blocked - stays off
+    }
+    return {
+      isOn: () => on,
+      set(value) {
+        on = value;
+        try {
+          localStorage.setItem(STORAGE_KEY, value ? "on" : "off");
+        } catch (e) {
+          // not remembered
+        }
+      },
+    };
+  })();
+
   // Audio cues, so someone six feet away can tell a rep counted (or didn't)
   // without looking. The tones are tiny WAV files built in code and played
   // through ordinary <audio> elements rather than the Web Audio API,
@@ -267,16 +292,27 @@ const ForjaCamera = (function () {
   // the per-attempt list on the review screen, so a rep that did not count
   // always comes with its reason.
   function describeEvent(r) {
+    let kind = "bad", plain = null, detail = null;
     if (r.event === "rep") {
-      return { kind: "good", text: "Counted - " + exercise.jointName + " " + Math.round(r.lastRep.depth) + "\u00b0, " + exercise.dropName + " down " + pct(r.lastRep.drop) };
+      kind = "good";
+      plain = "Counted";
+      detail = exercise.jointName + " " + Math.round(r.lastRep.depth) + "\u00b0, " + exercise.dropName + " down " + pct(r.lastRep.drop);
+    } else if (r.event === "shallow") {
+      plain = "Go lower";
+      detail = exercise.jointName + " only reached " + Math.round(r.depth) + "\u00b0";
+    } else if (r.event === "too_fast") {
+      plain = "Slow down - control the movement";
+      detail = "faster than a real rep can be";
+    } else if (r.event === "abandoned") {
+      plain = "Lost sight of you - that rep didn't count. Reset and go again.";
+      detail = "tracking was lost mid-rep";
+    } else if (r.event && exercise.events[r.event]) {
+      plain = exercise.events[r.event].plain;
+      detail = exercise.events[r.event].detail(r);
     }
-    if (r.event === "shallow") return { kind: "bad", text: "Not deep enough (" + Math.round(r.depth) + "\u00b0) - go lower" };
-    if (r.event === "too_fast") return { kind: "bad", text: "Too fast - control the movement" };
-    if (r.event === "abandoned") return { kind: "bad", text: "Lost tracking mid-rep - not counted. Reset your position." };
-    if (r.event && exercise.events[r.event]) return { kind: "bad", text: exercise.events[r.event](r) };
-    return null;
+    if (!plain) return null;
+    return { kind, text: Debug.isOn() && detail ? plain + " (" + detail + ")" : plain };
   }
-
   function noteEvent(r) {
     const described = describeEvent(r);
     if (!described) return;
@@ -330,7 +366,7 @@ const ForjaCamera = (function () {
     const hint = r.state === "waiting" && exercise.waitingHint ? exercise.waitingHint(m) : null;
     $("camera-state").textContent = hint || exercise.states[r.state] || "";
     $("camera-live").textContent =
-      r.drop === null ? "" : exercise.dropName + " down " + pct(r.drop) + "  ·  " + exercise.anchorName + " moved " + pct(r.anchorMove);
+      Debug.isOn() && r.drop !== null ? exercise.dropName + " down " + pct(r.drop) + "  ·  " + exercise.anchorName + " moved " + pct(r.anchorMove) : "";
 
     noteEvent(r);
   }
@@ -483,6 +519,16 @@ const ForjaCamera = (function () {
     });
     $("camera-save-button").addEventListener("click", saveSet);
     $("camera-close-button").addEventListener("click", close);
+    let titleTaps = [];
+    $("camera-title").addEventListener("click", () => {
+      const now = Date.now();
+      titleTaps = titleTaps.filter((tap) => now - tap < 3000).concat(now);
+      if (titleTaps.length >= 5) {
+        titleTaps = [];
+        Debug.set(!Debug.isOn());
+        setFeedback("Debug details " + (Debug.isOn() ? "on" : "off"), "");
+      }
+    });
     $("camera-sound-button").addEventListener("click", () => {
       Sound.setEnabled(!Sound.isEnabled());
       renderSoundButton();
