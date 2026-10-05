@@ -1919,3 +1919,30 @@ body {
 
 .camera-attempts li.ok { color: #22c55e; }
 .camera-attempts li.no { color: #ff5a5f; }
+
+a.account-menu-item {
+  text-decoration: none;
+}
+
+.delete-account-button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: var(--space-md);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ff5a5f;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.auth-legal {
+  margin-top: var(--space-md);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.auth-legal a {
+  color: var(--text-secondary);
+}

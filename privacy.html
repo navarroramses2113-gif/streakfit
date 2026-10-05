@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Forja Privacy Policy</title>
+  <!-- Written to match what the app really does (see the audit notes in the
+       project history). If the app changes what it collects or who it talks
+       to, this page has to change with it. The two highlighted placeholders
+       below must be filled in before this ships. -->
+  <script>
+    try {
+      if (localStorage.getItem("forja-theme") === "light") document.documentElement.setAttribute("data-theme", "light");
+    } catch (e) {}
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #09090b;
+      --card: #1c1c1f;
+      --text: #f4f4f5;
+      --muted: #9a9a96;
+      --border: #3a3a3880;
+      --accent: #22c55e;
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f2f2f7;
+      --card: #ffffff;
+      --text: #1c1c1e;
+      --muted: #636366;
+      --border: #3c3c4340;
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme]) {
+        color-scheme: light;
+        --bg: #f2f2f7;
+        --card: #ffffff;
+        --text: #1c1c1e;
+        --muted: #636366;
+        --border: #3c3c4340;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 28px 18px 60px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+    }
+    main { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+    h2 { font-size: 1.2rem; margin: 36px 0 8px; }
+    h3 { font-size: 1rem; margin: 22px 0 4px; }
+    p, li { color: var(--text); }
+    .updated { color: var(--muted); margin: 0 0 22px; }
+    .summary {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 20px;
+    }
+    .summary ul { margin: 8px 0 0; padding-left: 20px; }
+    .summary li { margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.95rem; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    a { color: var(--accent); }
+    .back { display: inline-block; margin-bottom: 18px; text-decoration: none; font-weight: 600; }
+    mark.todo { background: #ffc233; color: #1c1c1e; padding: 0 4px; border-radius: 4px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="./">&larr; Back to Forja</a>
+
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: October 5, 2026</p>
+
+    <div class="summary">
+      <strong>The short version</strong>
+      <ul>
+        <li><strong>Your camera video never leaves your device.</strong> Forja doesn't record, save or upload video or photos.</li>
+        <li>We don't sell your data, show ads, or use advertising or analytics trackers.</li>
+        <li>Your friends can see your username and your streak. They can't see your workouts, your routes, or your email.</li>
+        <li>You can delete your account, and everything tied to it, yourself, from inside the app.</li>
+      </ul>
+    </div>
+
+    <h2>Who we are</h2>
+    <p>
+      Forja ("we", "us") is a daily workout streak app, operated by <mark class="todo">[YOUR NAME OR COMPANY]</mark>.
+      If you have any question about this policy or your data, contact us at <mark class="todo">[CONTACT EMAIL]</mark>.
+    </p>
+
+    <h2>What we collect, and why</h2>
+
+    <h3>Your account</h3>
+    <p>
+      Your email address and a password, so you can log in and keep your progress across devices. Your password is
+      handled by our authentication provider and stored in scrambled (hashed) form; we never see or store it in readable form.
+    </p>
+
+    <h3>Your profile</h3>
+    <p>The username you choose. It's how friends find and recognize you.</p>
+
+    <h3>Your workouts</h3>
+    <p>
+      For each camera-verified set: the exercise, the number of reps (or seconds for a plank) and the date. We also keep
+      your current and best streak, how many rest days you've used this week, the days you've logged, your daily minimums
+      and settings (such as distance units and your reminder time), and, if you choose to keep them, your walk and run routes.
+    </p>
+
+    <h3>Camera and body movement</h3>
+    <p>
+      To verify your push-ups, squats and planks, Forja uses your camera. The video is analyzed <strong>on your device</strong>
+      by a pose-estimation model that finds a handful of body points (such as shoulder, hip, knee and ankle) in each frame.
+      <strong>No video or photo is recorded, saved or sent anywhere.</strong>
+    </p>
+    <p>
+      So that our server can double-check a set before it counts toward your streak, the app sends a short, time-ordered
+      list of the positions of those few body points for that set. It contains no images. Our server replays it to count
+      your reps, then discards it, keeping only the result (exercise, count or seconds, and date).
+      The camera only runs while you're on the camera screen with a set open, and you can turn off camera access any time in
+      your device or browser settings (Forja then can't verify new sets).
+    </p>
+
+    <h3>Location</h3>
+    <p>
+      If you track a walk or run, Forja reads your location only while tracking is running, to draw your route and work out
+      distance, pace and elevation. Routes you choose to keep are saved to your account and are visible only to you.
+      We don't share your location with other users. You can turn off location access in your device or browser settings.
+    </p>
+
+    <h3>Friends and safety</h3>
+    <p>
+      Friend requests and friendships, the people you've blocked, and any report you send about another user (including the
+      reason you write). Reports are visible only to us and are used to keep Forja safe.
+    </p>
+
+    <h3>Notifications</h3>
+    <p>
+      If you turn on reminders, we store the technical address your browser or phone provides for delivering notifications,
+      plus the hour you chose and your time zone, so we can send a reminder at the right time. You'll also get a notification when someone
+      sends you a friend request, which includes their username. You can turn reminders off any time in Settings.
+    </p>
+
+    <h3>On your device</h3>
+    <p>
+      Forja keeps some information in your browser's or device's storage: your login session, your preferences (theme,
+      sound), and, if you use the app without an account, your progress, which then stays only on your device. We don't use
+      advertising or tracking cookies.
+    </p>
+
+    <h3>Technical information</h3>
+    <p>
+      Like any online service, the companies that host and deliver Forja (listed below) receive technical information when your
+      device connects, such as your IP address and browser type.
+    </p>
+
+    <h2>Who can see what</h2>
+    <table>
+      <tr><th>Information</th><th>Who can see it</th></tr>
+      <tr><td>Your username</td><td>Other Forja users who are signed in (it's searchable so friends can find you)</td></tr>
+      <tr><td>Your streak and best streak</td><td>You and your accepted friends</td></tr>
+      <tr><td>Your sets, workout history, settings and saved routes</td><td>Only you</td></tr>
+      <tr><td>Your email address</td><td>Only you and us. Never shown to other users</td></tr>
+      <tr><td>People you've blocked</td><td>Only you</td></tr>
+      <tr><td>Reports you send</td><td>Only us</td></tr>
+    </table>
+
+    <h2>Who we share data with</h2>
+    <p>We don't sell your data, rent it, or share it for advertising. We use these providers to run Forja:</p>
+    <ul>
+      <li><strong>Supabase</strong> &mdash; our database, login system and the server code that verifies your sets.</li>
+      <li><strong>Netlify</strong> &mdash; hosts the app.</li>
+      <li><strong>jsDelivr and unpkg</strong> &mdash; deliver open-source code libraries the app needs (for example the maps library and the login library).</li>
+      <li><strong>Google</strong> &mdash; serves the app's font and the pose-estimation model file your device downloads for camera verification. Google receives your IP address when your device fetches them; it does not receive your video.</li>
+      <li><strong>OpenStreetMap</strong> &mdash; supplies map images. When a map is shown, your device requests images for the area being displayed, so OpenStreetMap receives that area and your IP address.</li>
+      <li><strong>Apple, Google and Mozilla push services</strong> &mdash; deliver notifications to your device if you turn reminders on.</li>
+    </ul>
+    <p>We may also disclose information if the law requires it, or to protect the safety of our users.</p>
+
+    <h2>How long we keep it</h2>
+    <p>
+      We keep your information until you delete your account. When you delete it, we delete your account and the data tied to it,
+      including your profile, streak, verified sets, friendships, blocks, reports involving your account, notification settings and saved routes.
+      Copies held in our provider's backups are removed as those backups expire.
+    </p>
+
+    <h2>Your choices and rights</h2>
+    <ul>
+      <li><strong>Delete your account:</strong> in Forja, open the gear icon on the Me tab, then <em>Delete Account</em>.</li>
+      <li><strong>Change your username or email:</strong> gear icon &rarr; <em>Edit Profile</em>.</li>
+      <li><strong>Turn off reminders:</strong> gear icon &rarr; <em>Settings</em> &rarr; <em>Daily Reminders</em>.</li>
+      <li><strong>Camera and location:</strong> change these any time in your device or browser settings.</li>
+      <li><strong>Ask us:</strong> you can ask for a copy of your data, to correct it, or to delete it by emailing <mark class="todo">[CONTACT EMAIL]</mark>.
+        Depending on where you live (for example the EU, the UK or California), the law may give you additional rights over your data; we'll honor them.</li>
+    </ul>
+
+    <h2>Security</h2>
+    <p>
+      Data travels between the app and our servers over encrypted connections (HTTPS), and our database is set up so that
+      each person can only read the information described in the table above. No system is perfectly secure, so we can't
+      guarantee absolute security, but we take care to protect your information.
+    </p>
+
+    <h2>Children</h2>
+    <p>
+      Forja isn't meant for children under 13, and we don't knowingly collect information from them. If you believe a child
+      has given us information, contact us and we'll delete it.
+    </p>
+
+    <h2>Changes to this policy</h2>
+    <p>
+      If we change what we collect or how we use it, we'll update this page and its date, and tell you in the app if the change is significant.
+    </p>
+
+    <h2>Contact</h2>
+    <p><mark class="todo">[YOUR NAME OR COMPANY]</mark> &mdash; <mark class="todo">[CONTACT EMAIL]</mark></p>
+  </main>
+</body>
+</html>

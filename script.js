@@ -347,7 +347,7 @@ document.getElementById("edit-profile-button").addEventListener("click", async (
   // who already has a saved username.
   const { data: profile } = await supabaseClient
     .from("profiles")
-    .select("username, phone")
+    .select("username")
     .eq("user_id", currentUserId)
     .maybeSingle();
 
@@ -355,7 +355,7 @@ document.getElementById("edit-profile-button").addEventListener("click", async (
     myUsername = profile.username;
   }
   document.getElementById("profile-username").value = myUsername || "";
-  document.getElementById("profile-phone").value = (profile && profile.phone) || "";
+
 
   editProfilePanelEl.classList.toggle("hidden");
 });
@@ -364,7 +364,7 @@ document.getElementById("save-profile-button").addEventListener("click", async (
   const errorEl = document.getElementById("edit-profile-error");
   const newUsername = document.getElementById("profile-username").value.trim();
   const newEmail = document.getElementById("profile-email").value.trim();
-  const newPhone = document.getElementById("profile-phone").value.trim();
+
 
   errorEl.textContent = "";
   errorEl.classList.remove("success");
@@ -374,15 +374,15 @@ document.getElementById("save-profile-button").addEventListener("click", async (
     return;
   }
 
-  // Username and phone live in our own `profiles` table - a plain
-  // update, no special verification needed for either.
-  if (newUsername !== myUsername || newPhone) {
+  // The username lives in our own `profiles` table - a plain
+  // update, no special verification needed. (There used to be an optional
+  if (newUsername !== myUsername) {
     // upsert (not update): someone who opened Edit Profile without ever
     // setting a username has no `profiles` row yet, so a plain update
     // would silently affect zero rows instead of actually saving anything.
     const { error } = await supabaseClient
       .from("profiles")
-      .upsert({ user_id: currentUserId, username: newUsername, phone: newPhone || null });
+      .upsert({ user_id: currentUserId, username: newUsername });
 
     if (error) {
       errorEl.textContent = error.code === "23505" ? "That username is already taken." : "Couldn't save your profile. Try again.";
@@ -1125,9 +1125,12 @@ function updateMeTabAuthSection() {
   document.getElementById("log-out-button").classList.toggle("hidden", !currentUserId);
   document.getElementById("guest-signup-button").classList.toggle("hidden", !!currentUserId);
   // Editing/sharing a profile only makes sense for a real account - a
-  // guest has no username, email, or phone stored anywhere yet.
+  // guest has no username or email stored anywhere yet.
   document.getElementById("edit-profile-button").classList.toggle("hidden", !currentUserId);
   document.getElementById("share-profile-button").classList.toggle("hidden", !currentUserId);
+  // Deleting an account only makes sense for someone who has one.
+  document.getElementById("delete-account-button").classList.toggle("hidden", !currentUserId);
+  if (!currentUserId) document.getElementById("delete-account-panel").classList.add("hidden");
 }
 
 // Runs when nobody is logged in.
@@ -2113,6 +2116,60 @@ logOutButtonEl.addEventListener("click", () => {
   // onAuthStateChange fires automatically after this and shows the
   // login screen (because justLoggedOut is true) - no need to do it
   // manually here.
+});
+
+// Delete account: reveal the confirmation, require the typed word, then
+// the server deletes the account and (via cascading deletes) everything
+// tied to it. Ends the same way a log-out does.
+const deleteAccountButtonEl = document.getElementById("delete-account-button");
+const deleteAccountPanelEl = document.getElementById("delete-account-panel");
+const deleteConfirmInputEl = document.getElementById("delete-confirm-input");
+const deleteAccountErrorEl = document.getElementById("delete-account-error");
+const confirmDeleteButtonEl = document.getElementById("confirm-delete-account-button");
+
+deleteAccountButtonEl.addEventListener("click", () => {
+  deleteAccountPanelEl.classList.toggle("hidden");
+  deleteConfirmInputEl.value = "";
+  deleteAccountErrorEl.textContent = "";
+  confirmDeleteButtonEl.disabled = true;
+});
+
+deleteConfirmInputEl.addEventListener("input", () => {
+  confirmDeleteButtonEl.disabled = deleteConfirmInputEl.value.trim() !== "DELETE";
+});
+
+confirmDeleteButtonEl.addEventListener("click", async () => {
+  confirmDeleteButtonEl.disabled = true;
+  confirmDeleteButtonEl.textContent = "Deleting...";
+  deleteAccountErrorEl.textContent = "";
+
+  const reply = await callServerFunction("delete-account", { confirm: "DELETE" });
+  confirmDeleteButtonEl.textContent = "Delete My Account";
+
+  if (!reply.ok) {
+    deleteAccountErrorEl.textContent = "Couldn't delete your account. Check your connection and try again.";
+    confirmDeleteButtonEl.disabled = false;
+    return;
+  }
+
+  // The account is gone. Tidy up this device too: stop push notifications
+  // for it, and drop the local copy of progress that belonged to the account.
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) await subscription.unsubscribe();
+  } catch (e) {
+    // push unsupported here - nothing to undo
+  }
+  localStorage.removeItem("streakfit-data");
+
+  justLoggedOut = true;
+  // "local": the server-side session is already gone with the account, so
+  // asking the server to revoke it would just fail.
+  await supabaseClient.auth.signOut({ scope: "local" });
+  authErrorEl.textContent = "Your account and all its data were deleted.";
+  authErrorEl.classList.add("success");
+  deleteAccountPanelEl.classList.add("hidden");
 });
 
 // A guest can also choose to sign up any time from the Me tab, not just

@@ -136,6 +136,8 @@
     </p>
 
     <button id="auth-skip" class="link-button auth-skip">Skip for now</button>
+
+    <p class="auth-legal">By creating an account you agree to our <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>
   </main>
 
   <!-- Shown when "Forgot password?" is clicked - just asks for the
@@ -257,6 +259,10 @@
         <span>Settings</span>
         <span class="account-menu-chevron">›</span>
       </button>
+      <a class="account-menu-item" href="privacy.html" target="_blank" rel="noopener">
+        <span>Privacy Policy</span>
+        <span class="account-menu-chevron">›</span>
+      </a>
     </div>
 
     <div id="edit-profile-panel" class="settings-panel hidden">
@@ -269,10 +275,7 @@
         <label for="profile-email">Email</label>
         <input type="email" id="profile-email" autocomplete="email">
       </div>
-      <div class="profile-field">
-        <label for="profile-phone">Phone</label>
-        <input type="tel" id="profile-phone" placeholder="Optional" autocomplete="tel">
-      </div>
+
       <p id="edit-profile-error" class="error"></p>
       <button id="save-profile-button" class="auth-submit-button">Save Profile</button>
     </div>
@@ -331,6 +334,21 @@
 
     <button id="log-out-button" class="log-out-button hidden">Log Out</button>
     <button id="guest-signup-button" class="guest-signup-button hidden">Sign Up to Save Your Progress</button>
+
+    <!-- Apple requires any app with sign-up to let people delete their account
+         from inside the app. Deliberately two steps (button, then typing
+         DELETE) because it can't be undone. -->
+    <button id="delete-account-button" class="delete-account-button hidden">Delete Account</button>
+    <div id="delete-account-panel" class="settings-panel hidden">
+      <p class="settings-title">Delete Account</p>
+      <p class="preview-note">This permanently deletes your account and everything tied to it: your streak, verified sets, friends and saved routes. It can't be undone.</p>
+      <div class="profile-field">
+        <label for="delete-confirm-input">Type DELETE to confirm</label>
+        <input type="text" id="delete-confirm-input" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </div>
+      <p id="delete-account-error" class="error"></p>
+      <button id="confirm-delete-account-button" class="auth-submit-button block-confirm-button" disabled>Delete My Account</button>
+    </div>
 
     <button id="account-screen-close-button" class="tracking-cancel-button full-width-button">Close</button>
   </main>
@@ -655,6 +673,6 @@
   <script src="supabase/functions/_shared/game-rules.js?v=1"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=8"></script>
   <script src="camera-verify.js?v=6"></script>
-  <script src="script.js?v=4"></script>
+  <script src="script.js?v=5"></script>
 </body>
 </html>
