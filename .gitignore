@@ -16,3 +16,6 @@ Thumbs.db
 .agents/
 .claude/
 skills-lock.json
+
+# Developer-only tuning tools - kept locally, never pushed or published
+dev-tools/
