@@ -215,8 +215,10 @@ body {
 /* Below ~480px wide, treat this as a phone, not a webpage with a card
    floating on it - the app should fill the entire screen edge-to-edge,
    like every native app does, instead of sitting in a centered box with
-   visible background around it. */
-@media (max-width: 480px) {
+   visible background around it. A phone turned on its side is wide but
+   short, so "landscape and at most 560px tall" counts as a phone too
+   (the same test the camera screen's landscape layout uses). */
+@media (max-width: 480px), (orientation: landscape) and (max-height: 560px) {
   body {
     padding: 0;
     align-items: stretch;
@@ -329,8 +331,9 @@ body {
    so if this block appeared earlier in the file (as it briefly did),
    the unconditional rule's negative margins would win back on mobile and
    push the bar wider than the screen, which is exactly what let the
-   whole page be dragged sideways. */
-@media (max-width: 480px) {
+   whole page be dragged sideways. Same phone test as the layout rule
+   above, so the bar stays pinned when the phone is turned sideways. */
+@media (max-width: 480px), (orientation: landscape) and (max-height: 560px) {
   /* Pin the tab bar to the bottom of the actual screen instead of
      leaving it in normal document flow - otherwise it sits right after
      whichever tab's content happens to be visible, so it visually jumps
@@ -351,6 +354,17 @@ body {
      isn't hidden underneath the now-floating tab bar. */
   .tab-panel {
     padding-bottom: 90px;
+  }
+}
+
+/* A phone on its side: keep each tab's content in a readable column
+   instead of stretching cards across the whole width. The bar itself
+   still spans the full screen. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .tab-panel {
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 
