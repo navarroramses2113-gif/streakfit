@@ -28,6 +28,7 @@ const ForjaCamera = (function () {
   const AUTO_FINISH_MS = ForjaCounter.MAX_SET_MS - 10000;
 
   const $ = (id) => document.getElementById(id);
+  const pct = (x) => Math.round((x ?? 0) * 100) + "%";
 
   let poseLandmarker = null;
   let modelLoading = null;
@@ -159,11 +160,12 @@ const ForjaCamera = (function () {
       const overlay = $("camera-overlay");
       overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
       $("camera-state").textContent = exercise.lost;
+      $("camera-live").textContent = "";
       return;
     }
 
     const joints = exercise.needs.map((joint) => [landmarks[side.idx[joint]].x, landmarks[side.idx[joint]].y]);
-    const { r } = session.push(t, joints);
+    const { r, m } = session.push(t, joints);
 
     if (exercise.kind === "plank") {
       drawBody(landmarks, side, r.state === "holding");
@@ -184,10 +186,16 @@ const ForjaCamera = (function () {
 
     drawBody(landmarks, side, r.state !== "down");
     $("camera-count").textContent = r.count;
-    $("camera-state").textContent = exercise.states[r.state] || "";
+    // Before counting starts, say exactly what's missing instead of just
+    // "get in position" - the start position has several conditions and
+    // any one failing looks the same from outside.
+    const hint = r.state === "waiting" && exercise.waitingHint ? exercise.waitingHint(m) : null;
+    $("camera-state").textContent = hint || exercise.states[r.state] || "";
+    $("camera-live").textContent =
+      r.drop === null ? "" : exercise.dropName + " down " + pct(r.drop) + "  ·  " + exercise.anchorName + " moved " + pct(r.anchorMove);
 
     if (r.event === "rep") {
-      setFeedback("Counted - depth " + Math.round(r.lastRep.depth) + "°", "good");
+      setFeedback("Counted - " + exercise.jointName + " " + Math.round(r.lastRep.depth) + "°, " + exercise.dropName + " down " + pct(r.lastRep.drop), "good");
     } else if (r.event === "shallow") {
       setFeedback("Not deep enough (" + Math.round(r.depth) + "°) - go lower", "bad");
     } else if (r.event === "too_fast") {
@@ -349,6 +357,7 @@ const ForjaCamera = (function () {
       $("camera-count-label").textContent = exercise.countLabel;
       $("camera-count").textContent = exercise.kind === "plank" ? "0.0" : "0";
       $("camera-state").textContent = "Camera is off";
+      $("camera-live").textContent = "";
       setFeedback("", "");
       setMode("idle");
       showScreen("camera-screen");

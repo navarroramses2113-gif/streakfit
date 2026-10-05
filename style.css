@@ -1,4 +1,4 @@
-﻿/* Reset some default browser spacing so we control layout ourselves */
+/* Reset some default browser spacing so we control layout ourselves */
 * {
   margin: 0;
   padding: 0;
@@ -1805,4 +1805,10 @@ body {
   font-weight: 800;
   margin: var(--space-md) 0 var(--space-sm);
   color: var(--text-primary);
+}
+.camera-live {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  min-height: 1.1em;
+  margin: -6px 0 var(--space-md);
 }

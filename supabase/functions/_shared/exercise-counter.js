@@ -250,7 +250,7 @@
 
   // Squat: the knee angle is the rep; hips must drop and ankles stay put.
   function createSquatCounter(options) {
-    return createRepCounter(Object.assign({ downBelow: 100, upAbove: 160, minRepMs: 500, minDrop: 0.2, maxAnchorMove: 0.25 }, options));
+    return createRepCounter(Object.assign({ downBelow: 100, upAbove: 160, minRepMs: 500, minDrop: 0.25, maxAnchorMove: 0.25 }, options));
   }
 
   // Push-up: the elbow angle is the rep; shoulders must lower, hands stay
@@ -382,7 +382,7 @@
       countLabel: "Verified squats",
       graphLabel: "Knee angle (last 8 seconds)",
       tip: "Prop the camera at about hip height, 6-8 feet away, and stand <b>side-on</b> so your whole leg (hip, knee, ankle) is in frame. Everything runs on this device - no video is sent anywhere.",
-      needs: ["hip", "knee", "ankle"],
+      needs: ["hip", "knee", "ankle", "shoulder"],
       minVisibility: 0.5,
       draw: ["shoulder", "hip", "knee", "ankle"],
       sliders: [
@@ -394,20 +394,32 @@
       events: {
         no_drop: (r) => "Ignored - hips didn't drop enough (" + pct(r.drop) + " of leg). Sit down and back.",
         anchor_moved: (r) => "Ignored - feet moved (" + pct(r.anchorMove) + " of leg). Keep them planted.",
-        bad_posture: () => "Ignored - keep your posture steady.",
+        bad_posture: () => "Ignored - keep your chest up. Folding forward isn't a squat.",
       },
       jointName: "knee",
       dropName: "hips",
       anchorName: "feet",
       create: (v) => createSquatCounter({ downBelow: v[0], upAbove: v[1] }),
       measure(pt) {
-        const hip = pt("hip"), knee = pt("knee"), ankle = pt("ankle");
+        const hip = pt("hip"), knee = pt("knee"), ankle = pt("ankle"), shoulder = pt("shoulder");
+        const torsoTilt = tiltFromHorizontal(hip, shoulder);
         return {
           angle: jointAngle(hip, knee, ankle),
           // A knee bend alone isn't a squat (walking and leg lifts bend it
-          // too), so the hips must drop and the feet stay planted.
-          extra: { dropY: hip.y, anchorX: ankle.x, anchorY: ankle.y, scale: dist(hip, ankle) },
+          // too), so the hips must drop and the feet stay planted - and the
+          // chest must stay up. Folding forward at the waist bends the
+          // knees and drops the upper body, but the torso goes nearly
+          // horizontal; a real squat keeps it well above 35 degrees.
+          extra: { dropY: hip.y, anchorX: ankle.x, anchorY: ankle.y, scale: dist(hip, ankle), posture: torsoTilt >= 35 },
+          torsoTilt,
         };
+      },
+      // What to tell someone who isn't being counted yet, so "it didn't
+      // start" never looks like a bug.
+      waitingHint: (m) => {
+        if (m.extra.posture === false) return "Stand upright - chest up";
+        if (m.angle !== null && m.angle < 160) return "Stand all the way up to start";
+        return null;
       },
       graphLines: (v) => [v[0], v[1]],
     },
@@ -451,8 +463,19 @@
             scale: dist(shoulder, ankle),
             posture: bodyAngle !== null && bodyAngle >= 150 && tilt <= 35,
           },
+          tilt,
           live: "body line " + Math.round(bodyAngle ?? 0) + "°  ·  tilt " + Math.round(tilt) + "°",
         };
+      },
+      // Why counting hasn't started - the start position needs straight
+      // arms AND a flat, straight body, and any one missing looks the same
+      // from the outside.
+      waitingHint: (m) => {
+        if (m.extra.posture === false) {
+          return m.tilt > 35 ? "Get down into a plank - your body should be roughly horizontal" : "Straighten your body - hips in line with shoulders and ankles";
+        }
+        if (m.angle !== null && m.angle < 155) return "Straighten your arms to start";
+        return null;
       },
       graphLines: (v) => [v[0], v[1]],
     },
