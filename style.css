@@ -1764,51 +1764,143 @@ body {
   transform: scaleX(-1);
 }
 
+/* Everything someone reads MID-SET is large: they're doing push-ups or a
+   plank six feet from a phone propped on the floor, so the count, the
+   instruction and the feedback have to be readable from across a room.
+   Smaller text (the live percentages, the tip) is for people near it. */
 .camera-count {
-  font-size: 4rem;
+  font-size: clamp(6rem, 30vw, 9rem);
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1;
   color: var(--text-primary);
 }
 
 .camera-count-label {
-  font-size: 0.72rem;
+  font-size: 1rem;
+  font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   margin-bottom: var(--space-sm);
 }
 
+/* Two lines of height are always reserved so the layout doesn't jump
+   every time the instruction changes length. */
 .camera-state {
-  font-weight: 700;
-  min-height: 1.4em;
-  margin-bottom: 4px;
+  font-size: clamp(1.5rem, 6vw, 2.2rem);
+  font-weight: 800;
+  line-height: 1.2;
+  min-height: 2.4em;
+  margin-bottom: var(--space-sm);
   color: var(--text-primary);
 }
 
 .camera-feedback {
-  font-size: 0.9rem;
+  font-size: clamp(1.25rem, 5vw, 1.8rem);
+  font-weight: 700;
+  line-height: 1.25;
   color: var(--text-secondary);
   min-height: 1.3em;
-  margin-bottom: var(--space-md);
+  margin-bottom: var(--space-sm);
 }
 
 .camera-feedback.good { color: #22c55e; }
 .camera-feedback.bad { color: #ff5a5f; }
+
+.camera-live {
+  font-size: 1rem;
+  color: var(--text-muted);
+  min-height: 1.2em;
+  margin-bottom: var(--space-md);
+}
 
 .camera-review {
   margin-bottom: var(--space-md);
 }
 
 .camera-result {
-  font-size: 2.2rem;
+  font-size: clamp(3rem, 14vw, 4.5rem);
   font-weight: 800;
+  line-height: 1.1;
   margin: var(--space-md) 0 var(--space-sm);
   color: var(--text-primary);
 }
-.camera-live {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  min-height: 1.1em;
-  margin: -6px 0 var(--space-md);
+
+/* The title and the setup tip only matter before the set starts - once
+   it's running they just push the big text off the bottom of the screen,
+   where nobody propping a phone against a wall can scroll to it. */
+#camera-screen.is-running .large-title,
+#camera-screen.is-running #camera-tip {
+  display: none;
+}
+
+/* The buttons you press from the floor / just after finishing. */
+#camera-start-button,
+#camera-finish-button {
+  min-height: 72px;
+  font-size: 1.5rem;
+}
+
+/* A phone propped on the floor is usually sideways. Put the video beside
+   the text instead of above it, so the big text isn't pushed off screen,
+   and let the screen use the full width instead of the narrow phone card. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #camera-screen {
+    max-width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    column-gap: var(--space-lg);
+    align-content: start;
+    padding-top: calc(var(--space-md) + var(--safe-top));
+    padding-bottom: var(--space-md);
+  }
+
+  #camera-screen > * {
+    grid-column: 2;
+  }
+
+  #camera-screen .camera-stage {
+    grid-column: 1;
+    grid-row: 1 / span 14;
+    margin-bottom: 0;
+    align-self: start;
+  }
+
+  /* Sized from the screen's HEIGHT here, since height is the scarce
+     thing sideways - and nothing may fall below the bottom edge, because
+     nobody can scroll a phone that's propped up on the floor. */
+  .camera-count {
+    font-size: clamp(4rem, 23vh, 8rem);
+  }
+
+  .camera-state {
+    font-size: clamp(1.1rem, 6.5vh, 1.8rem);
+    min-height: 0;
+    margin-bottom: 4px;
+  }
+
+  .camera-feedback {
+    font-size: clamp(1rem, 5.5vh, 1.5rem);
+    min-height: 0;
+    margin-bottom: var(--space-sm);
+  }
+
+  #camera-start-button,
+  #camera-finish-button {
+    min-height: 56px;
+    font-size: 1.3rem;
+  }
+
+  #camera-screen .camera-stage {
+    max-height: calc(100vh - 32px);
+  }
+
+  /* While a set is running, only what matters from across the room stays. */
+  #camera-screen.is-running .large-title,
+  #camera-screen.is-running #camera-tip,
+  #camera-screen.is-running .camera-count-label,
+  #camera-screen.is-running .camera-live,
+  #camera-screen.is-running #camera-flip-button {
+    display: none;
+  }
 }

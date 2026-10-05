@@ -229,6 +229,7 @@ const ForjaCamera = (function () {
   // Which of the screen's three modes is showing: "idle" (before the set),
   // "running" (counting) or "review" (set finished, decide whether to keep).
   function setMode(mode) {
+    $("camera-screen").classList.toggle("is-running", mode === "running");
     $("camera-start-button").classList.toggle("hidden", mode !== "idle");
     $("camera-finish-button").classList.toggle("hidden", mode !== "running");
     $("camera-flip-button").classList.toggle("hidden", mode === "review");
