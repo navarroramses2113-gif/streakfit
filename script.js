@@ -279,24 +279,28 @@ const minSquatsEl = document.getElementById("min-squats");
 const enableWalkrunEl = document.getElementById("enable-walkrun");
 const minWalkrunEl = document.getElementById("min-walkrun");
 const minWalkrunRowEl = document.getElementById("min-walkrun-row");
-const unitsRowEl = document.getElementById("units-row");
 const distanceUnitsEl = document.getElementById("distance-units");
-const saveSettingsEl = document.getElementById("save-settings");
+const saveMinimumsEl = document.getElementById("save-minimums");
 
-// Shows/hides the minutes input in Settings the instant the checkbox is
-// toggled, without waiting for Save - so it's obvious what you're about
-// to configure.
+// Shows/hides the minutes input the instant the checkbox is toggled,
+// without waiting for Save - so it's obvious what you're about to set.
 enableWalkrunEl.addEventListener("change", () => {
   minWalkrunRowEl.classList.toggle("hidden", !enableWalkrunEl.checked);
-  unitsRowEl.classList.toggle("hidden", !enableWalkrunEl.checked);
 });
 
 // STEP 2b: Account menu on the Me tab - Edit Profile, Share Profile,
-// and a Settings toggle that just reveals the existing Daily Minimums
-// panel (a full standalone Settings section is planned for later).
+// Daily Minimums (what a day asks of you) and Settings (how the app
+// behaves). Opening one panel closes the others.
 
 const editProfilePanelEl = document.getElementById("edit-profile-panel");
+const minimumsPanelEl = document.getElementById("minimums-panel");
 const settingsPanelEl = document.getElementById("settings-panel");
+
+function showOnlyPanel(panelToShow) {
+  [editProfilePanelEl, minimumsPanelEl, settingsPanelEl].forEach((panel) => {
+    if (panel !== panelToShow) panel.classList.add("hidden");
+  });
+}
 
 document.getElementById("open-account-screen-button").addEventListener("click", () => {
   showScreen("account-screen");
@@ -323,6 +327,14 @@ function applyTheme(theme) {
 
 themeSelectEl.value = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
 
+// Everything in Settings saves the moment it changes; this little note
+// confirms it.
+function showSettingSaved() {
+  const statusEl = document.getElementById("settings-status");
+  statusEl.textContent = "Saved.";
+  statusEl.classList.add("success");
+}
+
 themeSelectEl.addEventListener("change", () => {
   applyTheme(themeSelectEl.value);
   try {
@@ -331,13 +343,33 @@ themeSelectEl.addEventListener("change", () => {
     // Storage blocked (private browsing etc.) - the theme still applies
     // for this session, it just won't be remembered.
   }
+  showSettingSaved();
+});
+
+// Units change how every distance reads - your walks, your charts, and
+// friends' runs in the Feed - so redraw what shows distances right away.
+distanceUnitsEl.addEventListener("change", () => {
+  data.units = distanceUnitsEl.value;
+  saveData(data);
+  renderDistanceChart();
+  renderPastRoutesList();
+  showSettingSaved();
+});
+
+document.getElementById("open-minimums-button").addEventListener("click", () => {
+  showOnlyPanel(minimumsPanelEl);
+  minimumsPanelEl.classList.toggle("hidden");
+  if (!minimumsPanelEl.classList.contains("hidden")) {
+    // Always open on what's actually saved, with no leftover message.
+    renderSettingsInputs();
+    document.getElementById("minimums-status").textContent = "";
+  }
 });
 
 document.getElementById("open-settings-button").addEventListener("click", () => {
-  editProfilePanelEl.classList.add("hidden");
+  showOnlyPanel(settingsPanelEl);
   settingsPanelEl.classList.toggle("hidden");
   if (!settingsPanelEl.classList.contains("hidden")) {
-    // Always open on what's actually saved, with no leftover message.
     renderSettingsInputs();
     document.getElementById("settings-status").textContent = "";
     refreshRemindersToggle();
@@ -345,7 +377,7 @@ document.getElementById("open-settings-button").addEventListener("click", () => 
 });
 
 document.getElementById("edit-profile-button").addEventListener("click", async () => {
-  settingsPanelEl.classList.add("hidden");
+  showOnlyPanel(editProfilePanelEl);
   document.getElementById("edit-profile-error").textContent = "";
 
   const {
@@ -471,13 +503,12 @@ function renderSettingsInputs() {
   enableWalkrunEl.checked = walkRunEnabled;
   minWalkrunEl.value = walkRunEnabled ? data.minimums.walkRun : 15;
   minWalkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
-  unitsRowEl.classList.toggle("hidden", !walkRunEnabled);
   distanceUnitsEl.value = data.units;
 }
 
-const settingsStatusEl = document.getElementById("settings-status");
+const minimumsStatusEl = document.getElementById("minimums-status");
 
-saveSettingsEl.addEventListener("click", () => {
+saveMinimumsEl.addEventListener("click", () => {
   // Minimums can be raised, never lowered below the game's floors -
   // otherwise someone could rank on a day that asks for 1 push-up.
   const floors = ForjaRules.FLOORS;
@@ -487,7 +518,6 @@ saveSettingsEl.addEventListener("click", () => {
   data.minimums.squats = Math.max(typed[2], floors.squats);
   const raised = typed[0] < floors.pushups || typed[1] < floors.planks || typed[2] < floors.squats;
   data.minimums.walkRun = enableWalkrunEl.checked ? (Number(minWalkrunEl.value) || 1) : null;
-  data.units = distanceUnitsEl.value;
 
   saveData(data);
   // Show what was actually saved - a minimum raised to its floor must not
@@ -496,10 +526,10 @@ saveSettingsEl.addEventListener("click", () => {
   renderMinTags();
   render();
 
-  settingsStatusEl.textContent = raised
-    ? `Settings saved. Minimums can't go below ${floors.pushups} push-ups, a ${floors.planks}s plank and ${floors.squats} squats, so yours were raised to fit.`
-    : "Settings saved.";
-  settingsStatusEl.classList.add("success");
+  minimumsStatusEl.textContent = raised
+    ? `Minimums saved. They can't go below ${floors.pushups} push-ups, a ${floors.planks}s plank and ${floors.squats} squats, so yours were raised to fit.`
+    : "Minimums saved.";
+  minimumsStatusEl.classList.add("success");
 
   // Lowering a minimum (or turning walk/run off) can complete today.
   maybeCompleteDay();
@@ -507,8 +537,8 @@ saveSettingsEl.addEventListener("click", () => {
 
 // The "saved" note goes away as soon as anything is changed again, so it
 // never claims unsaved edits are saved.
-settingsPanelEl.addEventListener("input", () => {
-  settingsStatusEl.textContent = "";
+minimumsPanelEl.addEventListener("input", () => {
+  minimumsStatusEl.textContent = "";
 });
 
 // STEP 2c: Push notification reminders. Requires an account (subscriptions
@@ -614,6 +644,8 @@ async function refreshRemindersToggle() {
 }
 
 enableRemindersEl.addEventListener("change", async () => {
+  // This toggle reports its own result just below it.
+  document.getElementById("settings-status").textContent = "";
   remindersStatusEl.textContent = "";
   remindersStatusEl.classList.remove("success");
 
@@ -642,6 +674,7 @@ reminderHourEl.addEventListener("change", () => {
   // this setting, not just the first time they ever enabled it.
   data.reminderTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   saveData(data);
+  showSettingSaved();
 });
 
 document.getElementById("reminder-setup-enable-button").addEventListener("click", async () => {

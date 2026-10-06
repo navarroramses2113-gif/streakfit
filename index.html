@@ -255,6 +255,10 @@
         <span>Share Profile</span>
         <span class="account-menu-chevron">›</span>
       </button>
+      <button id="open-minimums-button" class="account-menu-item">
+        <span>Daily Minimums</span>
+        <span class="account-menu-chevron">›</span>
+      </button>
       <button id="open-settings-button" class="account-menu-item">
         <span>Settings</span>
         <span class="account-menu-chevron">›</span>
@@ -280,7 +284,9 @@
       <button id="save-profile-button" class="auth-submit-button">Save Profile</button>
     </div>
 
-    <div id="settings-panel" class="settings-panel hidden">
+    <!-- What a day asks of you. Saved with its button, because changing a
+         minimum can complete today. -->
+    <div id="minimums-panel" class="settings-panel hidden">
       <p class="settings-title">Daily Minimums</p>
       <div class="settings-row">
         <label for="min-pushups">Push-ups</label>
@@ -303,11 +309,20 @@
         <label for="min-walkrun">Walk/Run minutes</label>
         <input type="number" id="min-walkrun" min="1" value="15">
       </div>
-      <div id="units-row" class="settings-row hidden">
-        <label for="distance-units">Distance units</label>
-        <select id="distance-units">
-          <option value="miles">Miles</option>
-          <option value="km">Kilometers</option>
+
+      <p id="minimums-status" class="error"></p>
+      <button id="save-minimums" class="auth-submit-button">Save Minimums</button>
+    </div>
+
+    <!-- How the app behaves. Every setting here saves the moment it's
+         changed, like the iPhone's own Settings. -->
+    <div id="settings-panel" class="settings-panel hidden">
+      <p class="settings-title">Settings</p>
+      <div class="settings-row settings-checkbox-row">
+        <label for="theme-select">Appearance</label>
+        <select id="theme-select">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
         </select>
       </div>
 
@@ -322,15 +337,14 @@
       <p id="reminders-status" class="error"></p>
 
       <div class="settings-row settings-checkbox-row">
-        <label for="theme-select">Appearance</label>
-        <select id="theme-select">
-          <option value="dark">Dark</option>
-          <option value="light">Light</option>
+        <label for="distance-units">Distance units</label>
+        <select id="distance-units">
+          <option value="miles">Miles</option>
+          <option value="km">Kilometers</option>
         </select>
       </div>
 
       <p id="settings-status" class="error"></p>
-      <button id="save-settings" class="auth-submit-button">Save Settings</button>
     </div>
 
     <button id="log-out-button" class="log-out-button hidden">Log Out</button>
@@ -691,6 +705,6 @@
   <script src="supabase/functions/_shared/game-rules.js?v=3"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=9"></script>
   <script src="camera-verify.js?v=8"></script>
-  <script src="script.js?v=10"></script>
+  <script src="script.js?v=11"></script>
 </body>
 </html>
