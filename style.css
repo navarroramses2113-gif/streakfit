@@ -1989,12 +1989,48 @@ body {
   margin-bottom: var(--space-md);
 }
 
+/* After a set: "Nice work!", one big number, what it counts, and the
+   buttons - none of the live coaching text. */
+#camera-screen.is-review #camera-tip,
+#camera-screen.is-review .camera-count,
+#camera-screen.is-review .camera-count-label,
+#camera-screen.is-review .camera-state,
+#camera-screen.is-review .camera-feedback,
+#camera-screen.is-review .camera-live {
+  display: none;
+}
+
+#camera-screen.is-review .large-title {
+  text-align: center;
+  margin-top: var(--space-xl);
+}
+
 .camera-result {
-  font-size: clamp(3rem, 14vw, 4.5rem);
+  font-size: clamp(6rem, 30vw, 9rem);
   font-weight: 800;
-  line-height: 1.1;
-  margin: var(--space-md) 0 var(--space-sm);
-  color: var(--text-primary);
+  line-height: 1;
+  margin: var(--space-lg) 0 var(--space-xs);
+  color: #22c55e;
+}
+
+.camera-result-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--space-lg);
+}
+
+.camera-result-label:empty,
+.camera-result-note:empty {
+  display: none;
+}
+
+.camera-result-note {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin: var(--space-sm) 0 var(--space-lg);
 }
 
 /* The title and the setup tip only matter before the set starts - once

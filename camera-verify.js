@@ -394,13 +394,17 @@ const ForjaCamera = (function () {
   // "running" (counting) or "review" (set finished, decide whether to keep).
   function setMode(mode) {
     $("camera-screen").classList.toggle("is-running", mode === "running");
+    $("camera-screen").classList.toggle("is-review", mode === "review");
     $("camera-start-button").classList.toggle("hidden", mode !== "idle");
     $("camera-finish-button").classList.toggle("hidden", mode !== "running");
     $("camera-flip-button").classList.toggle("hidden", mode === "review");
     $("camera-sound-button").classList.toggle("hidden", mode !== "idle");
     $("camera-review").classList.toggle("hidden", mode !== "review");
-    $("camera-close-button").classList.toggle("hidden", mode === "running");
+    // After a counted set the choice is just Save or Redo; Close is only
+    // offered when there's nothing to save.
+    $("camera-close-button").classList.toggle("hidden", mode === "running" || (mode === "review" && result > 0));
     $("camera-stage").classList.toggle("hidden", mode === "review");
+    if (mode !== "review") $("camera-title").textContent = exercise.title;
   }
 
   async function startSet() {
@@ -450,15 +454,19 @@ const ForjaCamera = (function () {
     result = session.value();
     stopStream();
 
-    resultUnit = exercise.kind === "plank" ? "s hold" : " verified " + exercise.title.toLowerCase();
+    // The finished set gets one message and one number - none of the live
+    // coaching text. (The rep-by-rep list is for debug mode only.)
+    const counted = result > 0;
+    resultUnit = exercise.kind === "plank" ? "s" : "";
+    $("camera-title").textContent = counted ? "Nice work!" : "Nothing counted";
     $("camera-result").textContent = result + resultUnit;
-    $("camera-save-button").classList.toggle("hidden", result === 0);
+    $("camera-result").classList.toggle("hidden", !counted);
+    $("camera-result-label").textContent = counted ? (exercise.kind === "plank" ? "plank hold" : "verified " + exercise.title.toLowerCase()) : "";
+    $("camera-result-note").textContent = counted ? "" : "Make sure your whole body is in frame, side-on, and try again.";
+    $("camera-save-button").classList.toggle("hidden", !counted);
     $("camera-save-button").disabled = false;
     $("camera-save-button").textContent = "Save set";
-    $("camera-result-note").textContent =
-      result === 0
-        ? "Nothing was counted. Make sure your whole body is in frame, side-on, and try again."
-        : "Only reps with full depth and good form are counted, and the server double-checks every set. Not what you expected? Redo the set - results can't be edited.";
+    $("camera-attempts").classList.toggle("hidden", !Debug.isOn());
     renderAttempts();
     setMode("review");
   }
@@ -493,6 +501,7 @@ const ForjaCamera = (function () {
       // Anything else (no signal, server busy) is worth retrying as-is.
       if (outcome && (outcome.code === "bad_trace" || outcome.code === "implausible")) {
         button.classList.add("hidden");
+        $("camera-close-button").classList.remove("hidden");
         return;
       }
       button.disabled = false;
@@ -504,8 +513,9 @@ const ForjaCamera = (function () {
       // The server's recount is the one that counts. Show it instead of
       // quietly saving a different number than the one on screen.
       $("camera-result").textContent = outcome.value + resultUnit;
-      $("camera-result-note").textContent = "Saved as " + outcome.value + " - the server's recount of this set is the official number.";
+      $("camera-result-note").textContent = "Saved. The server's recount is the official number.";
       button.classList.add("hidden");
+      $("camera-close-button").classList.remove("hidden");
       return;
     }
     close();

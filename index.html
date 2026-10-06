@@ -16,7 +16,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. -->
@@ -387,7 +387,9 @@
 
     <div id="camera-review" class="camera-review hidden">
       <p id="camera-result" class="camera-result"></p>
-      <p id="camera-result-note" class="preview-note"></p>
+      <p id="camera-result-label" class="camera-result-label"></p>
+      <p id="camera-result-note" class="camera-result-note"></p>
+      <!-- The rep-by-rep list only shows with debug details on. -->
       <ul id="camera-attempts" class="camera-attempts"></ul>
       <div class="tracking-buttons">
         <button id="camera-redo-button" class="tracking-cancel-button">Redo set</button>
@@ -687,7 +689,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase/functions/_shared/game-rules.js?v=3"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=9"></script>
-  <script src="camera-verify.js?v=7"></script>
+  <script src="camera-verify.js?v=8"></script>
   <script src="script.js?v=9"></script>
 </body>
 </html>
