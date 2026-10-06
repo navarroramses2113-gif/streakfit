@@ -1860,7 +1860,7 @@ async function loadFeed() {
   oldestDay.setDate(oldestDay.getDate() - (FEED_DAYS_SHOWN - 1));
   const { data: postRows, error: postsError } = await supabaseClient
     .from("feed_events")
-    .select("id, user_id, day, streak, pushups, plank_seconds, squats, new_best, created_at")
+    .select("id, user_id, kind, day, streak, pushups, plank_seconds, squats, cardio_minutes, distance_m, duration_s, new_best, created_at")
     .in("user_id", [currentUserId, ...feedFriendIds])
     .gte("day", dateToString(oldestDay))
     .order("created_at", { ascending: false })
@@ -1917,7 +1917,11 @@ function feedWhenText(post) {
   return new Date(year, month - 1, day).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
 
+const isActivityPost = (post) => post.kind === "walk" || post.kind === "run";
+
 function feedHeadline(post) {
+  if (post.kind === "run") return "Went for a run";
+  if (post.kind === "walk") return "Went for a walk";
   const streak = Number(post.streak) || 0;
   if (STREAK_MILESTONES.includes(streak)) return `Hit a ${streak}-day streak`;
   if (post.new_best) return `New personal best: ${streak} days`;
@@ -1934,6 +1938,31 @@ function kudosSummaryText(names) {
   return `${names[0]}, ${names[1]} and ${names.length - 2} others gave kudos`;
 }
 
+// The numbers row of a post. A full day shows the three exercises (plus
+// cardio when the day had walks/runs); a walk or run shows distance, moving
+// time and pace, in the viewer's own units.
+function feedStats(post) {
+  if (isActivityPost(post)) {
+    const km = (Number(post.distance_m) || 0) / 1000;
+    const ms = (Number(post.duration_s) || 0) * 1000;
+    const inUnits = data.units === "km" ? km : milesFromKm(km);
+    return [
+      { value: displayDistance(km), label: distanceUnitLabel() },
+      { value: formatDuration(ms), label: "time" },
+      { value: inUnits > 0.01 ? formatDuration(ms / inUnits) : "--", label: `pace /${distanceUnitLabel()}` },
+    ];
+  }
+  const stats = [
+    { value: Number(post.pushups) || 0, label: "push-ups" },
+    { value: Number(post.squats) || 0, label: "squats" },
+    { value: formatDuration((Number(post.plank_seconds) || 0) * 1000), label: "plank" },
+  ];
+  if (Number(post.cardio_minutes) > 0) stats.push({ value: `${Number(post.cardio_minutes)}`, label: "cardio min" });
+  return stats;
+}
+
+const FEED_KIND_LABELS = { day: "Full day", walk: "Walk", run: "Run" };
+
 // Usernames come from other people, so - like the leaderboard - every bit of
 // text goes in through textContent, and only fixed markup goes in innerHTML.
 function buildFeedCard(post, giverIds, usernameByUserId) {
@@ -1949,14 +1978,13 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
         <span class="feed-card-name"></span>
         <span class="feed-card-when"></span>
       </div>
-      <span class="leaderboard-streak">${Number(post.streak) || 0} ${FLAME_ICON_SVG}</span>
+      ${isActivityPost(post) ? "" : `<span class="leaderboard-streak">${Number(post.streak) || 0} ${FLAME_ICON_SVG}</span>`}
     </div>
-    <p class="feed-card-headline"></p>
-    <div class="feed-card-stats">
-      <div class="feed-stat"><span class="feed-stat-value" data-stat="pushups"></span><span class="feed-stat-label">push-ups</span></div>
-      <div class="feed-stat"><span class="feed-stat-value" data-stat="squats"></span><span class="feed-stat-label">squats</span></div>
-      <div class="feed-stat"><span class="feed-stat-value" data-stat="plank"></span><span class="feed-stat-label">plank</span></div>
+    <div>
+      <span class="feed-card-kind"></span>
+      <p class="feed-card-headline"></p>
     </div>
+    <div class="feed-card-stats"></div>
     <div class="feed-card-footer">
       ${isMine ? "" : `<button class="kudos-button" aria-pressed="false">${KUDOS_ICON_SVG}<span>Kudos</span></button>`}
       <span class="kudos-summary"></span>
@@ -1965,9 +1993,25 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
   card.querySelector(".feed-card-name").textContent = isMine ? "You" : usernameByUserId[post.user_id] || "Unknown";
   card.querySelector(".feed-card-when").textContent = feedWhenText(post);
   card.querySelector(".feed-card-headline").textContent = feedHeadline(post);
-  card.querySelector('[data-stat="pushups"]').textContent = Number(post.pushups) || 0;
-  card.querySelector('[data-stat="squats"]').textContent = Number(post.squats) || 0;
-  card.querySelector('[data-stat="plank"]').textContent = formatDuration((Number(post.plank_seconds) || 0) * 1000);
+  const kind = FEED_KIND_LABELS[post.kind] ? post.kind : "day";
+  const kindEl = card.querySelector(".feed-card-kind");
+  kindEl.textContent = FEED_KIND_LABELS[kind];
+  kindEl.classList.add(`is-${kind}`);
+  const statsEl = card.querySelector(".feed-card-stats");
+  const stats = feedStats(post);
+  statsEl.style.gridTemplateColumns = `repeat(${stats.length}, 1fr)`;
+  stats.forEach((stat) => {
+    const cell = document.createElement("div");
+    cell.className = "feed-stat";
+    const value = document.createElement("span");
+    value.className = "feed-stat-value";
+    value.textContent = stat.value;
+    const label = document.createElement("span");
+    label.className = "feed-stat-label";
+    label.textContent = stat.label;
+    cell.append(value, label);
+    statsEl.appendChild(cell);
+  });
 
   // Everyone who gave kudos, with you first.
   const kudos = { iGave: giverIds.includes(currentUserId), others: giverIds.filter((id) => id !== currentUserId), busy: false };
@@ -1977,6 +2021,8 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
   const drawKudos = () => {
     const names = [...(kudos.iGave ? ["You"] : []), ...kudos.others.map((id) => usernameByUserId[id] || "Someone")];
     summaryEl.textContent = kudosSummaryText(names);
+    // Your own post has no button, so with no kudos yet the row would be empty.
+    summaryEl.parentElement.classList.toggle("hidden", !button && names.length === 0);
     if (button) {
       button.classList.toggle("is-given", kudos.iGave);
       button.setAttribute("aria-pressed", String(kudos.iGave));
@@ -2966,7 +3012,7 @@ trackingCancelEl.addEventListener("click", () => {
 // screen whether to actually keep it - saving happens only if they do.
 let pendingRoute = null;
 
-trackingFinishEl.addEventListener("click", () => {
+trackingFinishEl.addEventListener("click", async () => {
   stopTrackingWatchers();
 
   const durationMs = elapsedTrackingMs();
@@ -2978,15 +3024,14 @@ trackingFinishEl.addEventListener("click", () => {
   // only count if the route actually covered ground at walking pace or
   // faster. This counts toward today regardless of whether the route
   // itself gets kept or discarded afterward.
-  const MIN_WALK_KMH = 2.5;
   const averageKmh = durationMs > 0 ? distanceKm / (durationMs / 3600000) : 0;
-  const countsTowardToday = averageKmh >= MIN_WALK_KMH && data.lastLoggedDate !== todayString();
+  const realPace = averageKmh >= ForjaRules.ACTIVITY.MIN_KMH;
+  const countsTowardToday = realPace && data.lastLoggedDate !== todayString();
   if (countsTowardToday) {
     todayProgress().walkRun += durationMinutes;
     saveData(data);
   }
   render();
-  maybeCompleteDay();
 
   pendingRoute = { date: todayString(), distanceKm, durationMs, route, elevationGainM };
 
@@ -2995,7 +3040,22 @@ trackingFinishEl.addEventListener("click", () => {
   if (!countsTowardToday && data.lastLoggedDate !== todayString()) {
     document.getElementById("tracking-summary-heading").textContent = "Too slow to count toward today - walk/run minutes need real movement.";
   }
+
+  // Every walk or run at a real pace goes to the Feed - whether or not it
+  // completes today. Shared BEFORE checking the day, so a full-day post
+  // that this walk completes includes its minutes.
+  if (currentUserId && realPace) await shareActivity(route, durationMs);
+  maybeCompleteDay();
 });
+
+// Posts a finished walk/run to the Feed. The server works out distance,
+// pace and walk-vs-run from the GPS points itself. If it fails (no signal)
+// there's just no post - the minutes still count toward today.
+async function shareActivity(route, durationMs) {
+  const points = route.length > ForjaRules.ACTIVITY.MAX_POINTS ? simplifyRoute(route, ROUTE_SIMPLIFY_TOLERANCE) : route;
+  const reply = await callServerFunction("log-activity", { day: todayString(), points, durationMs: Math.round(durationMs) });
+  return reply.ok;
+}
 
 // mode is "new" (just finished tracking - shows the Keep/Discard prompt)
 // or "view" (browsing an already-saved route from Past Routes - shows a

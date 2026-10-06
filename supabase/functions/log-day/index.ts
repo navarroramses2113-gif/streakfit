@@ -66,11 +66,18 @@ Deno.serve(async (req) => {
   if (saveError) return json({ ok: false, error: "server_error" }, 500);
 
   // Share the day with friends. The day is already logged at this point, so
-  // a Feed hiccup must never turn into an error for the player.
-  const { error: feedError } = await admin
+  // a Feed hiccup must never turn into an error for the player. Cardio
+  // minutes come from the walk/run posts the server itself recorded today.
+  const { data: activities } = await admin
     .from("feed_events")
-    .upsert(rules.feedPost(user.id, day, totals, current, next), { onConflict: "user_id,day", ignoreDuplicates: true });
-  if (feedError) console.error("feed post failed", feedError.message);
+    .select("duration_s")
+    .eq("user_id", user.id)
+    .eq("day", day)
+    .in("kind", ["walk", "run"]);
+  const cardioMinutes = Math.round((activities ?? []).reduce((sum, a) => sum + a.duration_s, 0) / 60);
+  const { error: feedError } = await admin.from("feed_events").insert(rules.feedPost(user.id, day, totals, current, next, cardioMinutes));
+  // 23505 = this day already has its post (only one per day is allowed).
+  if (feedError && feedError.code !== "23505") console.error("feed post failed", feedError.message);
 
   return json({ ok: true, stats: next });
 });

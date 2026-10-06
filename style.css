@@ -510,6 +510,26 @@ body {
   color: var(--text-secondary);
 }
 
+/* "Full day" / "Walk" / "Run" - which kind of post this is, at a glance. */
+.feed-card-kind {
+  display: inline-block;
+  margin-bottom: 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--orange-light);
+}
+
+.feed-card-kind.is-walk,
+.feed-card-kind.is-run {
+  color: var(--ring-walkrun);
+}
+
+:root[data-theme="light"] .feed-card-kind.is-day {
+  color: var(--orange-dark);
+}
+
 .feed-card-headline {
   margin: 0;
   font-size: 1.05rem;

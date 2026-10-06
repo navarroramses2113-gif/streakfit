@@ -105,18 +105,66 @@
   const NEW_BEST_MIN_STREAK = 3;
 
   // The Feed post friends see for a logged day, as a feed_events row. Built
-  // only from the server's own totals and streak math.
-  function feedPost(userId, day, totals, before, after) {
+  // only from the server's own totals and streak math. cardioMinutes is
+  // the day's walks/runs as the server recorded them (null if none).
+  function feedPost(userId, day, totals, before, after, cardioMinutes) {
     return {
       user_id: userId,
+      kind: "day",
       day,
       streak: after.streak,
       pushups: totals.pushups,
       plank_seconds: totals.planks,
       squats: totals.squats,
+      cardio_minutes: cardioMinutes > 0 ? cardioMinutes : null,
       new_best: after.streak > (before.bestStreak || 0) && after.streak >= NEW_BEST_MIN_STREAK,
     };
   }
 
-  return { FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, feedPost };
+  // Walks and runs. GPS can't be verified the way the camera can, but the
+  // server works out the distance from the points itself and refuses what
+  // no walker or runner could do (a bike or a car is faster than 25 km/h).
+  const ACTIVITY = {
+    MIN_KMH: 2.5, // slower than this isn't really moving (same rule as the app)
+    RUN_KMH: 8, // at or above this average pace it's a run, below it a walk
+    MAX_KMH: 25,
+    MIN_MS: 60 * 1000,
+    MAX_MS: 6 * 60 * 60 * 1000,
+    MAX_POINTS: 20000,
+    MAX_PER_DAY: 10,
+  };
+
+  // Length of a GPS route ([[lat, lng], ...]) in km, point to point.
+  function routeDistanceKm(points) {
+    const toRadians = (deg) => (deg * Math.PI) / 180;
+    let km = 0;
+    for (let i = 1; i < points.length; i++) {
+      const [lat1, lon1] = points[i - 1];
+      const [lat2, lon2] = points[i];
+      const dLat = toRadians(lat2 - lat1);
+      const dLon = toRadians(lon2 - lon1);
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
+      km += 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+    return km;
+  }
+
+  // Checks one finished walk/run (its GPS points and moving time). Returns
+  // { ok: true, kind, distanceM, durationS } or { ok: false, error }.
+  function checkActivity(points, durationMs) {
+    if (!Array.isArray(points) || points.length < 2 || points.length > ACTIVITY.MAX_POINTS) return { ok: false, error: "bad_route" };
+    for (const p of points) {
+      if (!Array.isArray(p) || p.length !== 2 || !Number.isFinite(p[0]) || !Number.isFinite(p[1]) || Math.abs(p[0]) > 90 || Math.abs(p[1]) > 180) {
+        return { ok: false, error: "bad_route" };
+      }
+    }
+    if (!Number.isInteger(durationMs) || durationMs < ACTIVITY.MIN_MS || durationMs > ACTIVITY.MAX_MS) return { ok: false, error: "bad_duration" };
+    const km = routeDistanceKm(points);
+    const kmh = km / (durationMs / 3600000);
+    if (kmh < ACTIVITY.MIN_KMH) return { ok: false, error: "too_slow" };
+    if (kmh > ACTIVITY.MAX_KMH) return { ok: false, error: "too_fast" };
+    return { ok: true, kind: kmh >= ACTIVITY.RUN_KMH ? "run" : "walk", distanceM: Math.round(km * 1000), durationS: Math.round(durationMs / 1000) };
+  }
+
+  return { FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, ACTIVITY, isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, feedPost, routeDistanceKm, checkActivity };
 });
