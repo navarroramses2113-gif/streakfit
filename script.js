@@ -336,7 +336,12 @@ themeSelectEl.addEventListener("change", () => {
 document.getElementById("open-settings-button").addEventListener("click", () => {
   editProfilePanelEl.classList.add("hidden");
   settingsPanelEl.classList.toggle("hidden");
-  if (!settingsPanelEl.classList.contains("hidden")) refreshRemindersToggle();
+  if (!settingsPanelEl.classList.contains("hidden")) {
+    // Always open on what's actually saved, with no leftover message.
+    renderSettingsInputs();
+    document.getElementById("settings-status").textContent = "";
+    refreshRemindersToggle();
+  }
 });
 
 document.getElementById("edit-profile-button").addEventListener("click", async () => {
@@ -470,20 +475,40 @@ function renderSettingsInputs() {
   distanceUnitsEl.value = data.units;
 }
 
+const settingsStatusEl = document.getElementById("settings-status");
+
 saveSettingsEl.addEventListener("click", () => {
   // Minimums can be raised, never lowered below the game's floors -
   // otherwise someone could rank on a day that asks for 1 push-up.
-  data.minimums.pushups = Math.max(Number(minPushupsEl.value) || 0, ForjaRules.FLOORS.pushups);
-  data.minimums.planks = Math.max(Number(minPlanksEl.value) || 0, ForjaRules.FLOORS.planks);
-  data.minimums.squats = Math.max(Number(minSquatsEl.value) || 0, ForjaRules.FLOORS.squats);
+  const floors = ForjaRules.FLOORS;
+  const typed = [Number(minPushupsEl.value) || 0, Number(minPlanksEl.value) || 0, Number(minSquatsEl.value) || 0];
+  data.minimums.pushups = Math.max(typed[0], floors.pushups);
+  data.minimums.planks = Math.max(typed[1], floors.planks);
+  data.minimums.squats = Math.max(typed[2], floors.squats);
+  const raised = typed[0] < floors.pushups || typed[1] < floors.planks || typed[2] < floors.squats;
   data.minimums.walkRun = enableWalkrunEl.checked ? (Number(minWalkrunEl.value) || 1) : null;
   data.units = distanceUnitsEl.value;
 
   saveData(data);
+  // Show what was actually saved - a minimum raised to its floor must not
+  // keep displaying the lower number that was typed.
+  renderSettingsInputs();
   renderMinTags();
   render();
+
+  settingsStatusEl.textContent = raised
+    ? `Settings saved. Minimums can't go below ${floors.pushups} push-ups, a ${floors.planks}s plank and ${floors.squats} squats, so yours were raised to fit.`
+    : "Settings saved.";
+  settingsStatusEl.classList.add("success");
+
   // Lowering a minimum (or turning walk/run off) can complete today.
   maybeCompleteDay();
+});
+
+// The "saved" note goes away as soon as anything is changed again, so it
+// never claims unsaved edits are saved.
+settingsPanelEl.addEventListener("input", () => {
+  settingsStatusEl.textContent = "";
 });
 
 // STEP 2c: Push notification reminders. Requires an account (subscriptions
