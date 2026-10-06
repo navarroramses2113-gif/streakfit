@@ -724,7 +724,7 @@ async function saveCameraSet({ exercise, value, trace }) {
     return { ok: true, value };
   }
   const reply = await callServerFunction("submit-set", { trace, day: todayString() });
-  if (!reply.ok) return { ok: false, error: serverErrorMessage(reply) };
+  if (!reply.ok) return { ok: false, error: serverErrorMessage(reply), code: reply.error };
   await refreshVerifiedProgress();
   // Not awaited: the camera screen can close while the day is being saved.
   maybeCompleteDay();

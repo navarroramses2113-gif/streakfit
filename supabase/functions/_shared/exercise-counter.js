@@ -537,6 +537,9 @@
   // the lie up with.
 
   const COORD_SCALE = 10000; // positions are stored as whole numbers of 1/10000 of the frame
+  // How far outside the picture (in frame widths/heights) a joint may be
+  // and still be treated as seen. Well inside what recountTrace accepts.
+  const OFF_FRAME_LIMIT = 0.5;
   const MAX_TRACE_FRAMES = 15000;
   const MAX_SET_MS = 8 * 60 * 1000;
 
@@ -571,6 +574,15 @@
       engine,
       frames,
       push(t, joints) {
+        // A joint more than half a frame outside the picture is the pose
+        // model guessing, not seeing - e.g. standing up after push-ups next
+        // to a phone on the floor puts the shoulders far above the top edge.
+        // Record that frame as "body not visible" (it can't count toward a
+        // rep) instead of storing positions the server would reject - which
+        // used to throw out the whole set, good reps included.
+        if (joints && joints.some(([x, y]) => !(x >= -OFF_FRAME_LIMIT && x <= 1 + OFF_FRAME_LIMIT && y >= -OFF_FRAME_LIMIT && y <= 1 + OFF_FRAME_LIMIT))) {
+          joints = null;
+        }
         const ints = joints ? joints.flatMap(([x, y]) => [Math.round(x * COORD_SCALE), Math.round(y * COORD_SCALE)]) : null;
         frames.push(ints ? [t, 1, ...ints] : [t, 0]);
         return feed(t, ints);

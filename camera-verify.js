@@ -487,9 +487,16 @@ const ForjaCamera = (function () {
     const outcome = await onSave({ exercise: exerciseKey, value: result, trace: session.trace() });
 
     if (!outcome || !outcome.ok) {
+      $("camera-result-note").textContent = (outcome && outcome.error) || "Couldn't verify this set. Check your connection and try again.";
+      // A recording the server refused will be refused again - sending it a
+      // second time can't help, so point to Redo instead of "Try again".
+      // Anything else (no signal, server busy) is worth retrying as-is.
+      if (outcome && (outcome.code === "bad_trace" || outcome.code === "implausible")) {
+        button.classList.add("hidden");
+        return;
+      }
       button.disabled = false;
       button.textContent = "Try again";
-      $("camera-result-note").textContent = (outcome && outcome.error) || "Couldn't verify this set. Check your connection and try again.";
       return;
     }
 
