@@ -166,5 +166,118 @@
     return { ok: true, kind: kmh >= ACTIVITY.RUN_KMH ? "run" : "walk", distanceM: Math.round(km * 1000), durationS: Math.round(durationMs / 1000) };
   }
 
-  return { FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, ACTIVITY, isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, feedPost, routeDistanceKm, checkActivity };
+  // ---------- Progressive overload ----------
+  // Each player's daily targets grow in STEPS: every few completed days (set
+  // by their pace) all three go up one step. How a day went adjusts single
+  // exercises, missed days ease the targets back, and a ceiling turns growth
+  // into "maintain". Targets are a plan object the server keeps; these pure
+  // functions are the only way it changes, so the app, the server and the
+  // simulator all agree. `rules` can be overridden (the simulator does).
+  const EXERCISE_KEYS = ["pushups", "squats", "planks"];
+  const PLAN_RULES = {
+    // Steps earned per completed day: Easy = 1 every 4th day, Regular = every
+    // 3rd, Serious = every 2nd, Intense = 2 of every 3.
+    paces: { easy: 1 / 4, regular: 1 / 3, serious: 1 / 2, intense: 2 / 3 },
+    // One step: at least this much, or this share of the target once it's big.
+    minStep: { pushups: 1, squats: 2, planks: 5 },
+    stepShare: 0.05,
+    ceiling: { pushups: 100, squats: 150, planks: 300 },
+    startShare: 0.7, // targets start at 70% of a tested max
+    crushedShare: 1.5, // 150% of the target in a day = a bonus step
+    struggledSets: 3, // needing this many sets = skip the next step
+    // Missed days in a row -> steps back (a share means "back to 75%").
+    easeBack: [
+      { missedAtLeast: 8, share: 0.75 },
+      { missedAtLeast: 4, steps: 3 },
+      { missedAtLeast: 2, steps: 1 },
+    ],
+  };
+
+  const roundPlank = (seconds) => Math.round(seconds / 5) * 5;
+
+  function stepSize(key, target, rules = PLAN_RULES) {
+    const share = target * rules.stepShare;
+    const size = key === "planks" ? roundPlank(share) : Math.round(share);
+    return Math.max(rules.minStep[key], size);
+  }
+
+  // A plan's starting targets from a tested max (camera "Find my level"):
+  // a little below it, never below the floors.
+  function startTargets(max, rules = PLAN_RULES) {
+    const t = {};
+    for (const key of EXERCISE_KEYS) {
+      const raw = (max[key] || 0) * rules.startShare;
+      t[key] = Math.min(rules.ceiling[key], Math.max(FLOORS[key], key === "planks" ? roundPlank(raw) : Math.round(raw)));
+    }
+    return t;
+  }
+
+  function newPlan(pace, targets) {
+    return { pace, targets: { ...targets }, start: { ...targets }, credit: 0, skip: {}, lastDay: null };
+  }
+
+  // The plan as it stands on `day`: missed days since the last completed one
+  // ease the targets back (never below where the plan started). Pure - the
+  // stored plan only changes when a day is completed.
+  function planOn(plan, day, rules = PLAN_RULES) {
+    const missed = plan.lastDay ? Math.max(0, daysBetween(plan.lastDay, day) - 1) : 0;
+    const rule = rules.easeBack.find((r) => missed >= r.missedAtLeast);
+    if (!rule) return { plan, missed, easedSteps: 0 };
+    const targets = { ...plan.targets };
+    for (const key of EXERCISE_KEYS) {
+      let t = targets[key];
+      if (rule.share) t = key === "planks" ? roundPlank(t * rule.share) : Math.round(t * rule.share);
+      else for (let i = 0; i < rule.steps; i++) t -= stepSize(key, t, rules);
+      targets[key] = Math.max(plan.start[key], FLOORS[key], t);
+    }
+    return { plan: { ...plan, targets, credit: 0, skip: {} }, missed, easedSteps: rule.steps || "share" };
+  }
+
+  // Completes `day`: today's targets were planOn(plan, day).plan.targets.
+  // result = { totals: {pushups, squats, planks}, sets: {pushups, squats, planks} }
+  // (sets = how many sets it took; a plank's "total" is its best hold).
+  // Returns the plan for the following days and what happened, so the app
+  // can show "Level up!" and friends.
+  function completePlanDay(plan, day, result, rules = PLAN_RULES) {
+    const eased = planOn(plan, day, rules);
+    const today = eased.plan.targets;
+    const next = { ...eased.plan, targets: { ...today }, skip: { ...eased.plan.skip }, lastDay: day };
+    const events = { levelUp: false, bonus: [], skipped: [], maxed: [], missed: eased.missed, easedSteps: eased.easedSteps };
+    const grow = (key) => {
+      if (next.targets[key] >= rules.ceiling[key]) return false;
+      next.targets[key] = Math.min(rules.ceiling[key], next.targets[key] + stepSize(key, next.targets[key], rules));
+      if (next.targets[key] >= rules.ceiling[key]) events.maxed.push(key);
+      return true;
+    };
+
+    for (const key of EXERCISE_KEYS) {
+      const total = (result.totals && result.totals[key]) || 0;
+      const sets = (result.sets && result.sets[key]) || 1;
+      if (total >= today[key] * rules.crushedShare) {
+        if (grow(key)) events.bonus.push(key);
+      } else if (sets >= rules.struggledSets) {
+        next.skip[key] = true;
+      }
+    }
+
+    next.credit = eased.plan.credit + (rules.paces[next.pace] ?? rules.paces.regular);
+    if (next.credit >= 1 - 1e-9) {
+      next.credit -= 1;
+      for (const key of EXERCISE_KEYS) {
+        if (next.skip[key]) {
+          delete next.skip[key];
+          events.skipped.push(key);
+        } else if (grow(key)) {
+          events.levelUp = true;
+        }
+      }
+    }
+    return { plan: next, events };
+  }
+
+  return {
+    FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, ACTIVITY, PLAN_RULES, EXERCISE_KEYS,
+    isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, feedPost, routeDistanceKm, checkActivity,
+    stepSize, startTargets, newPlan, planOn, completePlanDay,
+  };
 });
