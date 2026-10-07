@@ -260,9 +260,11 @@
       }
     }
 
-    next.credit = eased.plan.credit + (rules.paces[next.pace] ?? rules.paces.regular);
-    if (next.credit >= 1 - 1e-9) {
-      next.credit -= 1;
+    // Rounded so repeated thirds can't drift (and can't dip below zero);
+    // three rounded thirds (0.999999) still count as a whole step.
+    next.credit = Math.round((eased.plan.credit + (rules.paces[next.pace] ?? rules.paces.regular)) * 1e6) / 1e6;
+    if (next.credit >= 1 - 1e-5) {
+      next.credit = Math.max(0, Math.round((next.credit - 1) * 1e6) / 1e6);
       for (const key of EXERCISE_KEYS) {
         if (next.skip[key]) {
           delete next.skip[key];
@@ -275,9 +277,66 @@
     return { plan: next, events };
   }
 
+  // Which exercises fall short of today's plan targets (empty = day done).
+  // A plank's total is its best single hold, same as everywhere else.
+  function planShortfalls(totals, targets) {
+    return EXERCISE_KEYS.filter((key) => (totals[key] || 0) < targets[key]);
+  }
+
+  // How many sets each exercise took today - "needed 3+ sets" holds a step.
+  function setCountsFromSets(sets) {
+    const counts = { pushups: 0, squats: 0, planks: 0 };
+    for (const set of sets) {
+      if (set.exercise === "pushup") counts.pushups++;
+      else if (set.exercise === "squat") counts.squats++;
+      else if (set.exercise === "plank") counts.planks++;
+    }
+    return counts;
+  }
+
+  // A brand-new plan for someone who had fixed minimums before plans
+  // existed: start from those (inside the floors and the ceiling), Regular
+  // pace - so nobody's day gets harder overnight.
+  function planFromMinimums(minimums, rules = PLAN_RULES) {
+    const targets = {};
+    for (const key of EXERCISE_KEYS) {
+      const asked = Math.round(Number(minimums && minimums[key]) || 0);
+      targets[key] = Math.min(rules.ceiling[key], Math.max(FLOORS[key], asked));
+    }
+    return newPlan("regular", targets);
+  }
+
+  // The plan <-> its player_plans database row.
+  function planFromRow(row) {
+    return {
+      pace: row.pace,
+      targets: { pushups: row.pushups, squats: row.squats, planks: row.planks },
+      start: { pushups: row.start_pushups, squats: row.start_squats, planks: row.start_planks },
+      credit: Number(row.credit) || 0,
+      skip: Object.fromEntries((row.skip || []).map((key) => [key, true])),
+      lastDay: row.last_day || null,
+    };
+  }
+  function planToRow(userId, plan) {
+    return {
+      user_id: userId,
+      pace: plan.pace,
+      pushups: plan.targets.pushups,
+      squats: plan.targets.squats,
+      planks: plan.targets.planks,
+      start_pushups: plan.start.pushups,
+      start_squats: plan.start.squats,
+      start_planks: plan.start.planks,
+      credit: plan.credit,
+      skip: EXERCISE_KEYS.filter((key) => plan.skip && plan.skip[key]),
+      last_day: plan.lastDay,
+    };
+  }
+
   return {
     FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, ACTIVITY, PLAN_RULES, EXERCISE_KEYS,
     isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, feedPost, routeDistanceKm, checkActivity,
     stepSize, startTargets, newPlan, planOn, completePlanDay,
+    planShortfalls, setCountsFromSets, planFromMinimums, planFromRow, planToRow,
   };
 });

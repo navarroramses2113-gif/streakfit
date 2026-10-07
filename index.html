@@ -16,7 +16,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. -->
@@ -288,6 +288,18 @@
          minimum can complete today. -->
     <div id="minimums-panel" class="settings-panel hidden">
       <p class="settings-title">Daily Minimums</p>
+      <!-- Signed in: the plan sets the three exercise targets and raises
+           them over time; the pace is the player's choice. -->
+      <div id="plan-pace-row" class="settings-row hidden">
+        <label for="plan-pace">Pace</label>
+        <select id="plan-pace">
+          <option value="easy">Easy</option>
+          <option value="regular">Regular</option>
+          <option value="serious">Serious</option>
+          <option value="intense">Intense</option>
+        </select>
+      </div>
+      <p id="plan-note" class="plan-note hidden">Your plan sets these and raises them as you complete days. A faster pace levels up more often.</p>
       <div class="settings-row">
         <label for="min-pushups">Push-ups</label>
         <input type="number" id="min-pushups" min="5" value="10">
@@ -702,9 +714,9 @@
   <!-- Supabase's client library - lets our JavaScript talk to our
        database and handle user accounts/login. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase/functions/_shared/game-rules.js?v=3"></script>
+  <script src="supabase/functions/_shared/game-rules.js?v=4"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=9"></script>
   <script src="camera-verify.js?v=8"></script>
-  <script src="script.js?v=11"></script>
+  <script src="script.js?v=12"></script>
 </body>
 </html>

@@ -31,6 +31,9 @@ let savingDay = false;
 let saveDayFailed = false;
 // A guest's first completed day earns a sign-up invite (inviteGuestToSignUp).
 let signupInvitePending = false;
+// A signed-in player's progressive overload plan, as the server keeps it
+// (see applyPlanTargets). Guests don't have one yet.
+let serverPlan = null;
 
 // `minimums.walkRun` is either a number of minutes (tracking enabled)
 // or null (not tracking walk/run at all).
@@ -504,7 +507,35 @@ function renderSettingsInputs() {
   minWalkrunEl.value = walkRunEnabled ? data.minimums.walkRun : 15;
   minWalkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
   distanceUnitsEl.value = data.units;
+
+  // With a plan, the three exercise targets are the plan's to set; the
+  // player picks the pace. Guests still set their own minimums.
+  const planned = !!(currentUserId && serverPlan);
+  [minPushupsEl, minPlanksEl, minSquatsEl].forEach((input) => (input.readOnly = planned));
+  document.getElementById("plan-pace-row").classList.toggle("hidden", !planned);
+  document.getElementById("plan-note").classList.toggle("hidden", !planned);
+  if (planned) document.getElementById("plan-pace").value = serverPlan.pace;
 }
+
+// Changing pace is saved by the server right away (it's the one part of
+// the plan a player chooses); the targets themselves don't jump - a faster
+// pace just levels up more often from here on.
+document.getElementById("plan-pace").addEventListener("change", async (event) => {
+  const select = event.target;
+  const statusEl = document.getElementById("minimums-status");
+  select.disabled = true;
+  const reply = await callServerFunction("plan", { pace: select.value });
+  select.disabled = false;
+  if (reply.ok && reply.plan) {
+    serverPlan = reply.plan;
+    statusEl.textContent = "Pace saved.";
+    statusEl.classList.add("success");
+  } else {
+    if (serverPlan) select.value = serverPlan.pace;
+    statusEl.textContent = "Couldn't change your pace. Check your connection and try again.";
+    statusEl.classList.remove("success");
+  }
+});
 
 const minimumsStatusEl = document.getElementById("minimums-status");
 
@@ -754,6 +785,32 @@ async function loadServerStats() {
   });
 }
 
+// A signed-in player's targets come from their plan on the server, which
+// raises them as days are completed. (The server starts a plan from the
+// minimums they already had the first time it's asked.)
+async function loadServerPlan() {
+  if (!currentUserId) return;
+  const reply = await callServerFunction("plan", {});
+  if (reply.ok && reply.plan) {
+    serverPlan = reply.plan;
+    applyPlanTargets();
+  }
+}
+
+// Today's minimums = the plan's targets for today, including any ease-back
+// for missed days (the same rules the server checks against). Once today
+// is logged they stay put, so the screen keeps showing what today asked
+// for rather than tomorrow's new numbers.
+function applyPlanTargets() {
+  if (!currentUserId || !serverPlan || !data) return;
+  if (data.lastLoggedDate === todayString()) return;
+  const targets = ForjaRules.planOn(serverPlan, todayString()).plan.targets;
+  data.minimums.pushups = targets.pushups;
+  data.minimums.planks = targets.planks;
+  data.minimums.squats = targets.squats;
+  renderMinTags();
+}
+
 // Today's totals for a signed-in player come from the sets the server
 // verified, not from anything stored on this device.
 async function refreshVerifiedProgress() {
@@ -791,6 +848,8 @@ async function saveCameraSet({ exercise, value, trace }) {
 
 // Updates everything visible on the page to match the current `data`.
 function render() {
+  // Keeps the targets right if the app stays open past midnight.
+  applyPlanTargets();
   streakCountEl.textContent = data.streak;
   bestStreakCountEl.textContent = data.bestStreak;
 
@@ -1147,7 +1206,7 @@ async function showApp(userId) {
   data = result.data;
   // The streak and today's verified totals belong to the server - pull
   // them in before the first draw so nothing shows a stale local copy.
-  await Promise.all([loadServerStats(), refreshVerifiedProgress()]);
+  await Promise.all([loadServerStats(), refreshVerifiedProgress(), loadServerPlan()]);
   revealApp();
   // Catches a day that hit its minimums but didn't get saved (no signal).
   maybeCompleteDay();
@@ -1251,6 +1310,7 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
 
   currentUserId = null;
   data = null;
+  serverPlan = null;
   // Nothing from the last account's Feed may linger for whoever signs in next.
   document.getElementById("feed-list").innerHTML = "";
 
@@ -1366,11 +1426,16 @@ async function maybeCompleteDay() {
       } else {
         saveDayFailed = true;
         errorMessageEl.textContent = serverErrorMessage(reply);
+        // The server's targets win (e.g. the plan moved on another device):
+        // fetch its plan so the screen shows what's still missing.
+        if (reply.error === "below_minimum") loadServerPlan();
       }
       render();
       return;
     }
     stats = reply.stats;
+    // The server moved the plan forward; tomorrow's targets come from it.
+    if (reply.plan) serverPlan = reply.plan;
   } else {
     stats = ForjaRules.nextStats(
       {

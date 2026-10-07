@@ -967,6 +967,20 @@ body {
   min-height: 20px;
 }
 
+.plan-note {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: left;
+  margin: 0 0 var(--space-sm);
+  line-height: 1.4;
+}
+
+/* Targets the plan sets can be read but not typed over. */
+.settings-row input[readonly] {
+  color: var(--text-secondary);
+  background: transparent;
+}
+
 /* The day just completed itself - the one line worth noticing. */
 #status-message.is-done {
   color: #22c55e;
