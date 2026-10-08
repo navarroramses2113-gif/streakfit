@@ -2346,22 +2346,31 @@ a.account-menu-item {
   background: transparent;
 }
 
+/* Drawn small like iOS's info icon (18px), with Apple's 44pt minimum tap
+   area around it (the invisible ::after) so it's still easy to hit. */
 .tip-btn {
+  position: relative;
   display: inline-grid;
   place-items: center;
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1;
   color: var(--text-muted);
   background: none;
-  border: 1.5px solid var(--text-muted);
+  border: 1.25px solid var(--text-muted);
   border-radius: 50%;
   cursor: pointer;
+}
+
+.tip-btn::after {
+  content: "";
+  position: absolute;
+  inset: -13px;
 }
 
 .tip-btn[aria-expanded="true"] {
@@ -2371,13 +2380,13 @@ a.account-menu-item {
 
 .tip-corner {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 12px;
+  right: 12px;
 }
 
 /* room for the corner ⓘ so it never touches the numbers */
 #plan-today-card {
-  padding-right: 40px;
+  padding-right: 34px;
 }
 
 .plan-tip {
