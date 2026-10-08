@@ -16,7 +16,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. -->
@@ -288,18 +288,6 @@
          minimum can complete today. -->
     <div id="minimums-panel" class="settings-panel hidden">
       <p class="settings-title">Daily Minimums</p>
-      <!-- Signed in: the plan sets the three exercise targets and raises
-           them over time; the pace is the player's choice. -->
-      <div id="plan-pace-row" class="settings-row hidden">
-        <label for="plan-pace">Pace</label>
-        <select id="plan-pace">
-          <option value="easy">Easy</option>
-          <option value="regular">Regular</option>
-          <option value="serious">Serious</option>
-          <option value="intense">Intense</option>
-        </select>
-      </div>
-      <p id="plan-note" class="plan-note hidden">Your plan sets these and raises them as you complete days. A faster pace levels up more often.</p>
       <div class="settings-row">
         <label for="min-pushups">Push-ups</label>
         <input type="number" id="min-pushups" min="5" value="10">
@@ -378,6 +366,51 @@
     </div>
 
     <button id="account-screen-close-button" class="tracking-cancel-button full-width-button">Close</button>
+  </main>
+
+  <!-- My Plan: a signed-in player's progressive overload plan. Deliberately
+       minimal - the numbers and the choices; each ⓘ explains its part. -->
+  <main id="my-plan-screen" class="card hidden">
+    <button id="my-plan-back" class="nav-back" aria-label="Back to Account">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Account
+    </button>
+    <h1 class="large-title">My Plan</h1>
+
+    <div class="plan-card" id="plan-today-card">
+      <button class="tip-btn tip-corner" data-tip="today" aria-label="About your targets" aria-expanded="false">i</button>
+      <p id="plan-today-label" class="plan-mini-label hidden">Tomorrow</p>
+      <div class="plan-targets" id="plan-targets"></div>
+      <p id="plan-eased" class="plan-eased hidden">Eased back a little. Welcome back!</p>
+    </div>
+
+    <div class="plan-card" id="plan-levelup-card">
+      <div class="plan-title-row"><b id="plan-levelup-title"></b><button class="tip-btn" data-tip="levelup" aria-label="How leveling up works" aria-expanded="false">i</button></div>
+      <div class="plan-bar" id="plan-bar" role="progressbar" aria-label="Progress to the next level-up" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+      <div class="plan-next" id="plan-next"></div>
+    </div>
+
+    <div class="plan-pace-wrap" id="plan-pace-card">
+      <div class="plan-pace" id="plan-pace" role="radiogroup" aria-label="Pace">
+        <button role="radio" data-pace="easy">Easy</button>
+        <button role="radio" data-pace="regular">Regular</button>
+        <button role="radio" data-pace="serious">Serious</button>
+        <button role="radio" data-pace="intense">Intense</button>
+      </div>
+      <p class="plan-pace-line"><span id="plan-pace-line"></span><button class="tip-btn" data-tip="pace" aria-label="About pace" aria-expanded="false">i</button></p>
+    </div>
+
+    <div class="plan-card" id="plan-walk-card">
+      <div class="plan-title-row">
+        <span class="plan-title-row"><b>Walk or run</b><button class="tip-btn" data-tip="walk" aria-label="About walk or run" aria-expanded="false">i</button></span>
+        <button id="plan-walk-switch" class="plan-switch" role="switch" aria-checked="false" aria-label="Daily walk or run"></button>
+      </div>
+      <div class="plan-chips hidden" id="plan-walk-minutes" role="radiogroup" aria-label="Minutes a day">
+        <button role="radio" data-minutes="10">10 min</button>
+        <button role="radio" data-minutes="15">15 min</button>
+        <button role="radio" data-minutes="20">20 min</button>
+        <button role="radio" data-minutes="30">30 min</button>
+      </div>
+    </div>
   </main>
 
   <!-- Shown exactly once, right after a brand new account's first ever
@@ -714,9 +747,9 @@
   <!-- Supabase's client library - lets our JavaScript talk to our
        database and handle user accounts/login. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase/functions/_shared/game-rules.js?v=4"></script>
+  <script src="supabase/functions/_shared/game-rules.js?v=5"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=9"></script>
   <script src="camera-verify.js?v=8"></script>
-  <script src="script.js?v=12"></script>
+  <script src="script.js?v=13"></script>
 </body>
 </html>

@@ -277,6 +277,24 @@
     return { plan: next, events };
   }
 
+  const addDays = (day, n) => new Date(Date.parse(day + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+
+  // When the next level-up comes (counting `day` as the first day) and what
+  // it brings, found by living the coming days exactly on target with these
+  // same rules - so held steps and the ceiling are always right. null when
+  // every target is at the ceiling (the plan just maintains).
+  function nextLevelUp(plan, day, rules = PLAN_RULES) {
+    let sim = plan;
+    for (let i = 0; i < 12; i++) {
+      const d = addDays(day, i);
+      const target = planOn(sim, d, rules).plan.targets;
+      const out = completePlanDay(sim, d, { totals: target, sets: { pushups: 1, squats: 1, planks: 1 } }, rules);
+      if (out.events.levelUp || out.events.skipped.length) return { inDays: i + 1, targets: out.plan.targets, held: out.events.skipped };
+      sim = out.plan;
+    }
+    return null;
+  }
+
   // Which exercises fall short of today's plan targets (empty = day done).
   // A plank's total is its best single hold, same as everywhere else.
   function planShortfalls(totals, targets) {
@@ -337,6 +355,6 @@
     FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, ACTIVITY, PLAN_RULES, EXERCISE_KEYS,
     isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, feedPost, routeDistanceKm, checkActivity,
     stepSize, startTargets, newPlan, planOn, completePlanDay,
-    planShortfalls, setCountsFromSets, planFromMinimums, planFromRow, planToRow,
+    planShortfalls, setCountsFromSets, planFromMinimums, planFromRow, planToRow, nextLevelUp, addDays,
   };
 });

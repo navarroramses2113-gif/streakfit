@@ -360,6 +360,11 @@ distanceUnitsEl.addEventListener("change", () => {
 });
 
 document.getElementById("open-minimums-button").addEventListener("click", () => {
+  // Signed in, this menu item is "My Plan"; guests set their own minimums.
+  if (currentUserId) {
+    openMyPlan();
+    return;
+  }
   showOnlyPanel(minimumsPanelEl);
   minimumsPanelEl.classList.toggle("hidden");
   if (!minimumsPanelEl.classList.contains("hidden")) {
@@ -492,6 +497,17 @@ function renderMinTags() {
   if (data.minimums.walkRun !== null) {
     walkrunMinTagEl.textContent = `min ${data.minimums.walkRun}`;
   }
+  // Signed in, the targets come from My Plan - tapping one opens it.
+  [pushupsMinTagEl, planksMinTagEl, squatsMinTagEl].forEach((tag) => {
+    tag.classList.toggle("is-link", !!currentUserId);
+    if (currentUserId) {
+      tag.setAttribute("role", "button");
+      tag.setAttribute("tabindex", "0");
+    } else {
+      tag.removeAttribute("role");
+      tag.removeAttribute("tabindex");
+    }
+  });
 }
 
 // The Daily Minimums section now lives permanently in the "Me" tab, so
@@ -507,35 +523,7 @@ function renderSettingsInputs() {
   minWalkrunEl.value = walkRunEnabled ? data.minimums.walkRun : 15;
   minWalkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
   distanceUnitsEl.value = data.units;
-
-  // With a plan, the three exercise targets are the plan's to set; the
-  // player picks the pace. Guests still set their own minimums.
-  const planned = !!(currentUserId && serverPlan);
-  [minPushupsEl, minPlanksEl, minSquatsEl].forEach((input) => (input.readOnly = planned));
-  document.getElementById("plan-pace-row").classList.toggle("hidden", !planned);
-  document.getElementById("plan-note").classList.toggle("hidden", !planned);
-  if (planned) document.getElementById("plan-pace").value = serverPlan.pace;
 }
-
-// Changing pace is saved by the server right away (it's the one part of
-// the plan a player chooses); the targets themselves don't jump - a faster
-// pace just levels up more often from here on.
-document.getElementById("plan-pace").addEventListener("change", async (event) => {
-  const select = event.target;
-  const statusEl = document.getElementById("minimums-status");
-  select.disabled = true;
-  const reply = await callServerFunction("plan", { pace: select.value });
-  select.disabled = false;
-  if (reply.ok && reply.plan) {
-    serverPlan = reply.plan;
-    statusEl.textContent = "Pace saved.";
-    statusEl.classList.add("success");
-  } else {
-    if (serverPlan) select.value = serverPlan.pace;
-    statusEl.textContent = "Couldn't change your pace. Check your connection and try again.";
-    statusEl.classList.remove("success");
-  }
-});
 
 const minimumsStatusEl = document.getElementById("minimums-status");
 
@@ -570,6 +558,197 @@ saveMinimumsEl.addEventListener("click", () => {
 // never claims unsaved edits are saved.
 minimumsPanelEl.addEventListener("input", () => {
   minimumsStatusEl.textContent = "";
+});
+
+// ---------- My Plan ----------
+// A signed-in player's plan, kept minimal: today's targets, the next
+// level-up, pace and walk/run. Every number comes from the same rules the
+// server uses (ForjaRules), so what's shown is exactly what will be checked.
+// Each ⓘ opens one short tip; any tap closes it.
+
+const PACE_LINES = {
+  easy: "Levels up every 4th day",
+  regular: "Levels up every 3rd day",
+  serious: "Levels up every 2nd day",
+  intense: "Levels up 2 of every 3 days",
+};
+const PLAN_TIPS = {
+  today: "Set by your plan. Reps add up across all your sets; the plank is your best single hold.",
+  levelup: 'Every few days you complete, your targets go up a little. Do <b>50% more</b> for a bonus step. If a day takes 3+ sets, that exercise holds (shown in <span class="amber">amber</span>). Miss 2+ days and they ease back.',
+  pace: "How often you level up: Easy every 4th day, Regular every 3rd, Serious every 2nd, Intense 2 of every 3. Today's targets don't change.",
+  walk: "Track it on the Record tab. Minutes stay the same; they don't level up.",
+};
+const PLAN_EXERCISES = [
+  { key: "pushups", name: "Push-ups", color: "var(--ring-pushups)" },
+  { key: "squats", name: "Squats", color: "var(--ring-squats)" },
+  { key: "planks", name: "Plank", color: "var(--ring-planks)" },
+];
+const planValue = (key, value) => (key === "planks" ? formatDuration(value * 1000) : String(value));
+let paceMessageTimer = null;
+
+async function openMyPlan() {
+  if (!serverPlan) await loadServerPlan();
+  if (!serverPlan) {
+    // No signal and no plan yet: the plain minimums are better than nothing.
+    showScreen("account-screen");
+    showOnlyPanel(minimumsPanelEl);
+    minimumsPanelEl.classList.remove("hidden");
+    renderSettingsInputs();
+    return;
+  }
+  closePlanTip();
+  renderMyPlan();
+  showScreen("my-plan-screen");
+}
+
+function renderMyPlan() {
+  if (!serverPlan || !data) return;
+  // Once today is logged the plan already looks ahead, so show tomorrow.
+  const today = todayString();
+  const doneToday = data.lastLoggedDate === today;
+  const day = doneToday ? ForjaRules.addDays(today, 1) : today;
+  const on = ForjaRules.planOn(serverPlan, day);
+
+  document.getElementById("plan-today-label").classList.toggle("hidden", !doneToday);
+  const targetsEl = document.getElementById("plan-targets");
+  targetsEl.innerHTML = "";
+  PLAN_EXERCISES.forEach((ex) => {
+    const cell = document.createElement("div");
+    const value = document.createElement("div");
+    value.className = "plan-target-value";
+    value.textContent = planValue(ex.key, on.plan.targets[ex.key]);
+    const name = document.createElement("div");
+    name.className = "plan-target-name";
+    name.innerHTML = `<i style="background:${ex.color}"></i>`;
+    name.append(ex.name);
+    cell.append(value, name);
+    targetsEl.appendChild(cell);
+  });
+  document.getElementById("plan-eased").classList.toggle("hidden", !(on.easedSteps && on.missed >= 2));
+
+  const next = ForjaRules.nextLevelUp(serverPlan, day);
+  const titleEl = document.getElementById("plan-levelup-title");
+  const barEl = document.getElementById("plan-bar");
+  const nextEl = document.getElementById("plan-next");
+  barEl.classList.toggle("hidden", !next);
+  nextEl.classList.toggle("hidden", !next);
+  if (!next) {
+    titleEl.textContent = "Maintaining your level";
+  } else {
+    titleEl.textContent = next.inDays > 1 ? `Level up in ${next.inDays} days` : doneToday ? "Level up after tomorrow" : "Level up after today";
+    const percent = Math.round(Math.min(1, on.plan.credit) * 100);
+    barEl.setAttribute("aria-valuenow", String(percent));
+    barEl.querySelector("i").style.width = `${percent}%`;
+    nextEl.innerHTML = "";
+    PLAN_EXERCISES.forEach((ex, i) => {
+      if (i) {
+        const sep = document.createElement("span");
+        sep.className = "sep";
+        sep.textContent = "·";
+        nextEl.appendChild(sep);
+      }
+      const span = document.createElement("span");
+      span.textContent = planValue(ex.key, next.targets[ex.key]);
+      span.classList.toggle("held", next.held.includes(ex.key));
+      nextEl.appendChild(span);
+    });
+  }
+
+  document.querySelectorAll("#plan-pace [data-pace]").forEach((button) => {
+    button.setAttribute("aria-checked", String(button.dataset.pace === serverPlan.pace));
+  });
+  if (!paceMessageTimer) document.getElementById("plan-pace-line").textContent = PACE_LINES[serverPlan.pace] || "";
+
+  const walkOn = data.minimums.walkRun !== null;
+  document.getElementById("plan-walk-switch").setAttribute("aria-checked", String(walkOn));
+  document.getElementById("plan-walk-minutes").classList.toggle("hidden", !walkOn);
+  document.querySelectorAll("#plan-walk-minutes [data-minutes]").forEach((button) => {
+    button.setAttribute("aria-checked", String(walkOn && Number(button.dataset.minutes) === data.minimums.walkRun));
+  });
+}
+
+function showPaceMessage(text) {
+  clearTimeout(paceMessageTimer);
+  document.getElementById("plan-pace-line").textContent = text;
+  paceMessageTimer = setTimeout(() => {
+    paceMessageTimer = null;
+    renderMyPlan();
+  }, 1600);
+}
+
+// Pace is the one part of the plan a player chooses; the server saves it.
+// Today's targets don't jump - a faster pace just levels up more often.
+document.getElementById("plan-pace").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-pace]");
+  if (!button || !serverPlan || button.dataset.pace === serverPlan.pace) return;
+  const previous = serverPlan;
+  serverPlan = { ...serverPlan, pace: button.dataset.pace };
+  renderMyPlan();
+  const reply = await callServerFunction("plan", { pace: button.dataset.pace });
+  if (reply.ok && reply.plan) {
+    serverPlan = reply.plan;
+    showPaceMessage("Pace saved.");
+  } else {
+    serverPlan = previous;
+    showPaceMessage("Couldn't change your pace. Try again.");
+  }
+  renderMyPlan();
+});
+
+// Walk/run minutes are the player's own (they don't level up), saved on tap.
+function setWalkRun(minutes) {
+  data.minimums.walkRun = minutes;
+  saveData(data);
+  renderMinTags();
+  render();
+  renderMyPlan();
+  // Turning walk/run off (or lowering it) can complete today.
+  maybeCompleteDay();
+}
+document.getElementById("plan-walk-switch").addEventListener("click", () => {
+  setWalkRun(data.minimums.walkRun === null ? 15 : null);
+});
+document.getElementById("plan-walk-minutes").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-minutes]");
+  if (button) setWalkRun(Number(button.dataset.minutes));
+});
+
+document.getElementById("my-plan-back").addEventListener("click", () => {
+  closePlanTip();
+  showScreen("account-screen");
+});
+
+// Tapping a "min" tag on Today opens My Plan (signed in).
+[pushupsMinTagEl, planksMinTagEl, squatsMinTagEl].forEach((tag) => {
+  const open = () => currentUserId && openMyPlan();
+  tag.addEventListener("click", open);
+  tag.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      open();
+    }
+  });
+});
+
+// ⓘ tips: one open at a time, inside the card it explains.
+let openTipId = null;
+function closePlanTip() {
+  document.querySelectorAll(".plan-tip").forEach((tip) => tip.remove());
+  document.querySelectorAll("#my-plan-screen .tip-btn").forEach((button) => button.setAttribute("aria-expanded", "false"));
+  openTipId = null;
+}
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("#my-plan-screen .tip-btn");
+  const wasOpen = openTipId;
+  if (openTipId) closePlanTip();
+  if (!button || wasOpen === button.dataset.tip) return;
+  const tip = document.createElement("div");
+  tip.className = "plan-tip";
+  tip.setAttribute("role", "note");
+  tip.innerHTML = PLAN_TIPS[button.dataset.tip];
+  button.closest(".plan-card, .plan-pace-wrap").appendChild(tip);
+  button.setAttribute("aria-expanded", "true");
+  openTipId = button.dataset.tip;
 });
 
 // STEP 2c: Push notification reminders. Requires an account (subscriptions
@@ -1173,7 +1352,7 @@ function hideSplash() {
 // "hide this one" line added into every other show-a-different-screen
 // function (which is exactly how the reset-password screen almost got
 // left out of revealApp() below).
-const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "reminder-setup-screen", "camera-screen"];
+const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "my-plan-screen", "reminder-setup-screen", "camera-screen"];
 
 function showScreen(idToShow) {
   SCREEN_IDS.forEach((id) => {
@@ -1255,6 +1434,7 @@ function showAppAsGuest() {
 // Shows/hides the right button at the bottom of the Me tab depending on
 // whether you're logged in or just browsing as a guest.
 function updateMeTabAuthSection() {
+  document.querySelector("#open-minimums-button span").textContent = currentUserId ? "My Plan" : "Daily Minimums";
   document.getElementById("log-out-button").classList.toggle("hidden", !currentUserId);
   document.getElementById("guest-signup-button").classList.toggle("hidden", !!currentUserId);
   // Editing/sharing a profile only makes sense for a real account - a

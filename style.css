@@ -967,20 +967,6 @@ body {
   min-height: 20px;
 }
 
-.plan-note {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  text-align: left;
-  margin: 0 0 var(--space-sm);
-  line-height: 1.4;
-}
-
-/* Targets the plan sets can be read but not typed over. */
-.settings-row input[readonly] {
-  color: var(--text-secondary);
-  background: transparent;
-}
-
 /* The day just completed itself - the one line worth noticing. */
 #status-message.is-done {
   color: #22c55e;
@@ -2122,4 +2108,315 @@ a.account-menu-item {
 
 .auth-legal a {
   color: var(--text-secondary);
+}
+/* ---------- My Plan ---------- */
+/* Deliberately minimal: today's targets, the next level-up, pace, walk/run.
+   Each ⓘ opens one short tip bubble that any tap closes. */
+.nav-back {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: fit-content;
+  /* auto on the right pins it to the left, like an iPhone back button */
+  margin: 0 auto var(--space-sm) -6px;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #22c55e;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.nav-back svg {
+  width: 22px;
+  height: 22px;
+}
+
+#my-plan-screen .large-title {
+  margin-bottom: var(--space-md);
+}
+
+.plan-card,
+.plan-pace-wrap {
+  position: relative;
+  margin-bottom: var(--space-md);
+  text-align: left;
+}
+
+.plan-card {
+  padding: var(--space-md);
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.plan-targets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-xs);
+  text-align: center;
+}
+
+.plan-target-value {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.plan-target-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.plan-target-name i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.plan-mini-label {
+  margin: 0 0 var(--space-xs);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.plan-eased {
+  margin: var(--space-sm) 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.plan-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.plan-title-row b {
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.plan-bar {
+  height: 12px;
+  margin: 12px 0;
+  border-radius: 99px;
+  background: var(--control-bg);
+  overflow: hidden;
+}
+
+.plan-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: #22c55e;
+  transition: width 0.4s ease;
+}
+
+.plan-next {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #22c55e;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-next .sep {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.plan-next .held {
+  color: #f59e0b;
+}
+
+.plan-pace {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.plan-pace button {
+  padding: 10px 2px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.plan-pace button[aria-checked="true"] {
+  color: white;
+  background: #22c55e;
+}
+
+.plan-pace-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  min-height: 24px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.plan-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 51px;
+  height: 31px;
+  padding: 0;
+  border: none;
+  border-radius: 99px;
+  background: var(--control-bg);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.plan-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 4px #0000004d;
+  transition: transform 0.2s;
+}
+
+.plan-switch[aria-checked="true"] {
+  background: #22c55e;
+}
+
+.plan-switch[aria-checked="true"]::after {
+  transform: translateX(20px);
+}
+
+.plan-chips {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.plan-chips button {
+  padding: 8px 2px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--control-bg);
+  border: 2px solid transparent;
+  border-radius: 99px;
+  cursor: pointer;
+}
+
+.plan-chips button[aria-checked="true"] {
+  color: var(--ring-walkrun);
+  border-color: var(--ring-walkrun);
+  background: transparent;
+}
+
+.tip-btn {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-muted);
+  background: none;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.tip-btn[aria-expanded="true"] {
+  color: #22c55e;
+  border-color: #22c55e;
+}
+
+.tip-corner {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+/* room for the corner ⓘ so it never touches the numbers */
+#plan-today-card {
+  padding-right: 40px;
+}
+
+.plan-tip {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: calc(100% - 6px);
+  z-index: 20;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: left;
+  color: var(--text-primary);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 30px #00000059;
+}
+
+.plan-tip b {
+  color: #22c55e;
+}
+
+.plan-tip .amber {
+  color: #f59e0b;
+  font-weight: 800;
+}
+
+/* On Today, a signed-in player's "min" tags open My Plan. */
+.min-tag.is-link {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-bar i,
+  .plan-switch,
+  .plan-switch::after {
+    transition: none;
+  }
 }
