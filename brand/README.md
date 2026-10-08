@@ -1,0 +1,17 @@
+# Forja logo
+
+The mark is the daily ring: three arcs (push-ups red, plank yellow, squats teal) with a gap at the top.
+
+| File | Use it for |
+| --- | --- |
+| `forja-mark.svg` | The ring alone, any size, transparent. Websites, documents, anything that takes SVG. |
+| `forja-mark-1024.png` | The ring alone as a PNG, transparent. |
+| `forja-app-icon-1024.png` | The App Store icon (square, no transparency; iOS rounds the corners). |
+| `forja-app-icon-light-1024.png` | The same on white. |
+| `forja-icon-dark.svg` / `forja-icon-light.svg` | The square icon as SVG. |
+| `forja-avatar-800.png` | Profile pictures (Instagram, TikTok, X) - fits a circle crop. |
+| `forja-lockup-on-dark.png` | Ring + "Forja", white text, for dark backgrounds. |
+| `forja-lockup-on-light.png` | Ring + "Forja", dark text, for light backgrounds. |
+
+Colors: red `#ff5a5f`, yellow `#ffc233`, teal `#2dd4bf`, icon background `#141417`.
+Wordmark font: Archivo ExtraBold (800), free on Google Fonts.
