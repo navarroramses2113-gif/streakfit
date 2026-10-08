@@ -1244,104 +1244,237 @@ function renderHeatmap() {
   }
 }
 
-// Weekly distance line chart - a single series (your own distance), so
-// one consistent color throughout and no legend needed. Aggregates
-// data.routes (every KEPT route) into 8 weekly totals, oldest to newest,
-// matching the heatmap's 8-week window.
+// The Me tab's distance chart: walk/run distance as bars for this week, this
+// month, the last 6 months or this year, like the Health app. One series,
+// one color. The headline shows the total; tapping or dragging across the
+// bars shows a single bar's number instead.
+const DISTANCE_RANGES = ["W", "M", "6M", "Y"];
+const DISTANCE_RANGE_KEY = "forja-distance-range";
+let distanceRange = "W";
+try {
+  if (DISTANCE_RANGES.includes(localStorage.getItem(DISTANCE_RANGE_KEY))) distanceRange = localStorage.getItem(DISTANCE_RANGE_KEY);
+} catch (e) {
+  // storage blocked - starts on Week
+}
+let distanceBuckets = [];
+let distanceSelected = null; // the tapped bar's index, or null for the total
 
-function weeklyDistanceBuckets() {
-  const WEEKS = 8;
+function startOfWeek(date) {
+  const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return monday;
+}
+
+function plusDays(date, n) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + n);
+  return next;
+}
+
+const shortDate = (date, extra = {}) => date.toLocaleDateString(undefined, { month: "short", day: "numeric", ...extra });
+
+// One bucket per bar: its first and last day, the label under it, what the
+// headline says when it's tapped, and the distance walked/run in it.
+function buildDistanceBuckets(range) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const buckets = [];
-
-  for (let weeksAgo = WEEKS - 1; weeksAgo >= 0; weeksAgo--) {
-    const weekEnd = new Date();
-    weekEnd.setDate(weekEnd.getDate() - weeksAgo * 7);
-    const weekStart = new Date(weekEnd);
-    weekStart.setDate(weekStart.getDate() - 6);
-
-    const weekStartStr = dateToString(weekStart);
-    const weekEndStr = dateToString(weekEnd);
-
-    // "YYYY-MM-DD" strings compare correctly with plain >= / <= since
-    // that format sorts the same alphabetically as chronologically.
-    const distanceKm = data.routes
-      .filter((entry) => entry.date >= weekStartStr && entry.date <= weekEndStr)
-      .reduce((total, entry) => total + entry.distanceKm, 0);
-
-    buckets.push({ weekStartStr, weekEndStr, distanceKm });
+  if (range === "W") {
+    const monday = startOfWeek(today);
+    for (let i = 0; i < 7; i++) {
+      const day = plusDays(monday, i);
+      buckets.push({ start: day, end: day, label: ["M", "T", "W", "T", "F", "S", "S"][i], title: day.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) });
+    }
+  } else if (range === "M") {
+    const first = new Date(today.getFullYear(), today.getMonth(), 1);
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    for (let i = 0; i < daysInMonth; i++) {
+      const day = plusDays(first, i);
+      buckets.push({ start: day, end: day, label: [1, 8, 15, 22, 29].includes(i + 1) ? String(i + 1) : "", title: day.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) });
+    }
+  } else if (range === "6M") {
+    const thisWeek = startOfWeek(today);
+    for (let i = 25; i >= 0; i--) {
+      const start = plusDays(thisWeek, -7 * i);
+      const newMonth = i === 25 || start.getMonth() !== plusDays(start, -7).getMonth();
+      buckets.push({ start, end: plusDays(start, 6), label: newMonth ? start.toLocaleDateString(undefined, { month: "narrow" }) : "", title: "Week of " + shortDate(start) });
+    }
+  } else {
+    for (let month = 0; month < 12; month++) {
+      const start = new Date(today.getFullYear(), month, 1);
+      buckets.push({ start, end: new Date(today.getFullYear(), month + 1, 0), label: start.toLocaleDateString(undefined, { month: "narrow" }), title: start.toLocaleDateString(undefined, { month: "long" }) });
+    }
   }
 
+  for (const bucket of buckets) {
+    const from = dateToString(bucket.start);
+    const to = dateToString(bucket.end);
+    const routes = data.routes.filter((route) => route.date >= from && route.date <= to);
+    const km = routes.reduce((total, route) => total + route.distanceKm, 0);
+    bucket.value = data.units === "km" ? km : milesFromKm(km);
+    bucket.count = routes.length;
+    bucket.future = bucket.start > today;
+  }
   return buckets;
 }
 
-function renderDistanceChart() {
-  const svg = document.getElementById("distance-chart");
-  const detailEl = document.getElementById("distance-chart-detail");
-  svg.innerHTML = "";
-
-  const buckets = weeklyDistanceBuckets();
-  const values = buckets.map((b) => (data.units === "km" ? b.distanceKm : milesFromKm(b.distanceKm)));
-  const maxValue = Math.max(...values, 1); // avoids dividing by zero when nothing's been tracked yet
-
-  const chartWidth = 130;
-  const chartHeight = 100;
-  const topPadding = 10;
-  const bottomPadding = 15;
-  const plotHeight = chartHeight - topPadding - bottomPadding;
-  const stepX = chartWidth / (buckets.length - 1);
-
-  const points = values.map((value, index) => ({
-    x: index * stepX,
-    y: topPadding + plotHeight - (value / maxValue) * plotHeight,
-  }));
-
-  // SVG elements need to be created with this special "namespace"
-  // method (createElementNS), not the regular createElement we use
-  // everywhere else - plain HTML elements don't need one, but SVG does.
-  const SVG_NS = "http://www.w3.org/2000/svg";
-
-  const baseline = document.createElementNS(SVG_NS, "line");
-  baseline.setAttribute("x1", "0");
-  baseline.setAttribute("x2", String(chartWidth));
-  baseline.setAttribute("y1", String(chartHeight - bottomPadding));
-  baseline.setAttribute("y2", String(chartHeight - bottomPadding));
-  baseline.setAttribute("class", "distance-chart-baseline");
-  svg.appendChild(baseline);
-
-  const polyline = document.createElementNS(SVG_NS, "polyline");
-  polyline.setAttribute("points", points.map((p) => `${p.x},${p.y}`).join(" "));
-  polyline.setAttribute("class", "distance-chart-line");
-  svg.appendChild(polyline);
-
-  function showWeekDetail(bucket, value) {
-    const label = new Date(bucket.weekStartStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    detailEl.textContent = `Week of ${label}: ${value.toFixed(1)} ${distanceUnitLabel()}`;
+// What the whole range covers, under the total ("Oct 6 – 12, 2026").
+function distanceRangeText(range, buckets) {
+  const first = buckets[0].start;
+  const last = buckets[buckets.length - 1].end;
+  if (range === "W") {
+    const format = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+    // formatRange writes it the way the phone does ("Oct 5 – 11, 2026").
+    return format.formatRange ? format.formatRange(first, last) : `${shortDate(first)} – ${shortDate(last, { year: "numeric" })}`;
   }
+  if (range === "M") return first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  if (range === "6M") return `${first.toLocaleDateString(undefined, { month: "short" })} – ${new Date().toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
+  return String(first.getFullYear());
+}
 
-  points.forEach((point, index) => {
-    const dot = document.createElementNS(SVG_NS, "circle");
-    dot.setAttribute("cx", String(point.x));
-    dot.setAttribute("cy", String(point.y));
-    dot.setAttribute("r", "2.5");
-    dot.setAttribute("class", "distance-chart-dot");
-    svg.appendChild(dot);
+const formatChartDistance = (value) => (value === 0 ? "0" : value < 100 ? value.toFixed(1) : String(Math.round(value)));
+// Grid numbers drop a needless ".0" (5, 2.5, 0.25).
+const formatChartAxis = (value) => String(Number(value.toFixed(2)));
 
-    // A bigger invisible circle on top of the visible dot - an actual
-    // 5px-wide dot is too small to reliably tap on a phone, so the real
-    // click target is larger than what you see.
-    const hitArea = document.createElementNS(SVG_NS, "circle");
-    hitArea.setAttribute("cx", String(point.x));
-    hitArea.setAttribute("cy", String(point.y));
-    hitArea.setAttribute("r", "9");
-    hitArea.setAttribute("class", "distance-chart-hit");
-    hitArea.addEventListener("click", () => showWeekDetail(buckets[index], values[index]));
-    svg.appendChild(hitArea);
+// A round number just above the biggest bar, for the top grid line. Each
+// choice halves to a round number too, for the middle line.
+function niceChartMax(max) {
+  if (max <= 0) return 1;
+  const power = 10 ** Math.floor(Math.log10(max));
+  const step = [1, 2, 3, 4, 5, 6, 8, 10].find((n) => n * power >= max - 1e-9);
+  return step * power;
+}
+
+// Rebuilds the bars (a new range, new routes, other units). The bars grow
+// up from the baseline each time.
+function renderDistanceChart() {
+  const chart = document.getElementById("distance-chart");
+  if (!data) return;
+  distanceBuckets = buildDistanceBuckets(distanceRange);
+  if (distanceSelected !== null && (distanceSelected >= distanceBuckets.length || distanceBuckets[distanceSelected].future)) distanceSelected = null;
+  const top = niceChartMax(Math.max(...distanceBuckets.map((bucket) => bucket.value)));
+
+  chart.dataset.range = distanceRange;
+  chart.innerHTML = `
+    <div class="dc-plot">
+      ${[1, 0.5, 0].map((share) => `<div class="dc-grid${share === 0 ? " dc-baseline" : ""}" style="bottom:${share * 100}%"><span>${formatChartAxis(top * share)}</span></div>`).join("")}
+      <div class="dc-bars">${distanceBuckets.map((bucket, i) => `<div class="dc-slot" data-index="${i}"><div class="dc-bar"></div></div>`).join("")}</div>
+    </div>
+    <div class="dc-labels" aria-hidden="true">${distanceBuckets.map((bucket) => `<span>${bucket.label}</span>`).join("")}</div>`;
+
+  void chart.offsetHeight; // start from zero height, so the change animates
+  chart.querySelectorAll(".dc-bar").forEach((bar, i) => {
+    const value = distanceBuckets[i].value;
+    // Any distance at all shows as at least a sliver.
+    bar.style.height = value > 0 ? Math.max(1.5, (value / top) * 100) + "%" : "0";
   });
 
-  // Show the most recent week's stats by default, so this line isn't
-  // just blank until you tap something.
-  showWeekDetail(buckets[buckets.length - 1], values[values.length - 1]);
+  document.querySelectorAll("#distance-range button").forEach((button) => {
+    button.setAttribute("aria-checked", String(button.dataset.range === distanceRange));
+  });
+  updateDistanceSummary();
 }
+
+// The headline: the range's total, or the tapped bar.
+function updateDistanceSummary() {
+  const chart = document.getElementById("distance-chart");
+  const unit = distanceUnitLabel();
+  const total = distanceBuckets.reduce((sum, bucket) => sum + bucket.value, 0);
+  const picked = distanceSelected === null ? null : distanceBuckets[distanceSelected];
+
+  document.getElementById("distance-summary-label").textContent = picked ? picked.title : "Total";
+  document.getElementById("distance-summary-value").textContent = formatChartDistance(picked ? picked.value : total);
+  document.getElementById("distance-summary-unit").textContent = unit;
+  document.getElementById("distance-summary-sub").textContent = picked
+    ? picked.count === 1 ? "1 walk or run" : `${picked.count} walks or runs`
+    : distanceRangeText(distanceRange, distanceBuckets);
+
+  chart.classList.toggle("has-selection", !!picked);
+  chart.querySelectorAll(".dc-slot").forEach((slot, i) => slot.classList.toggle("selected", i === distanceSelected));
+  chart.setAttribute("aria-label", `Distance, ${distanceRangeText(distanceRange, distanceBuckets)}: ${formatChartDistance(total)} ${unit}`);
+}
+
+function selectDistanceBar(index) {
+  if (index !== null && (index < 0 || index >= distanceBuckets.length || distanceBuckets[index].future)) return;
+  distanceSelected = index;
+  updateDistanceSummary();
+}
+
+document.querySelectorAll("#distance-range button").forEach((button) => {
+  button.addEventListener("click", () => {
+    distanceRange = button.dataset.range;
+    distanceSelected = null;
+    try {
+      localStorage.setItem(DISTANCE_RANGE_KEY, distanceRange);
+    } catch (e) {
+      // not remembered next time
+    }
+    renderDistanceChart();
+  });
+});
+
+// Touch a bar to read it; slide along to read the others. Tapping the
+// bar that's already showing goes back to the total.
+(function wireDistanceChart() {
+  const chart = document.getElementById("distance-chart");
+  let pressing = false;
+  let moved = false;
+  let wasSelected = false;
+
+  const barAt = (x) => {
+    const slots = [...chart.querySelectorAll(".dc-slot")];
+    let best = null;
+    let bestGap = Infinity;
+    slots.forEach((slot, i) => {
+      if (distanceBuckets[i].future) return;
+      const rect = slot.getBoundingClientRect();
+      const gap = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0;
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = i;
+      }
+    });
+    return best;
+  };
+
+  chart.addEventListener("pointerdown", (event) => {
+    const index = barAt(event.clientX);
+    if (index === null) return;
+    pressing = true;
+    moved = false;
+    wasSelected = index === distanceSelected;
+    selectDistanceBar(index);
+  });
+  chart.addEventListener("pointermove", (event) => {
+    if (!pressing) return;
+    const index = barAt(event.clientX);
+    if (index !== null && index !== distanceSelected) {
+      moved = true;
+      selectDistanceBar(index);
+    }
+  });
+  window.addEventListener("pointerup", () => {
+    if (pressing && !moved && wasSelected) selectDistanceBar(null);
+    pressing = false;
+  });
+  // The page took over (a scroll) - keep whatever bar is showing.
+  window.addEventListener("pointercancel", () => {
+    pressing = false;
+  });
+
+  // Keyboard: arrows move between bars, Escape goes back to the total.
+  chart.addEventListener("keydown", (event) => {
+    const lastPast = distanceBuckets.reduce((last, bucket, i) => (bucket.future ? last : i), 0);
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      const step = event.key === "ArrowLeft" ? -1 : 1;
+      const from = distanceSelected === null ? (step < 0 ? lastPast + 1 : -1) : distanceSelected;
+      selectDistanceBar(Math.min(lastPast, Math.max(0, from + step)));
+    } else if (event.key === "Escape") {
+      selectDistanceBar(null);
+    }
+  });
+})();
 
 // Full calendar view (opened by tapping the small heatmap) - shows every
 // day of a given month with actual date numbers, not just colored
@@ -1833,6 +1966,8 @@ function showTab(tabName) {
     enterRecordTab();
   }
   if (tabName === "me") {
+    // Redrawn on the way in, so the bars grow in where they can be seen.
+    renderDistanceChart();
     enterMeTab();
   }
 }

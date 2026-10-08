@@ -16,7 +16,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=18">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. -->
@@ -607,28 +607,40 @@
       <p id="profile-header-prompt" class="preview-note hidden">Set a username in Edit Profile to create your public profile.</p>
 
       <p class="section-heading">Progress</p>
-      <div class="stats-footer">
-        <div class="stat-tile">
-          <span id="best-streak-count" class="stat-number">0</span>
-          <span class="stat-label">Best streak</span>
-        </div>
-        <div class="stat-tile">
-          <span id="rest-days-count" class="stat-number">2</span>
-          <span class="stat-label">Rest days left</span>
-        </div>
-      </div>
-
-      <div class="progress-visuals">
+      <div class="progress-summary">
         <button id="heatmap-section" class="heatmap-section">
           <p class="heatmap-label">8 Weeks <span class="heatmap-tap-hint">›</span></p>
           <div id="heatmap" class="heatmap-grid"></div>
         </button>
 
-        <div class="distance-chart-section">
-          <p class="heatmap-label">Distance</p>
-          <svg id="distance-chart" class="distance-chart" viewBox="0 0 130 100" preserveAspectRatio="none"></svg>
-          <p id="distance-chart-detail" class="distance-chart-detail"></p>
+        <div class="stats-stack">
+          <div class="stat-tile">
+            <span id="best-streak-count" class="stat-number">0</span>
+            <span class="stat-label">Best streak</span>
+          </div>
+          <div class="stat-tile">
+            <span id="rest-days-count" class="stat-number">2</span>
+            <span class="stat-label">Rest days left</span>
+          </div>
         </div>
+      </div>
+
+      <!-- Walk/run distance: bars for the week, month, 6 months or year.
+           Tap or drag across the bars to read one of them. -->
+      <p class="section-heading">Distance</p>
+      <div class="distance-card">
+        <div id="distance-range" class="plan-pace distance-range" role="radiogroup" aria-label="Time range">
+          <button role="radio" data-range="W" aria-label="Week">W</button>
+          <button role="radio" data-range="M" aria-label="Month">M</button>
+          <button role="radio" data-range="6M" aria-label="6 months">6M</button>
+          <button role="radio" data-range="Y" aria-label="Year">Y</button>
+        </div>
+        <div class="distance-summary" aria-live="polite">
+          <p id="distance-summary-label" class="distance-summary-label">Total</p>
+          <p class="distance-summary-value"><span id="distance-summary-value">0</span> <span id="distance-summary-unit" class="distance-summary-unit">mi</span></p>
+          <p id="distance-summary-sub" class="distance-summary-sub"></p>
+        </div>
+        <div id="distance-chart" class="distance-chart" role="img" tabindex="0"></div>
       </div>
 
     </div>
@@ -708,6 +720,6 @@
   <script src="supabase/functions/_shared/exercise-counter.js?v=9"></script>
   <script src="camera-verify.js?v=9"></script>
   <script src="onboarding.js?v=1"></script>
-  <script src="script.js?v=20"></script>
+  <script src="script.js?v=21"></script>
 </body>
 </html>

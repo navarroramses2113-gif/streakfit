@@ -1411,11 +1411,13 @@ body {
 
 /* Two side-by-side stat tiles instead of plain stacked sentences -
    mirrors the exercise tiles above for visual consistency. */
-.stats-footer {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-lg);
+/* Best streak and rest days, stacked beside the 8-week grid. */
+.stats-stack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-lg);
 }
 
 .stat-tile {
@@ -1508,20 +1510,17 @@ body {
   color: var(--text-muted);
 }
 
-/* Heatmap and the distance chart sit side by side, each taking half the
-   card's width. */
-.progress-visuals {
+/* The 8-week grid with the two stats beside it. */
+.progress-summary {
   display: flex;
+  align-items: center;
   gap: var(--space-md);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--border);
   margin-bottom: var(--space-lg);
 }
 
 .heatmap-section {
   display: block;
-  flex: 1;
-  min-width: 0;
+  flex-shrink: 0;
   text-align: left;
   background: none;
   border: none;
@@ -1529,11 +1528,6 @@ body {
   font-family: inherit;
 }
 
-.distance-chart-section {
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-}
 
 .heatmap-label {
   font-size: var(--font-caption);
@@ -1551,46 +1545,11 @@ body {
   opacity: 0.7;
 }
 
-/* Weekly distance line chart - a single series, so one consistent color
-   (the app's existing "activity/completed" green) with no legend needed. */
-.distance-chart {
-  display: block;
-  width: 100%;
-  height: 75px;
-}
 
-.distance-chart-line {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 
-.distance-chart-dot {
-  fill: var(--accent);
-  stroke: var(--page-bg);
-  stroke-width: 1.5;
-}
 
-/* Invisible - purely a bigger tap/click target than the visible dot,
-   since an 8px dot alone is too small to reliably tap on a phone. */
-.distance-chart-hit {
-  fill: transparent;
-  cursor: pointer;
-}
 
-.distance-chart-baseline {
-  stroke: var(--border);
-  stroke-width: 1;
-}
 
-.distance-chart-detail {
-  margin-top: var(--space-xs);
-  font-size: var(--font-caption);
-  color: var(--text-muted);
-  min-height: 15px;
-}
 
 /* Full calendar view */
 .calendar-header {
@@ -2529,7 +2488,8 @@ a.account-menu-item {
 .plan-mini-label,
 .feed-card-kind,
 .ob-label,
-.ob-plan .ob-head span {
+.ob-plan .ob-head span,
+.distance-summary-label {
   font-weight: 600;
   letter-spacing: 0.06em;
 }
@@ -3055,6 +3015,145 @@ a.account-menu-item {
 
   .ob-progress-fill,
   .ob-option {
+    transition: none;
+  }
+}
+
+/* ---------- Distance chart (Me tab) ---------- */
+/* Bars like the Health app: one green series, a recessive grid with its
+   numbers on the right, the total (or the tapped bar) as the headline. */
+.distance-card {
+  margin-bottom: var(--space-lg);
+  text-align: left;
+}
+
+.distance-summary {
+  margin: var(--space-md) 0 var(--space-sm);
+}
+
+.distance-summary-label {
+  font-size: var(--font-caption);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.distance-summary-value {
+  font-size: var(--font-title1);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.distance-summary-unit {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.distance-summary-sub {
+  min-height: 18px;
+  font-size: var(--font-footnote);
+  color: var(--text-secondary);
+}
+
+.distance-chart {
+  /* Vertical swipes still scroll the page; sideways drags read the bars. */
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+  outline: none;
+  border-radius: var(--radius-sm);
+}
+
+.distance-chart:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.dc-plot {
+  position: relative;
+  height: 160px;
+  margin: 8px 36px 0 0;
+}
+
+.dc-grid {
+  position: absolute;
+  left: 0;
+  right: -36px;
+  border-top: 1px dashed var(--border);
+}
+
+.dc-grid.dc-baseline {
+  border-top-style: solid;
+}
+
+.dc-grid span {
+  position: absolute;
+  right: 0;
+  width: 32px;
+  transform: translateY(-50%);
+  font-size: var(--font-caption2);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background: var(--page-bg);
+}
+
+.dc-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.dc-slot {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.dc-bar {
+  width: 100%;
+  max-width: 28px;
+  height: 0;
+  background: var(--accent);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.15s ease;
+}
+
+/* A tapped bar stays bright; the rest step back. */
+.distance-chart.has-selection .dc-slot:not(.selected) .dc-bar {
+  opacity: 0.35;
+}
+
+.dc-labels {
+  display: flex;
+  gap: 2px;
+  margin: 6px 36px 0 0;
+}
+
+.dc-labels span {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  white-space: nowrap;
+  text-align: center;
+  font-size: var(--font-caption2);
+  color: var(--text-muted);
+}
+
+.distance-range {
+  margin-top: var(--space-xs);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-bar {
     transition: none;
   }
 }
