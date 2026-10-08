@@ -37,7 +37,9 @@ input[type="number"]::-webkit-inner-spin-button {
   --space-md: 16px;
   --space-lg: 24px;
   --space-xl: 32px;
-  --radius: 12px;
+  --radius-sm: 8px; /* small controls inside rows */
+  --radius-md: 12px; /* buttons and text fields */
+  --radius: 16px; /* cards */
 
   /* Primary accent: muted clay/amber, used for the CTA and streak number.
      Desaturated on purpose - a subtle accent instead of a neon one. */
@@ -53,7 +55,7 @@ input[type="number"]::-webkit-inner-spin-button {
   /* Closure ring colors - deliberately bold/saturated (unlike the rest of
      the app's muted palette above), for the same high-contrast, energetic
      feel as Apple's Activity rings - but an original palette, not their
-     actual hues. Squats leans toward Forja's own brand green (#22c55e)
+     actual hues. Squats leans toward Forja's own brand green (var(--accent))
      rather than Apple's cyan, so the boldest UI in the app still reads as
      Forja's own. Kept as their own variables rather than reusing
      --orange-light/--teal-light, since those are shared with other UI
@@ -78,6 +80,7 @@ input[type="number"]::-webkit-inner-spin-button {
   --surface-strong: #1c1c1f80;
   --surface-solid: #1c1c1f;
   --popover-bg: #2c2c31; /* raised a step above cards, for tip bubbles */
+/* Brand green: --accent for fills, --accent-text for green words (a     darker green in light mode so it stays readable on white). */  --accent: #22c55e;  --accent-pressed: #16a34a;  --accent-text: #22c55e;  --accent-tint: #22c55e1f;  /* Apple's system red / orange, for errors, delete and warnings. */  --danger: #ff453a;  --danger-pressed: #d70015;  --warning: #ff9f0a;
   --field-bg: #232326;
   --field-bg-hover: #28282b;
   --control-bg: #3a3a3a;
@@ -108,6 +111,7 @@ input[type="number"]::-webkit-inner-spin-button {
   --surface-strong: #ffffff;
   --surface-solid: #e5e5ea;
   --popover-bg: #ffffff;
+--accent-text: #15803d;  --accent-tint: #22c55e1a;  --danger: #d70015;  --warning: #b25000;
   --field-bg: #f2f2f7;
   --field-bg-hover: #e9e9ee;
   --control-bg: #d1d1d6;
@@ -121,6 +125,23 @@ input[type="number"]::-webkit-inner-spin-button {
   --text-soft: #3a3a3c;
   --text-faint: #6e6e73;
   --border: #3c3c4340;
+}
+
+/* Apple's text scale (iOS Dynamic Type default sizes, in pt = CSS px).
+   Every text size in the app uses one of these, except hero numbers and
+   the camera screen's read-from-across-the-room text. */
+:root {
+  --font-large-title: 34px;
+  --font-title1: 28px;
+  --font-title2: 22px;
+  --font-title3: 20px;
+  --font-body: 17px;
+  --font-callout: 16px;
+  --font-subhead: 15px;
+  --font-footnote: 13px;
+  --font-caption: 12px;
+  --font-caption2: 11px;
+  --font-tab: 10px; /* tab bar labels, as in iOS */
 }
 
 /* Belt-and-suspenders against side-to-side dragging: this stops the
@@ -175,7 +196,7 @@ body {
 .splash-logo {
   font-size: 2.5rem;
   font-weight: 800;
-  color: #22c55e;
+  color: var(--accent-text);
   letter-spacing: -0.03em;
   animation: pulseLogo 1.2s infinite alternate ease-in-out;
 }
@@ -185,7 +206,7 @@ body {
   width: 28px;
   height: 28px;
   border: 3px solid var(--overlay);
-  border-top-color: #22c55e;
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -241,10 +262,10 @@ body {
 /* Wordmark logo: two weights/colors of the same word instead of an
    icon, for a cleaner, more typographic identity. */
 .brand-word {
-  font-size: 1.5rem;
+  font-size: var(--font-title1);
   font-weight: 800;
   letter-spacing: -0.03em;
-  color: #22c55e;
+  color: var(--accent-text);
 }
 
 /* !important is deliberate here: this is a utility class whose entire
@@ -311,17 +332,17 @@ body {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #ef4444;
+  background: var(--danger);
   border: 1.5px solid var(--page-bg);
 }
 
 .tab-text {
-  font-size: 0.7rem;
+  font-size: var(--font-tab);
   font-weight: 700;
 }
 
 .tab-btn.active {
-  color: #22c55e;
+  color: var(--accent-text);
 }
 
 .tab-btn.active .tab-icon {
@@ -371,7 +392,7 @@ body {
 }
 
 .preview-note {
-  font-size: 0.75rem;
+  font-size: var(--font-footnote);
   color: var(--text-muted);
   text-align: center;
   margin-bottom: var(--space-md);
@@ -399,7 +420,7 @@ body {
   padding: var(--space-sm);
   background: var(--surface);
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 
 .leaderboard-row.is-you {
@@ -409,7 +430,7 @@ body {
 
 .leaderboard-rank {
   width: 20px;
-  font-size: 0.85rem;
+  font-size: var(--font-subhead);
   font-weight: 700;
   color: var(--text-muted);
   text-align: center;
@@ -435,7 +456,7 @@ body {
 .leaderboard-name {
   flex: 1;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: var(--font-body);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -444,7 +465,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 0.9rem;
+  font-size: var(--font-subhead);
   font-weight: 800;
   color: var(--orange-light);
 }
@@ -477,7 +498,7 @@ body {
   padding: var(--space-md);
   background: var(--surface);
   border: 1px solid transparent;
-  border-radius: 14px;
+  border-radius: var(--radius);
   text-align: left;
 }
 
@@ -499,7 +520,7 @@ body {
 }
 
 .feed-card-name {
-  font-size: 0.95rem;
+  font-size: var(--font-subhead);
   font-weight: 700;
   color: var(--text-primary);
   overflow: hidden;
@@ -508,7 +529,7 @@ body {
 }
 
 .feed-card-when {
-  font-size: 0.75rem;
+  font-size: var(--font-caption);
   color: var(--text-secondary);
 }
 
@@ -516,7 +537,7 @@ body {
 .feed-card-kind {
   display: inline-block;
   margin-bottom: 2px;
-  font-size: 0.7rem;
+  font-size: var(--font-caption2);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -534,7 +555,7 @@ body {
 
 .feed-card-headline {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--font-body);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -551,14 +572,14 @@ body {
 }
 
 .feed-stat-value {
-  font-size: 1.35rem;
+  font-size: var(--font-title2);
   font-weight: 800;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 
 .feed-stat-label {
-  font-size: 0.75rem;
+  font-size: var(--font-caption);
   color: var(--text-secondary);
 }
 
@@ -578,7 +599,7 @@ body {
   flex-shrink: 0;
   padding: 7px 14px;
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--font-subhead);
   font-weight: 700;
   color: var(--text-secondary);
   background: none;
@@ -619,7 +640,7 @@ body {
 .kudos-summary {
   flex: 1;
   min-width: 0;
-  font-size: 0.8rem;
+  font-size: var(--font-footnote);
   color: var(--text-secondary);
 }
 
@@ -632,15 +653,15 @@ body {
   min-height: 32px;
   padding: 0 12px;
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: var(--font-subhead);
   font-weight: 700;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   border: none;
 }
 
 .accept-request-button {
-  background-color: #22c55e;
+  background-color: var(--accent);
   color: white;
 }
 
@@ -654,7 +675,7 @@ body {
    (already friends, or they requested you - handled via Friend Requests
    instead). */
 .friend-status-label {
-  font-size: 0.78rem;
+  font-size: var(--font-footnote);
   font-weight: 700;
   color: var(--text-muted);
   flex-shrink: 0;
@@ -668,9 +689,9 @@ body {
   min-height: 32px;
   padding: 0 14px;
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: var(--font-subhead);
   font-weight: 700;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -681,7 +702,7 @@ body {
 }
 
 .friend-search-add-button {
-  background-color: #22c55e;
+  background-color: var(--accent);
   color: white;
   border: none;
 }
@@ -728,11 +749,11 @@ body {
 }
 
 .block-confirm-button {
-  background-color: #dc2626;
+  background-color: var(--danger);
 }
 
 .block-confirm-button:hover {
-  background-color: #b91c1c;
+  background-color: var(--danger-pressed);
 }
 
 .settings-panel {
@@ -751,7 +772,7 @@ body {
 }
 
 .settings-title {
-  font-size: 0.7rem;
+  font-size: var(--font-footnote);
   font-weight: 700;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -764,7 +785,7 @@ body {
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--space-sm);
-  font-size: 0.85rem;
+  font-size: var(--font-body);
   color: var(--text-soft);
 }
 
@@ -776,7 +797,7 @@ body {
 .settings-checkbox-row input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #22c55e;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -787,10 +808,10 @@ body {
   text-align: center;
   background: var(--field-bg);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 1rem;
+  font-size: var(--font-body);
 }
 
 /* Edit Profile's fields (username/email/phone) need real room to type
@@ -806,7 +827,7 @@ body {
 }
 
 .profile-field label {
-  font-size: 0.78rem;
+  font-size: var(--font-footnote);
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -815,17 +836,17 @@ body {
   width: 100%;
   min-height: 44px;
   padding: 10px 12px;
-  font-size: 1rem;
+  font-size: var(--font-body);
   font-family: inherit;
   background: var(--field-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
 }
 
 .profile-field input:focus {
   outline: none;
-  border-color: #22c55e;
+  border-color: var(--accent);
 }
 
 .settings-row select {
@@ -833,15 +854,15 @@ body {
   padding: 6px 10px;
   background: var(--field-bg);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--font-body);
 }
 
 
 .motivation {
-  font-size: 0.78rem;
+  font-size: var(--font-footnote);
   font-style: italic;
   font-weight: 400;
   color: var(--text-secondary);
@@ -944,7 +965,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.72rem;
+  font-size: var(--font-caption);
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -963,7 +984,7 @@ body {
 
 #status-message {
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: var(--font-subhead);
   font-weight: 500;
   margin-bottom: var(--space-lg);
   min-height: 20px;
@@ -971,7 +992,7 @@ body {
 
 /* The day just completed itself - the one line worth noticing. */
 #status-message.is-done {
-  color: #22c55e;
+  color: var(--accent-text);
   font-weight: 700;
 }
 
@@ -999,7 +1020,7 @@ body {
 .walkrun-row label {
   flex: 1;
   text-align: left;
-  font-size: 0.85rem;
+  font-size: var(--font-subhead);
   font-weight: 600;
   color: var(--text-soft);
 }
@@ -1008,19 +1029,19 @@ body {
   width: 60px;
   min-height: 44px;
   padding: 6px;
-  font-size: 1rem;
+  font-size: var(--font-body);
   font-weight: 700;
   font-family: inherit;
   text-align: center;
   background: var(--field-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
 }
 
 .walkrun-row input:focus {
   outline: none;
-  border-color: #22c55e;
+  border-color: var(--accent);
 }
 
 .walkrun-row input:disabled {
@@ -1034,9 +1055,9 @@ body {
   width: 44px;
   height: 44px;
   flex-shrink: 0;
-  background: #22c55e;
+  background: var(--accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: white;
   cursor: pointer;
 }
@@ -1068,14 +1089,14 @@ body {
 }
 
 .tracking-stat-value {
-  font-size: 1.8rem;
+  font-size: var(--font-title1);
   font-weight: 800;
   color: var(--text-primary);
   line-height: 1;
 }
 
 .tracking-stat-label {
-  font-size: 0.7rem;
+  font-size: var(--font-caption);
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1101,12 +1122,12 @@ body {
   flex: 1;
   min-height: 48px;
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: var(--font-body);
   font-weight: 700;
   color: var(--text-muted);
   background: none;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -1118,12 +1139,12 @@ body {
   flex: 1;
   min-height: 48px;
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: var(--font-body);
   font-weight: 700;
   color: white;
   background: var(--control-bg);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -1153,13 +1174,13 @@ body {
 }
 
 .exercise-tile label {
-  font-size: 0.78rem;
+  font-size: var(--font-footnote);
   color: var(--text-soft);
   font-weight: 600;
 }
 
 .min-tag {
-  font-size: 0.65rem;
+  font-size: var(--font-caption2);
   color: var(--text-muted);
   font-weight: 400;
 }
@@ -1169,13 +1190,13 @@ body {
   min-height: 44px;
   margin-top: 4px;
   padding: 8px;
-  font-size: 1.1rem;
+  font-size: var(--font-body);
   font-weight: 700;
   font-family: inherit;
   text-align: center;
   background: var(--field-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -1191,14 +1212,14 @@ body {
 }
 
 .error {
-  color: #c97b7b;
-  font-size: 0.85rem;
+  color: var(--danger);
+  font-size: var(--font-footnote);
   min-height: 18px;
   margin-bottom: var(--space-sm);
 }
 
 .error.success {
-  color: #22c55e;
+  color: var(--accent-text);
 }
 
 
@@ -1213,19 +1234,19 @@ body {
 }
 
 .onboarding-icon {
-  color: #22c55e;
+  color: var(--accent-text);
   margin-bottom: var(--space-lg);
 }
 
 .onboarding-title {
-  font-size: 1.4rem;
+  font-size: var(--font-title2);
   font-weight: 800;
   letter-spacing: -0.02em;
   margin-bottom: var(--space-md);
 }
 
 .onboarding-text {
-  font-size: 0.9rem;
+  font-size: var(--font-subhead);
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -1246,7 +1267,7 @@ body {
 }
 
 .onboarding-dot.active {
-  background: #22c55e;
+  background: var(--accent);
   width: 20px;
   border-radius: 4px;
 }
@@ -1254,19 +1275,19 @@ body {
 #onboarding-next {
   width: 100%;
   min-height: 48px;
-  font-size: 1rem;
+  font-size: var(--font-body);
   font-weight: 700;
   font-family: inherit;
   color: white;
-  background-color: #22c55e;
+  background-color: var(--accent);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
 #onboarding-next:hover {
-  background-color: #16a34a;
+  background-color: var(--accent-pressed);
 }
 
 .onboarding-choices {
@@ -1292,18 +1313,18 @@ body {
 }
 
 .onboarding-choice:hover {
-  border-color: #22c55e;
-  background: #22c55e15;
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .onboarding-choice-title {
-  font-size: 0.95rem;
+  font-size: var(--font-body);
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .onboarding-choice-detail {
-  font-size: 0.75rem;
+  font-size: var(--font-footnote);
   color: var(--text-muted);
 }
 
@@ -1318,36 +1339,36 @@ body {
   width: 100%;
   min-height: 44px;
   padding: 10px 12px;
-  font-size: 1rem;
+  font-size: var(--font-body);
   font-family: inherit;
   background: var(--field-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   transition: border-color 0.15s ease;
 }
 
 .auth-fields input:focus {
   outline: none;
-  border-color: #22c55e;
+  border-color: var(--accent);
 }
 
 .auth-submit-button {
   width: 100%;
   min-height: 48px;
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: var(--font-body);
+  font-weight: 600;
   font-family: inherit;
   color: white;
-  background-color: #22c55e;
+  background-color: var(--accent);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
 .auth-submit-button:hover {
-  background-color: #16a34a;
+  background-color: var(--accent-pressed);
 }
 
 .auth-submit-button:disabled {
@@ -1362,15 +1383,15 @@ body {
   background: none;
   border: none;
   font-family: inherit;
-  font-size: 0.8rem;
+  font-size: var(--font-subhead);
   font-weight: 600;
-  color: #22c55e;
+  color: var(--accent-text);
   cursor: pointer;
 }
 
 .auth-toggle {
   margin-top: var(--space-md);
-  font-size: 0.85rem;
+  font-size: var(--font-subhead);
   color: var(--text-muted);
 }
 
@@ -1378,9 +1399,9 @@ body {
   background: none;
   border: none;
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--font-subhead);
   font-weight: 700;
-  color: #22c55e;
+  color: var(--accent-text);
   cursor: pointer;
   padding: 0;
   margin-left: 4px;
@@ -1391,17 +1412,17 @@ body {
   min-height: 44px;
   margin-top: var(--space-md);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--font-body);
   font-weight: 700;
   color: white;
-  background-color: #22c55e;
+  background-color: var(--accent);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
 .guest-signup-button:hover {
-  background-color: #16a34a;
+  background-color: var(--accent-pressed);
 }
 
 .auth-skip {
@@ -1410,7 +1431,7 @@ body {
   background: none;
   border: none;
   font-family: inherit;
-  font-size: 0.8rem;
+  font-size: var(--font-subhead);
   color: var(--text-muted);
   cursor: pointer;
 }
@@ -1435,7 +1456,7 @@ body {
   min-height: 48px;
   padding: 0 var(--space-md);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--font-body);
   font-weight: 600;
   color: var(--text-primary);
   background: none;
@@ -1450,7 +1471,7 @@ body {
 
 .account-menu-chevron {
   color: var(--text-muted);
-  font-size: 1.1rem;
+  font-size: var(--font-body);
 }
 
 .log-out-button {
@@ -1458,12 +1479,12 @@ body {
   min-height: 44px;
   margin-top: var(--space-md);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--font-body);
   font-weight: 600;
   color: var(--text-muted);
   background: none;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -1484,7 +1505,7 @@ body {
 }
 
 .stat-number {
-  font-size: 1.6rem;
+  font-size: var(--font-title1);
   font-weight: 800;
   color: var(--teal-light);
   line-height: 1;
@@ -1495,7 +1516,7 @@ body {
 }
 
 .stat-label {
-  font-size: 0.75rem;
+  font-size: var(--font-caption);
   font-weight: 600;
   color: var(--text-faint);
   text-transform: uppercase;
@@ -1534,7 +1555,7 @@ body {
 }
 
 .profile-username {
-  font-size: 1rem;
+  font-size: var(--font-body);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -1556,13 +1577,13 @@ body {
 }
 
 .follow-stat-count {
-  font-size: 0.9rem;
+  font-size: var(--font-subhead);
   font-weight: 800;
   color: var(--text-primary);
 }
 
 .follow-stat-label {
-  font-size: 0.78rem;
+  font-size: var(--font-footnote);
   color: var(--text-muted);
 }
 
@@ -1594,7 +1615,7 @@ body {
 }
 
 .heatmap-label {
-  font-size: 0.7rem;
+  font-size: var(--font-caption);
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1619,14 +1640,14 @@ body {
 
 .distance-chart-line {
   fill: none;
-  stroke: #22c55e;
+  stroke: var(--accent);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .distance-chart-dot {
-  fill: #22c55e;
+  fill: var(--accent);
   stroke: var(--page-bg);
   stroke-width: 1.5;
 }
@@ -1645,7 +1666,7 @@ body {
 
 .distance-chart-detail {
   margin-top: var(--space-xs);
-  font-size: 0.72rem;
+  font-size: var(--font-caption);
   color: var(--text-muted);
   min-height: 15px;
 }
@@ -1664,11 +1685,11 @@ body {
   justify-content: center;
   width: 44px;
   height: 44px;
-  font-size: 1.4rem;
+  font-size: var(--font-title2);
   font-family: inherit;
   background: var(--surface);
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   cursor: pointer;
 }
@@ -1681,7 +1702,7 @@ body {
 
 .calendar-weekdays span {
   text-align: center;
-  font-size: 0.7rem;
+  font-size: var(--font-caption2);
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1699,8 +1720,8 @@ body {
   align-items: center;
   justify-content: center;
   aspect-ratio: 1;
-  border-radius: 8px;
-  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-subhead);
   font-weight: 600;
   color: var(--text-secondary);
   background: var(--surface);
@@ -1711,17 +1732,17 @@ body {
 }
 
 .calendar-day.completed {
-  background-color: #22c55e;
+  background-color: var(--accent);
   color: white;
   font-weight: 800;
 }
 
 .calendar-day.is-today {
-  border: 2px solid #22c55e;
+  border: 2px solid var(--accent);
 }
 
 .section-heading {
-  font-size: 0.7rem;
+  font-size: var(--font-footnote);
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1740,8 +1761,8 @@ body {
    instead of repeating the app's logo on every tab - this is what a
    native app's navigation title looks like at the top of a screen. */
 .large-title {
-  font-size: 2rem;
-  font-weight: 800;
+  font-size: var(--font-large-title);
+  font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
   text-align: left;
@@ -1806,7 +1827,7 @@ body {
 }
 
 .heatmap-day.completed {
-  background-color: #22c55e;
+  background-color: var(--accent);
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
 }
 
@@ -1826,7 +1847,7 @@ body {
   }
 
   .brand-word {
-    font-size: 1.25rem;
+    font-size: var(--font-title2);
   }
 
   .exercise-tile {
@@ -1852,12 +1873,12 @@ body {
   min-height: 34px;
   margin-top: var(--space-xs);
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: var(--font-subhead);
   font-weight: 700;
   color: white;
-  background: #22c55e;
+  background: var(--accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -1933,8 +1954,8 @@ body {
   margin-bottom: var(--space-sm);
 }
 
-.camera-feedback.good { color: #22c55e; }
-.camera-feedback.bad { color: #ff5a5f; }
+.camera-feedback.good { color: var(--accent); }
+.camera-feedback.bad { color: var(--danger); }
 
 .camera-live {
   font-size: 1rem;
@@ -1968,7 +1989,7 @@ body {
   font-weight: 800;
   line-height: 1;
   margin: var(--space-lg) 0 var(--space-xs);
-  color: #22c55e;
+  color: var(--accent-text);
 }
 
 .camera-result-label {
@@ -2073,7 +2094,7 @@ body {
 .camera-attempts {
   list-style: none;
   text-align: left;
-  font-size: 0.95rem;
+  font-size: var(--font-subhead);
   margin: 0 0 var(--space-md);
 }
 
@@ -2082,8 +2103,8 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.camera-attempts li.ok { color: #22c55e; }
-.camera-attempts li.no { color: #ff5a5f; }
+.camera-attempts li.ok { color: var(--accent); }
+.camera-attempts li.no { color: var(--danger); }
 
 a.account-menu-item {
   text-decoration: none;
@@ -2094,9 +2115,9 @@ a.account-menu-item {
   min-height: 44px;
   margin-top: var(--space-md);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--font-body);
   font-weight: 600;
-  color: #ff5a5f;
+  color: var(--danger);
   background: none;
   border: none;
   cursor: pointer;
@@ -2104,7 +2125,7 @@ a.account-menu-item {
 
 .auth-legal {
   margin-top: var(--space-md);
-  font-size: 0.75rem;
+  font-size: var(--font-caption);
   color: var(--text-muted);
 }
 
@@ -2123,9 +2144,9 @@ a.account-menu-item {
   margin: 0 auto var(--space-sm) -6px;
   padding: 4px 6px;
   font-family: inherit;
-  font-size: 1rem;
+  font-size: var(--font-body);
   font-weight: 600;
-  color: #22c55e;
+  color: var(--accent-text);
   background: none;
   border: none;
   cursor: pointer;
@@ -2151,7 +2172,7 @@ a.account-menu-item {
   padding: var(--space-md);
   background: var(--surface-strong);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius);
 }
 
 .plan-targets {
@@ -2176,7 +2197,7 @@ a.account-menu-item {
   justify-content: center;
   gap: 5px;
   margin-top: 4px;
-  font-size: 0.75rem;
+  font-size: var(--font-caption);
   font-weight: 700;
   color: var(--text-secondary);
 }
@@ -2189,7 +2210,7 @@ a.account-menu-item {
 
 .plan-mini-label {
   margin: 0 0 var(--space-xs);
-  font-size: 0.7rem;
+  font-size: var(--font-caption);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2199,7 +2220,7 @@ a.account-menu-item {
 
 .plan-eased {
   margin: var(--space-sm) 0 0;
-  font-size: 0.8rem;
+  font-size: var(--font-footnote);
   color: var(--text-secondary);
   text-align: center;
 }
@@ -2212,7 +2233,7 @@ a.account-menu-item {
 }
 
 .plan-title-row b {
-  font-size: 1rem;
+  font-size: var(--font-body);
   color: var(--text-primary);
 }
 
@@ -2228,7 +2249,7 @@ a.account-menu-item {
   display: block;
   height: 100%;
   border-radius: 99px;
-  background: #22c55e;
+  background: var(--accent);
   transition: width 0.4s ease;
 }
 
@@ -2236,9 +2257,9 @@ a.account-menu-item {
   display: flex;
   justify-content: center;
   gap: 10px;
-  font-size: 0.95rem;
+  font-size: var(--font-subhead);
   font-weight: 800;
-  color: #22c55e;
+  color: var(--accent-text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2248,7 +2269,7 @@ a.account-menu-item {
 }
 
 .plan-next .held {
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .plan-pace {
@@ -2258,24 +2279,24 @@ a.account-menu-item {
   padding: 4px;
   background: var(--surface-strong);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius);
 }
 
 .plan-pace button {
   padding: 10px 2px;
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--font-footnote);
   font-weight: 700;
   color: var(--text-secondary);
   background: none;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
 .plan-pace button[aria-checked="true"] {
   color: white;
-  background: #22c55e;
+  background: var(--accent);
 }
 
 .plan-pace-line {
@@ -2285,7 +2306,7 @@ a.account-menu-item {
   gap: 8px;
   margin: 8px 0 0;
   min-height: 24px;
-  font-size: 0.8rem;
+  font-size: var(--font-footnote);
   color: var(--text-secondary);
 }
 
@@ -2316,7 +2337,7 @@ a.account-menu-item {
 }
 
 .plan-switch[aria-checked="true"] {
-  background: #22c55e;
+  background: var(--accent);
 }
 
 .plan-switch[aria-checked="true"]::after {
@@ -2333,7 +2354,7 @@ a.account-menu-item {
 .plan-chips button {
   padding: 8px 2px;
   font-family: inherit;
-  font-size: 0.8rem;
+  font-size: var(--font-footnote);
   font-weight: 700;
   color: var(--text-primary);
   background: var(--control-bg);
@@ -2376,8 +2397,8 @@ a.account-menu-item {
 }
 
 .tip-btn[aria-expanded="true"] {
-  color: #22c55e;
-  border-color: #22c55e;
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
 
 .tip-corner {
@@ -2400,13 +2421,13 @@ a.account-menu-item {
   right: 10px;
   z-index: 20;
   padding: 12px 14px;
-  font-size: 0.85rem;
+  font-size: var(--font-subhead);
   line-height: 1.45;
   text-align: left;
   color: var(--text-primary);
   background: var(--popover-bg);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius);
   box-shadow: 0 10px 34px #00000066, 0 2px 8px #00000033;
 }
 
@@ -2431,11 +2452,11 @@ a.account-menu-item {
 }
 
 .plan-tip b {
-  color: #22c55e;
+  color: var(--accent-text);
 }
 
 .plan-tip .amber {
-  color: #f59e0b;
+  color: var(--warning);
   font-weight: 800;
 }
 
@@ -2450,7 +2471,7 @@ a.account-menu-item {
 
 .plan-tip li.mine {
   font-weight: 800;
-  color: #22c55e;
+  color: var(--accent-text);
 }
 
 .plan-tip .tip-note {
@@ -2470,4 +2491,149 @@ a.account-menu-item {
   .plan-switch::after {
     transition: none;
   }
+}
+
+/* ---------- Touch targets: Apple's 44x44pt minimum ---------- */
+/* Main controls get a real 44pt height. */
+.verify-button,
+.plan-chips button,
+.nav-back {
+  min-height: 44px;
+}
+
+/* Icon buttons: 44pt boxes, pulled back by negative margins so the icon
+   stays where it was. */
+.row-options-button {
+  width: 44px;
+  height: 44px;
+  margin: -9px -9px -9px 0;
+}
+
+.gear-button {
+  width: 44px;
+  height: 44px;
+  margin: -4px;
+}
+
+/* Small inline controls keep their look but get an invisible 44pt-tall
+   touch area around them (the ::before), so a slightly-off tap still
+   counts - the same approach as the iPhone's own small buttons. */
+.auth-forgot-password,
+.auth-skip,
+.link-button,
+.auth-legal a,
+.follow-stat-button,
+.kudos-button,
+.friend-request-actions button,
+.friend-search-action-button,
+.min-tag.is-link {
+  position: relative;
+}
+
+.auth-forgot-password::before,
+.auth-skip::before,
+.link-button::before,
+.auth-legal a::before,
+.follow-stat-button::before,
+.kudos-button::before,
+.friend-request-actions button::before,
+.friend-search-action-button::before,
+.min-tag.is-link::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -6px;
+  right: -6px;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+/* On/off settings are iPhone switches (51x31pt), like My Plan's walk/run. */
+.settings-checkbox-row input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex-shrink: 0;
+  width: 51px;
+  height: 31px;
+  margin: 0;
+  border: none;
+  border-radius: 999px;
+  background: radial-gradient(circle at 15.5px 50%, white 0 13.5px, transparent 14px), var(--control-bg);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.settings-checkbox-row input[type="checkbox"]:checked {
+  background: radial-gradient(circle at 35.5px 50%, white 0 13.5px, transparent 14px), var(--accent);
+}
+
+.settings-checkbox-row input[type="checkbox"]:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Titles and subtitles ---------- */
+/* A plain line under a screen's title or logo (never italic - Apple keeps
+   italics for quotes, like the one on Today). */
+.screen-subtitle {
+  margin-bottom: var(--space-md);
+  font-size: var(--font-subhead);
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+/* The walk/run summary: a centered title, like the camera's "Nice work!". */
+.summary-title {
+  text-align: center;
+  margin-bottom: var(--space-sm);
+}
+
+/* The calendar's month reads as a headline, like the iPhone's Calendar. */
+.calendar-month {
+  margin: 0;
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ---------- One style for small uppercase labels ---------- */
+/* Section headers and stat labels ("LEADERBOARD", "BEST STREAK", "TIME"...)
+   share one weight, spacing and grey - Apple's secondary label color, which
+   also reads better than the darker grey some used. */
+.section-heading,
+.settings-title,
+.stat-label,
+.heatmap-label,
+.tracking-stat-label,
+.plan-mini-label,
+.feed-card-kind {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.section-heading,
+.settings-title,
+.stat-label,
+.heatmap-label,
+.tracking-stat-label,
+.plan-mini-label {
+  color: var(--text-secondary);
+}
+
+/* List rows read like iOS lists: regular weight, not bold. */
+.account-menu-item {
+  font-weight: 400;
+}
+
+/* Today's three tiles line up: the Verify button always sits at the bottom
+   of its tile, whatever the label above it. */
+.exercise-tile .verify-button {
+  margin-top: auto;
+}
+
+/* A status line inside a settings card only takes space when it says
+   something, so empty ones don't leave gaps between rows. */
+.settings-panel .error:empty {
+  min-height: 0;
+  margin: 0;
 }

@@ -16,7 +16,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=16">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. -->
@@ -117,7 +117,7 @@
       <span class="brand-word">Forja</span>
     </div>
 
-    <p id="auth-subtitle" class="motivation">Log in to track your streak</p>
+    <p id="auth-subtitle" class="screen-subtitle">Log in to track your streak</p>
 
     <div class="auth-fields">
       <input type="email" id="auth-email" placeholder="Email" autocomplete="email">
@@ -147,7 +147,7 @@
       <span class="brand-word">Forja</span>
     </div>
 
-    <p class="motivation">Enter your email to reset your password</p>
+    <p class="screen-subtitle">Enter your email to reset your password</p>
 
     <div class="auth-fields">
       <input type="email" id="forgot-password-email" placeholder="Email" autocomplete="email">
@@ -166,7 +166,7 @@
       <span class="brand-word">Forja</span>
     </div>
 
-    <p class="motivation">Set a new password</p>
+    <p class="screen-subtitle">Set a new password</p>
 
     <div class="auth-fields">
       <input type="password" id="new-password" placeholder="New password" autocomplete="new-password">
@@ -179,9 +179,13 @@
 
   <!-- Full calendar view, opened by tapping the small heatmap. -->
   <main id="calendar-screen" class="card hidden">
+    <button id="calendar-close-button" class="nav-back" aria-label="Back to Me">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Me
+    </button>
+    <h1 class="large-title">History</h1>
     <div class="calendar-header">
       <button id="calendar-prev-month" class="calendar-nav-button" title="Previous month">‹</button>
-      <p id="calendar-month-label" class="section-heading">Month Year</p>
+      <p id="calendar-month-label" class="calendar-month">Month Year</p>
       <button id="calendar-next-month" class="calendar-nav-button" title="Next month">›</button>
     </div>
 
@@ -190,16 +194,16 @@
     </div>
 
     <div id="calendar-grid" class="calendar-grid"></div>
-
-    <button id="calendar-close-button" class="auth-submit-button">Close</button>
   </main>
 
   <!-- Followers/Following list, opened by tapping either stat on the
        Me tab's profile header. -->
   <main id="follow-list-screen" class="card hidden">
+    <button id="follow-list-close-button" class="nav-back" aria-label="Back to Me">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Me
+    </button>
     <h1 id="follow-list-title" class="large-title">Followers</h1>
     <div id="follow-list" class="leaderboard"></div>
-    <button id="follow-list-close-button" class="auth-submit-button">Close</button>
   </main>
 
   <!-- Block/report another user - opened via the "more options" button on
@@ -208,6 +212,9 @@
        (Guideline 1.2): usernames are typed by other people, so users need
        a way to report or cut off contact with someone. -->
   <main id="user-actions-screen" class="card hidden">
+    <button id="user-actions-close-button" class="nav-back" aria-label="Back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Back
+    </button>
     <h1 class="large-title">Manage User</h1>
     <p id="user-actions-subtitle" class="preview-note"></p>
 
@@ -236,14 +243,15 @@
       <p class="preview-note">They won't be able to send you a friend request again, and any existing connection between you will be removed.</p>
       <button id="confirm-block-button" class="auth-submit-button block-confirm-button">Block User</button>
     </div>
-
-    <button id="user-actions-close-button" class="tracking-cancel-button full-width-button">Cancel</button>
   </main>
 
   <!-- Account management, opened via the gear icon on the Me tab instead
        of living inline there - keeps the Me tab focused on profile/stats,
        and matches how iOS apps separate "my profile" from "settings." -->
   <main id="account-screen" class="card hidden">
+    <button id="account-screen-close-button" class="nav-back" aria-label="Back to Me">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Me
+    </button>
     <h1 class="large-title">Account</h1>
 
     <div class="account-menu">
@@ -365,7 +373,6 @@
       <button id="confirm-delete-account-button" class="auth-submit-button block-confirm-button" disabled>Delete My Account</button>
     </div>
 
-    <button id="account-screen-close-button" class="tracking-cancel-button full-width-button">Close</button>
   </main>
 
   <!-- My Plan: a signed-in player's progressive overload plan. Deliberately
@@ -466,7 +473,8 @@
 
   <!-- Shown once after finishing a tracked walk/run. -->
   <main id="tracking-summary-screen" class="card hidden">
-    <p id="tracking-summary-heading" class="motivation">Nice work!</p>
+    <h1 id="tracking-summary-heading" class="large-title summary-title">Nice work!</h1>
+    <p id="tracking-summary-note" class="screen-subtitle hidden"></p>
 
     <div class="tracking-stats">
       <div class="tracking-stat">
@@ -550,7 +558,7 @@
         </div>
         <div class="exercise-tile">
           <span class="exercise-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg></span>
-          <label for="planks">Plank (seconds)</label>
+          <label for="planks">Plank</label>
           <span id="planks-min-tag" class="min-tag">min 30s</span>
           <input type="number" id="planks" value="0" readonly tabindex="-1" aria-label="Best verified plank today, in seconds">
           <button class="verify-button" data-exercise="plank">Verify</button>
@@ -750,6 +758,6 @@
   <script src="supabase/functions/_shared/game-rules.js?v=5"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=9"></script>
   <script src="camera-verify.js?v=8"></script>
-  <script src="script.js?v=18"></script>
+  <script src="script.js?v=19"></script>
 </body>
 </html>

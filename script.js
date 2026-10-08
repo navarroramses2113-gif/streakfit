@@ -3390,7 +3390,9 @@ trackingFinishEl.addEventListener("click", async () => {
   resetRecordToIdle();
   showTrackingSummary(route, distanceKm, durationMs, elevationGainM, "new");
   if (!countsTowardToday && data.lastLoggedDate !== todayString()) {
-    document.getElementById("tracking-summary-heading").textContent = "Too slow to count toward today - walk/run minutes need real movement.";
+    const note = document.getElementById("tracking-summary-note");
+    note.textContent = "Too slow to count toward today. Walk/run minutes need real movement.";
+    note.classList.remove("hidden");
   }
 
   // Every walk or run at a real pace goes to the Feed - whether or not it
@@ -3414,6 +3416,7 @@ async function shareActivity(route, durationMs) {
 // plain Close button instead, since there's nothing left to decide).
 function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode) {
   document.getElementById("tracking-summary-heading").textContent = mode === "view" ? "Route Detail" : "Nice work!";
+  document.getElementById("tracking-summary-note").classList.add("hidden");
   document.getElementById("keep-discard-section").classList.toggle("hidden", mode === "view");
   document.getElementById("tracking-summary-close-button").classList.toggle("hidden", mode !== "view");
 
