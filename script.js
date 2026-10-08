@@ -785,11 +785,15 @@ document.addEventListener("click", (event) => {
   tip.innerHTML = typeof content === "function" ? content() : content;
   const holder = button.closest(".plan-card, .plan-pace-wrap");
   holder.appendChild(tip);
-  // Open right under the ⓘ, with the arrow pointing at it.
+  // Open right under the ⓘ, with the arrow pointing at it - or, if there
+  // isn't room below on the screen, right above it (arrow pointing down).
   const holderBox = holder.getBoundingClientRect();
   const buttonBox = button.getBoundingClientRect();
   const tipBox = tip.getBoundingClientRect();
-  tip.style.top = `${buttonBox.bottom - holderBox.top + 10}px`;
+  const roomBelow = window.innerHeight - buttonBox.bottom;
+  const above = roomBelow < tipBox.height + 24 && buttonBox.top > tipBox.height + 24;
+  tip.classList.toggle("above", above);
+  tip.style.top = above ? `${buttonBox.top - holderBox.top - tipBox.height - 10}px` : `${buttonBox.bottom - holderBox.top + 10}px`;
   const arrowX = buttonBox.left + buttonBox.width / 2 - tipBox.left;
   tip.style.setProperty("--arrow-x", `${Math.max(18, Math.min(tipBox.width - 18, arrowX))}px`);
   button.setAttribute("aria-expanded", "true");

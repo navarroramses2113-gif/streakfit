@@ -2423,6 +2423,13 @@ a.account-menu-item {
   transform: rotate(45deg);
 }
 
+/* Opened above its ⓘ (no room below): the arrow points down. */
+.plan-tip.above::before {
+  top: auto;
+  bottom: -7px;
+  transform: rotate(225deg);
+}
+
 .plan-tip b {
   color: #22c55e;
 }
