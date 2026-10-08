@@ -572,9 +572,33 @@ const PACE_LINES = {
   serious: "Levels up every 2nd day",
   intense: "Levels up 2 of every 3 days",
 };
+// What the level-up tip says depends on the player's own pace - and only
+// mentions a held exercise when one is actually showing in amber.
+const LEVEL_UP_TIP = {
+  easy: "On Easy, your targets go up every 4th day you complete.",
+  regular: "On Regular, your targets go up every 3rd day you complete.",
+  serious: "On Serious, your targets go up every 2nd day you complete.",
+  intense: "On Intense, your targets go up on 2 of every 3 days you complete.",
+};
+function levelUpTip() {
+  let text = LEVEL_UP_TIP[serverPlan && serverPlan.pace] || LEVEL_UP_TIP.regular;
+  const next = serverPlan && ForjaRules.nextLevelUp(serverPlan, myPlanDay());
+  if (next && next.held.length) {
+    const names = PLAN_EXERCISES.filter((ex) => next.held.includes(ex.key)).map((ex) => ex.name);
+    const list = names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+    text += ` <span class="amber">${list}</span> ${names.length === 1 ? "stays" : "stay"} the same this time because ${names.length === 1 ? "it" : "they"} took 3+ sets.`;
+  }
+  return text;
+}
+// The day My Plan shows: today, or tomorrow once today is logged.
+function myPlanDay() {
+  const today = todayString();
+  return data && data.lastLoggedDate === today ? ForjaRules.addDays(today, 1) : today;
+}
+
 const PLAN_TIPS = {
   today: "Set by your plan. Reps add up across all your sets; the plank is your best single hold.",
-  levelup: 'Every few days you complete, your targets go up a little. Do <b>50% more</b> for a bonus step. If a day takes 3+ sets, that exercise holds (shown in <span class="amber">amber</span>). Miss 2+ days and they ease back.',
+  levelup: levelUpTip,
   pace: "How often you level up: Easy every 4th day, Regular every 3rd, Serious every 2nd, Intense 2 of every 3. Today's targets don't change.",
   walk: "Track it on the Record tab. Minutes stay the same; they don't level up.",
 };
@@ -604,9 +628,8 @@ async function openMyPlan() {
 function renderMyPlan() {
   if (!serverPlan || !data) return;
   // Once today is logged the plan already looks ahead, so show tomorrow.
-  const today = todayString();
-  const doneToday = data.lastLoggedDate === today;
-  const day = doneToday ? ForjaRules.addDays(today, 1) : today;
+  const doneToday = data.lastLoggedDate === todayString();
+  const day = myPlanDay();
   const on = ForjaRules.planOn(serverPlan, day);
 
   document.getElementById("plan-today-label").classList.toggle("hidden", !doneToday);
@@ -745,7 +768,8 @@ document.addEventListener("click", (event) => {
   const tip = document.createElement("div");
   tip.className = "plan-tip";
   tip.setAttribute("role", "note");
-  tip.innerHTML = PLAN_TIPS[button.dataset.tip];
+  const content = PLAN_TIPS[button.dataset.tip];
+  tip.innerHTML = typeof content === "function" ? content() : content;
   button.closest(".plan-card, .plan-pace-wrap").appendChild(tip);
   button.setAttribute("aria-expanded", "true");
   openTipId = button.dataset.tip;
