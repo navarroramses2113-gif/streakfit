@@ -199,22 +199,52 @@ body {
   gap: 16px;
 }
 
-.splash-logo {
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: var(--accent-text);
-  letter-spacing: -0.03em;
-  animation: pulseLogo 1.2s infinite alternate ease-in-out;
+/* The logo's sprite holds shapes only; it takes no space on the page. */
+.logo-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
-/* Subtle loading indicator ring */
-.splash-loader {
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--overlay);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+/* Loading: the three arcs draw themselves in one after another, then the
+   whole ring turns until the app is ready. Each arc is one 54-unit dash
+   of the ring's 226.2-unit circle, offset to its own third. */
+.splash-ring {
+  width: 84px;
+  height: 84px;
+  animation: splash-turn 1.2s cubic-bezier(0.45, 0, 0.55, 1) 0.95s infinite;
+}
+
+.splash-arc {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-dasharray: 54 172.2;
+  animation: splash-draw 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.splash-arc:nth-child(1) {
+  stroke: var(--ring-pushups);
+}
+
+.splash-arc:nth-child(2) {
+  stroke: var(--ring-planks);
+  stroke-dashoffset: -75.4;
+  animation-delay: 0.12s;
+}
+
+.splash-arc:nth-child(3) {
+  stroke: var(--ring-squats);
+  stroke-dashoffset: -150.8;
+  animation-delay: 0.24s;
+}
+
+.splash-word {
+  width: 116px;
+  aspect-ratio: 233 / 92.1;
+  color: var(--text-primary);
+  animation: splash-word-in 0.4s ease 0.3s both;
 }
 
 /* Class applied via JavaScript to dismiss the screen */
@@ -223,13 +253,43 @@ body {
   visibility: hidden;
 }
 
-@keyframes pulseLogo {
-  0% { transform: scale(0.97); opacity: 0.7; }
-  100% { transform: scale(1); opacity: 1; }
+@keyframes splash-draw {
+  from {
+    stroke-dasharray: 0 226.2;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  to {
+    stroke-dasharray: 54 172.2;
+    opacity: 1;
+  }
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+@keyframes splash-word-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes splash-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-ring,
+  .splash-arc,
+  .splash-word {
+    animation: none;
+  }
 }
 
 .card {
@@ -265,13 +325,14 @@ body {
   margin-bottom: var(--space-lg);
 }
 
-/* Wordmark logo: two weights/colors of the same word instead of an
-   icon, for a cleaner, more typographic identity. */
-.brand-word {
-  font-size: var(--font-title1);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--accent-text);
+/* The logo (ring + "Forja") at the top of the log-in screens. */
+.brand-logo {
+  display: block;
+  height: 40px;
+  width: auto;
+  aspect-ratio: 367 / 110;
+  margin: 0 auto;
+  color: var(--text-primary);
 }
 
 /* !important is deliberate here: this is a utility class whose entire
@@ -1726,8 +1787,8 @@ body {
     font-size: 3.4rem;
   }
 
-  .brand-word {
-    font-size: var(--font-title2);
+  .brand-logo {
+    height: 34px;
   }
 
   .exercise-tile {
@@ -2672,11 +2733,16 @@ a.account-menu-item {
   color: var(--accent-text);
 }
 
-.ob-wordmark {
-  font-size: var(--font-large-title);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--accent-text);
+/* The welcome screen's logo: the ring above the word. */
+.ob-logo-ring {
+  width: 112px;
+  height: 112px;
+}
+
+.ob-logo-word {
+  width: 150px;
+  aspect-ratio: 233 / 92.1;
+  color: var(--text-primary);
 }
 
 .ob-title {

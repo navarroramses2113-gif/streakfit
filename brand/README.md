@@ -10,8 +10,11 @@ The mark is the daily ring: three arcs (push-ups red, plank yellow, squats teal)
 | `forja-app-icon-light-1024.png` | The same on white. |
 | `forja-icon-dark.svg` / `forja-icon-light.svg` | The square icon as SVG. |
 | `forja-avatar-800.png` | Profile pictures (Instagram, TikTok, X) - fits a circle crop. |
-| `forja-lockup-on-dark.png` | Ring + "Forja", white text, for dark backgrounds. |
-| `forja-lockup-on-light.png` | Ring + "Forja", dark text, for light backgrounds. |
+| `forja-lockup-on-dark.png` / `.svg` | Ring + "Forja", white text, for dark backgrounds. |
+| `forja-lockup-on-light.png` / `.svg` | Ring + "Forja", dark text, for light backgrounds. |
+| `forja-wordmark-white.svg` / `forja-wordmark-black.svg` | The word "Forja" alone. |
+
+The SVG words are drawn as shapes, so they look right anywhere without the font installed.
 
 Colors: red `#ff5a5f`, yellow `#ffc233`, teal `#2dd4bf`, icon background `#141417`.
 Wordmark font: Archivo ExtraBold (800), free on Google Fonts.

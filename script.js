@@ -1585,7 +1585,10 @@ function hideSplash() {
   if (splashHidden) return;
   splashHidden = true;
   setTimeout(() => {
-    document.getElementById("splash-screen").classList.add("splash-fade-out");
+    const splash = document.getElementById("splash-screen");
+    splash.classList.add("splash-fade-out");
+    // Removed once it has faded, so the turning logo stops running.
+    setTimeout(() => splash.remove(), 450);
   }, 500);
 }
 

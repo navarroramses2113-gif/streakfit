@@ -218,7 +218,7 @@ const Onboarding = (function () {
     welcome: {
       centered: true,
       noBack: true,
-      body: () => `${mascot("happy")}<p class="ob-wordmark">Forja</p><p class="ob-lead">Show up every day. The camera counts your reps, so every streak is real.</p>`,
+      body: () => `<svg class="ob-logo-ring" viewBox="0 0 84 84" aria-hidden="true"><use href="#forja-ring"></use></svg><svg class="ob-logo-word" viewBox="0 0 233 92.1" role="img" aria-label="Forja"><use href="#forja-word"></use></svg><p class="ob-lead">Show up every day. The camera counts your reps, so every streak is real.</p>`,
       footer: () => cta("Get Started", "next") + quiet("I already have an account", "login"),
     },
     goal: {
