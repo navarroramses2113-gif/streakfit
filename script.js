@@ -3635,6 +3635,18 @@ startTrackingButtonEl.addEventListener("click", () => showTab("record"));
 const recordStartButtonEl = document.getElementById("record-start-button");
 recordStartButtonEl.addEventListener("click", startTracking);
 
+// "Today", "Yesterday", "Wed, Oct 7" - with the year only when it isn't
+// this year ("Aug 17, 2025").
+function friendlyRouteDate(dateStr) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const daysAgo = daysBetween(dateStr, todayString());
+  if (daysAgo === 0) return "Today";
+  if (daysAgo === 1) return "Yesterday";
+  const thisYear = year === new Date().getFullYear();
+  return date.toLocaleDateString(undefined, thisYear ? { weekday: "short", month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
+}
+
 function buildPastRouteRow(route) {
   const row = document.createElement("div");
   row.className = "leaderboard-row";
@@ -3643,7 +3655,7 @@ function buildPastRouteRow(route) {
     <span class="leaderboard-name"></span>
     <span class="leaderboard-streak"></span>
   `;
-  row.querySelector(".leaderboard-name").textContent = route.date;
+  row.querySelector(".leaderboard-name").textContent = friendlyRouteDate(route.date);
 
   const distanceInUnits = data.units === "km" ? route.distanceKm : milesFromKm(route.distanceKm);
   row.querySelector(".leaderboard-streak").textContent =
@@ -3673,9 +3685,10 @@ function renderPastRoutesList() {
 
   emptyEl.classList.add("hidden");
 
-  // [...array] copies the array so reverse() doesn't scramble the
-  // original stored order.
-  const mostRecentFirst = [...data.routes].reverse();
+  // Sorted by date (not trusted to be stored in order - routes can arrive
+  // from other devices). [...array] copies it, so the stored order stays
+  // put; reversing first keeps same-day walks newest first.
+  const mostRecentFirst = [...data.routes].reverse().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   mostRecentFirst.forEach((route) => {
     listEl.appendChild(buildPastRouteRow(route));
   });
