@@ -590,6 +590,19 @@ function levelUpTip() {
   }
   return text;
 }
+// The paces as a short list, with the player's own in bold.
+const PACE_TIP_LINES = [
+  ["easy", "Easy: every 4th day"],
+  ["regular", "Regular: every 3rd day"],
+  ["serious", "Serious: every 2nd day"],
+  ["intense", "Intense: 2 of every 3 days"],
+];
+function paceTip() {
+  const mine = serverPlan && serverPlan.pace;
+  const items = PACE_TIP_LINES.map(([pace, line]) => `<li${pace === mine ? ' class="mine"' : ""}>${line}</li>`).join("");
+  return `How often you level up:<ul>${items}</ul><span class="tip-note">Today's targets don't change.</span>`;
+}
+
 // The day My Plan shows: today, or tomorrow once today is logged.
 function myPlanDay() {
   const today = todayString();
@@ -599,7 +612,7 @@ function myPlanDay() {
 const PLAN_TIPS = {
   today: "Set by your plan. Reps add up across all your sets; the plank is your best single hold.",
   levelup: levelUpTip,
-  pace: "How often you level up: Easy every 4th day, Regular every 3rd, Serious every 2nd, Intense 2 of every 3. Today's targets don't change.",
+  pace: paceTip,
   walk: "Track it on the Record tab. Minutes stay the same; they don't level up.",
 };
 const PLAN_EXERCISES = [

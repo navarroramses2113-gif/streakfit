@@ -2415,6 +2415,29 @@ a.account-menu-item {
   font-weight: 800;
 }
 
+/* Under the pace line, not over it. */
+.plan-pace-wrap .plan-tip {
+  top: calc(100% + 4px);
+}
+
+.plan-tip ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.plan-tip li {
+  margin: 2px 0;
+}
+
+.plan-tip li.mine {
+  font-weight: 800;
+  color: #22c55e;
+}
+
+.plan-tip .tip-note {
+  color: var(--text-secondary);
+}
+
 /* On Today, a signed-in player's "min" tags open My Plan. */
 .min-tag.is-link {
   cursor: pointer;
