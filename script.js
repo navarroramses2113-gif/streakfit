@@ -581,7 +581,7 @@ const LEVEL_UP_TIP = {
   intense: "On Intense, your targets go up on 2 of every 3 days you complete.",
 };
 function levelUpTip() {
-  let text = LEVEL_UP_TIP[serverPlan && serverPlan.pace] || LEVEL_UP_TIP.regular;
+  let text = (LEVEL_UP_TIP[serverPlan && serverPlan.pace] || LEVEL_UP_TIP.regular) + " This comes from the pace you picked below.";
   const next = serverPlan && ForjaRules.nextLevelUp(serverPlan, myPlanDay());
   if (next && next.held.length) {
     const names = PLAN_EXERCISES.filter((ex) => next.held.includes(ex.key)).map((ex) => ex.name);
