@@ -783,7 +783,15 @@ document.addEventListener("click", (event) => {
   tip.setAttribute("role", "note");
   const content = PLAN_TIPS[button.dataset.tip];
   tip.innerHTML = typeof content === "function" ? content() : content;
-  button.closest(".plan-card, .plan-pace-wrap").appendChild(tip);
+  const holder = button.closest(".plan-card, .plan-pace-wrap");
+  holder.appendChild(tip);
+  // Open right under the ⓘ, with the arrow pointing at it.
+  const holderBox = holder.getBoundingClientRect();
+  const buttonBox = button.getBoundingClientRect();
+  const tipBox = tip.getBoundingClientRect();
+  tip.style.top = `${buttonBox.bottom - holderBox.top + 10}px`;
+  const arrowX = buttonBox.left + buttonBox.width / 2 - tipBox.left;
+  tip.style.setProperty("--arrow-x", `${Math.max(18, Math.min(tipBox.width - 18, arrowX))}px`);
   button.setAttribute("aria-expanded", "true");
   openTipId = button.dataset.tip;
 });
