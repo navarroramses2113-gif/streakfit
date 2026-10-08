@@ -1016,9 +1016,9 @@ async function loadServerStats() {
 // A signed-in player's targets come from their plan on the server, which
 // raises them as days are completed. (The server starts a plan from the
 // minimums they already had the first time it's asked.)
-async function loadServerPlan() {
+async function loadServerPlan(pace) {
   if (!currentUserId) return;
-  const reply = await callServerFunction("plan", {});
+  const reply = await callServerFunction("plan", pace ? { pace } : {});
   if (reply.ok && reply.plan) {
     serverPlan = reply.plan;
     applyPlanTargets();
@@ -1060,9 +1060,11 @@ async function refreshVerifiedProgress() {
 // What the camera screen calls when a set is saved. Signed in: send the
 // recorded movement to the server, which recounts it and replies with the
 // number it actually verified. Guest: nothing to verify against, so it's
-// just kept locally.
+// kept locally - along with the recording, so an account made later today
+// can still have the server verify it (see claimGuestSets).
 async function saveCameraSet({ exercise, value, trace }) {
   if (!currentUserId) {
+    keepGuestTrace(trace);
     recordVerifiedSet(exercise, value);
     return { ok: true, value };
   }
@@ -1072,6 +1074,64 @@ async function saveCameraSet({ exercise, value, trace }) {
   // Not awaited: the camera screen can close while the day is being saved.
   maybeCompleteDay();
   return { ok: true, value: reply.value };
+}
+
+// A guest's camera recordings from today, kept on this phone. Signing up
+// the same day sends them to the server to recount like any other set, so
+// a Day 1 done before having an account still counts on the leaderboard.
+const GUEST_SETS_KEY = "forja-guest-sets";
+
+function keepGuestTrace(trace) {
+  if (!trace) return;
+  const today = todayString();
+  try {
+    let kept = JSON.parse(localStorage.getItem(GUEST_SETS_KEY) || "null");
+    if (!kept || kept.day !== today) kept = { day: today, traces: [] };
+    if (kept.traces.length >= ForjaRules.MAX_SETS_PER_DAY) return;
+    kept.traces.push(trace);
+    localStorage.setItem(GUEST_SETS_KEY, JSON.stringify(kept));
+  } catch (e) {
+    // storage full or blocked - the set still counts on this phone
+  }
+}
+
+// Recordings from an earlier day can never be claimed - don't keep them.
+function dropOldGuestSets() {
+  try {
+    const kept = JSON.parse(localStorage.getItem(GUEST_SETS_KEY) || "null");
+    if (kept && kept.day !== todayString()) localStorage.removeItem(GUEST_SETS_KEY);
+  } catch (e) {
+    // storage blocked - nothing kept anyway
+  }
+}
+
+// Run once for a brand new account. Today's sets only: the server accepts
+// sets for the current day, and earlier guest days were never verified.
+async function claimGuestSets() {
+  let kept = null;
+  try {
+    kept = JSON.parse(localStorage.getItem(GUEST_SETS_KEY) || "null");
+    // Removed first, so a second sign-in event can't send them twice.
+    localStorage.removeItem(GUEST_SETS_KEY);
+  } catch (e) {
+    return;
+  }
+  if (!kept || kept.day !== todayString()) return;
+  for (const trace of kept.traces) {
+    await callServerFunction("submit-set", { trace, day: kept.day });
+  }
+}
+
+// The username typed on the sign-up screen, saved once the account exists.
+// Returns whether someone else already has it.
+async function claimPendingUsername() {
+  const username = localStorage.getItem("forja-pending-username");
+  localStorage.removeItem("forja-pending-username");
+  if (!username || !USERNAME_PATTERN.test(username)) return { taken: false };
+  const { error } = await supabaseClient.from("profiles").insert({ user_id: currentUserId, username });
+  if (error) return { taken: error.code === "23505" };
+  myUsername = username;
+  return { taken: false };
 }
 
 // Updates everything visible on the page to match the current `data`.
@@ -1415,7 +1475,7 @@ function showScreen(idToShow) {
 // whatever `data` currently holds - shared by both the logged-in path
 // and the guest path below, since both end up needing the exact same
 // on-screen setup once `data` is ready.
-function revealApp() {
+function revealApp(show = true) {
   render();
   renderHeatmap();
   renderDistanceChart();
@@ -1423,7 +1483,7 @@ function revealApp() {
   renderMinTags();
   renderSettingsInputs();
   updateMeTabAuthSection();
-  showScreen("app-screen");
+  if (show) showScreen("app-screen");
 }
 
 // Runs once we know someone is logged in: loads their data from the
@@ -1432,20 +1492,31 @@ async function showApp(userId) {
   currentUserId = userId;
   const result = await loadUserData(userId);
   data = result.data;
+  // A brand new account brings along what this phone did as a guest today
+  // (its plan's starting numbers came with `data`), and the username typed
+  // when signing up.
+  let username = { taken: false };
+  if (result.isNewAccount) {
+    await claimGuestSets();
+    username = await claimPendingUsername();
+  }
   // The streak and today's verified totals belong to the server - pull
   // them in before the first draw so nothing shows a stale local copy.
-  await Promise.all([loadServerStats(), refreshVerifiedProgress(), loadServerPlan()]);
-  revealApp();
+  // A new account's plan starts at the pace picked during sign-up.
+  await Promise.all([loadServerStats(), refreshVerifiedProgress(), loadServerPlan(result.isNewAccount ? data.startPace : undefined)]);
+  const signingUp = Onboarding.isActive();
+  revealApp(!signingUp);
   // Catches a day that hit its minimums but didn't get saved (no signal).
   maybeCompleteDay();
   updateFriendRequestBadge();
 
-  // A brand new account (not a returning login) gets one chance to turn
-  // on reminders right away, instead of needing to find the toggle
-  // buried in Settings themselves. This can't happen during the earlier
-  // guest onboarding carousel - a push subscription needs a real account
-  // (a user_id) to attach to, and guests don't have one yet.
-  if (result.isNewAccount) {
+  if (signingUp) {
+    // The sign-up flow carries on (reminders, friends) from here.
+    Onboarding.accountReady({ isNewAccount: result.isNewAccount, usernameTaken: username.taken });
+  } else if (result.isNewAccount) {
+    // A brand new account (not a returning login) gets one chance to turn
+    // on reminders right away, instead of needing to find the toggle
+    // buried in Settings themselves.
     showScreen("reminder-setup-screen");
   }
 }
@@ -1475,6 +1546,7 @@ async function updateFriendRequestBadge() {
 // eventually sign up, at which point loadUserData migrates it in.
 function showAppAsGuest() {
   currentUserId = null;
+  dropOldGuestSets();
   data = loadLocalData() || defaultData();
   revealApp();
   maybeCompleteDay();
@@ -1495,8 +1567,11 @@ function updateMeTabAuthSection() {
   if (!currentUserId) document.getElementById("delete-account-panel").classList.add("hidden");
 }
 
-// Runs when nobody is logged in.
-function showAuthScreen() {
+// Runs when nobody is logged in. Opened from the sign-up flow's welcome
+// screen, it has a Back link to it instead of "Skip for now".
+function showAuthScreen({ fromOnboarding = false } = {}) {
+  document.getElementById("auth-back").classList.toggle("hidden", !fromOnboarding);
+  document.getElementById("auth-skip").classList.toggle("hidden", fromOnboarding);
   showScreen("auth-screen");
 }
 
@@ -1507,10 +1582,6 @@ function showResetPasswordScreen() {
 
 function showForgotPasswordScreen() {
   showScreen("forgot-password-screen");
-}
-
-function showOnboardingScreen() {
-  showScreen("onboarding-screen");
 }
 
 // Set right before a deliberate log-out, so the handler below knows to
@@ -1549,13 +1620,13 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     return;
   }
 
-  // First-time visitors see the onboarding pitch; anyone who has already
-  // seen it (including a guest just reopening the app) goes straight
-  // into using the app - signing up is offered later, not upfront.
+  // First-time visitors get the sign-up flow (questions, plan, Day 1);
+  // anyone who has already been through it (including a guest just
+  // reopening the app) goes straight into using the app.
   if (localStorage.getItem("streakfit-seen-onboarding")) {
     showAppAsGuest();
-  } else {
-    showOnboardingScreen();
+  } else if (!Onboarding.isActive()) {
+    Onboarding.start();
   }
 });
 
@@ -1692,7 +1763,8 @@ async function maybeCompleteDay() {
   streakCountEl.classList.add("pulse");
   setTimeout(() => streakCountEl.classList.remove("pulse"), 250);
 
-  if (!currentUserId && data.history.length === 1) {
+  // (The sign-up flow asks for an account its own way.)
+  if (!currentUserId && data.history.length === 1 && !Onboarding.isActive()) {
     signupInvitePending = true;
     if (!document.getElementById("app-screen").classList.contains("hidden")) inviteGuestToSignUp();
   }
@@ -1711,7 +1783,7 @@ function inviteGuestToSignUp() {
   setTimeout(() => {
     authMode = "signup";
     applyAuthMode();
-    authSubtitleEl.textContent = "Day 1 complete! Create an account to compete with friends - leaderboard streaks start fresh, so every day on it is camera-verified.";
+    authSubtitleEl.textContent = "Day 1 complete! Create an account today to keep your streak and compete with friends.";
     showAuthScreen();
   }, 1800);
 }
@@ -2845,75 +2917,12 @@ authSkipEl.addEventListener("click", () => {
 });
 
 
-// STEP 6: The onboarding carousel (shown once, before the first login).
-//
-// Slides 0-2 are the value-prop pitch, navigated with the shared "Next"
-// button. Slides 3-4 are questions where tapping an answer both records
-// it AND advances - so the shared Next button is hidden for those.
-
-const onboardingSlides = document.querySelectorAll(".onboarding-slide");
-const onboardingDots = document.querySelectorAll(".onboarding-dot");
-const onboardingNextEl = document.getElementById("onboarding-next");
-
-const FIRST_CHOICE_SLIDE = 3;
-let currentOnboardingSlide = 0;
-
-function showOnboardingSlide(index) {
-  // .forEach on a NodeList (what querySelectorAll returns) works just
-  // like it does on a real array - runs the given function once per item.
-  onboardingSlides.forEach((slide, i) => {
-    slide.classList.toggle("hidden", i !== index);
-  });
-  onboardingDots.forEach((dot, i) => {
-    dot.classList.toggle("active", i === index);
-  });
-  onboardingNextEl.classList.toggle("hidden", index >= FIRST_CHOICE_SLIDE);
-}
-
-onboardingNextEl.addEventListener("click", () => {
-  currentOnboardingSlide += 1;
-  showOnboardingSlide(currentOnboardingSlide);
+// STEP 6: The log-in screen's Back link, shown when it was opened from the
+// sign-up flow's welcome screen ("I already have an account").
+document.getElementById("auth-back").addEventListener("click", () => {
+  authErrorEl.textContent = "";
+  Onboarding.start();
 });
-
-// Starting minimums per fitness level - chosen on the first question slide.
-const FITNESS_LEVELS = {
-  beginner: { pushups: 5, planks: 20, squats: 10 },
-  intermediate: { pushups: 15, planks: 45, squats: 20 },
-  advanced: { pushups: 30, planks: 90, squats: 40 },
-};
-
-let selectedFitnessLevel = "beginner";
-
-document.querySelectorAll(".onboarding-choice[data-level]").forEach((button) => {
-  button.addEventListener("click", () => {
-    selectedFitnessLevel = button.dataset.level;
-    currentOnboardingSlide = FIRST_CHOICE_SLIDE + 1;
-    showOnboardingSlide(currentOnboardingSlide);
-  });
-});
-
-document.querySelectorAll(".onboarding-choice[data-walkrun]").forEach((button) => {
-  button.addEventListener("click", () => {
-    finishOnboarding(button.dataset.walkrun === "yes");
-  });
-});
-
-// Builds the guest's actual starting data from their two answers, saves
-// it as this browser's local data, then drops them into the app - same
-// mechanism showAppAsGuest() always uses, just pre-seeded instead of
-// starting from plain defaults.
-function finishOnboarding(wantsWalkRun) {
-  localStorage.setItem("streakfit-seen-onboarding", "true");
-
-  const initial = defaultData();
-  initial.minimums = {
-    ...FITNESS_LEVELS[selectedFitnessLevel],
-    walkRun: wantsWalkRun ? 15 : null,
-  };
-  localStorage.setItem("streakfit-data", JSON.stringify(initial));
-
-  showAppAsGuest();
-}
 
 
 // STEP 7: GPS walk/run tracking - a live map, distance, and timer, all

@@ -16,7 +16,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=17">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. -->
@@ -42,77 +42,26 @@
     </div>
   </div>
 
-  <!-- Shown once, before the login screen, to sell the app's value
-       first (Duolingo-style) instead of leading with a signup wall. -->
-  <main id="onboarding-screen" class="card hidden">
-    <div class="onboarding-slide" data-slide="0">
-      <div class="onboarding-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-1 4-6 6-6 12a6 6 0 0 0 12 0c0-3-2-4-2-7-1 2-2 2-2 0 0-2-1-4-2-5z"/></svg>
-      </div>
-      <h2 class="onboarding-title">Build a Streak, Build a Habit</h2>
-      <p class="onboarding-text">No gym, no equipment. Just a few minutes a day to build the kind of consistency that actually sticks.</p>
-    </div>
-    <div class="onboarding-slide hidden" data-slide="1">
-      <div class="onboarding-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="4" y="7" width="2.5" height="10" rx="1"/><rect x="17.5" y="7" width="2.5" height="10" rx="1"/><line x1="6.5" y1="12" x2="17.5" y2="12"/></svg>
-      </div>
-      <h2 class="onboarding-title">Quick Daily Check-Ins</h2>
-      <p class="onboarding-text">Push-ups, planks, squats - verified by your camera, so every rep counts for real. Hit your minimums and keep the streak alive.</p>
-    </div>
-    <div class="onboarding-slide hidden" data-slide="2">
-      <div class="onboarding-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v6a4 4 0 0 1-8 0V4z"/><path d="M8 5H5a2 2 0 0 0 0 4h3"/><path d="M16 5h3a2 2 0 0 1 0 4h-3"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="9" y1="21" x2="15" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg>
-      </div>
-      <h2 class="onboarding-title">Track Progress, Stay Accountable</h2>
-      <p class="onboarding-text">See your history at a glance, and compete with friends to stay motivated.</p>
-    </div>
-
-    <div class="onboarding-slide hidden" data-slide="3">
-      <h2 class="onboarding-title">Where do you want to start?</h2>
-      <p class="onboarding-text">This sets your daily minimums - you can always adjust them later in the Me tab.</p>
-      <div class="onboarding-choices">
-        <button class="onboarding-choice" data-level="beginner">
-          <span class="onboarding-choice-title">Beginner</span>
-          <span class="onboarding-choice-detail">5 push-ups · 20s plank · 10 squats</span>
-        </button>
-        <button class="onboarding-choice" data-level="intermediate">
-          <span class="onboarding-choice-title">Intermediate</span>
-          <span class="onboarding-choice-detail">15 push-ups · 45s plank · 20 squats</span>
-        </button>
-        <button class="onboarding-choice" data-level="advanced">
-          <span class="onboarding-choice-title">Advanced</span>
-          <span class="onboarding-choice-detail">30 push-ups · 90s plank · 40 squats</span>
-        </button>
+  <!-- The first-run sign-up flow (onboarding.js draws each step): a few
+       questions, the plan, Day 1, and only then an account. -->
+  <main id="onboarding-screen" class="card ob hidden">
+    <div class="ob-topbar">
+      <button id="ob-back" class="ob-back invisible" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div id="ob-progress" class="ob-progress invisible" role="progressbar" aria-label="Sign-up progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="ob-progress-fill" class="ob-progress-fill"></div>
       </div>
     </div>
-
-    <div class="onboarding-slide hidden" data-slide="4">
-      <h2 class="onboarding-title">Add walking or running?</h2>
-      <p class="onboarding-text">Track a simple daily minutes goal alongside your bodyweight exercises.</p>
-      <div class="onboarding-choices">
-        <button class="onboarding-choice" data-walkrun="yes">
-          <span class="onboarding-choice-title">Yes, add it</span>
-          <span class="onboarding-choice-detail">15 minutes a day to start</span>
-        </button>
-        <button class="onboarding-choice" data-walkrun="no">
-          <span class="onboarding-choice-title">No, just the 3 exercises</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="onboarding-dots">
-      <span class="onboarding-dot active"></span>
-      <span class="onboarding-dot"></span>
-      <span class="onboarding-dot"></span>
-      <span class="onboarding-dot"></span>
-      <span class="onboarding-dot"></span>
-    </div>
-
-    <button id="onboarding-next">Next</button>
+    <div id="ob-body" class="ob-body" tabindex="-1"></div>
+    <div id="ob-footer" class="ob-footer"></div>
   </main>
 
   <!-- Shown instead of the main app when nobody is logged in yet. -->
   <main id="auth-screen" class="card hidden">
+    <button id="auth-back" class="nav-back hidden" aria-label="Back to the start">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Back
+    </button>
     <div class="brand">
       <span class="brand-word">Forja</span>
     </div>
@@ -757,7 +706,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase/functions/_shared/game-rules.js?v=5"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=9"></script>
-  <script src="camera-verify.js?v=8"></script>
-  <script src="script.js?v=19"></script>
+  <script src="camera-verify.js?v=9"></script>
+  <script src="onboarding.js?v=1"></script>
+  <script src="script.js?v=20"></script>
 </body>
 </html>

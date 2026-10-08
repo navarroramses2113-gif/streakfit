@@ -65,6 +65,10 @@ input[type="number"]::-webkit-inner-spin-button {
   --ring-squats: #2dd4bf;
   --ring-walkrun: #7c5cff;
 
+  /* Ember: the sign-up flow's placeholder mascot and its streak flame. */
+  --ember: #e08a4c;
+  --ember-light: #ffc233;
+
   /* Background: a quiet, neutral charcoal gradient - no bright color
      blooms, just subtle depth. */
   --bg-start: #1a1b1f;
@@ -106,6 +110,8 @@ input[type="number"]::-webkit-inner-spin-button {
 
 :root[data-theme="light"] {
   color-scheme: light;
+  --ember: #c76a2c;
+  --ember-light: #f0a500;
   --page-bg: #f2f2f7;
   --surface: #ffffff;
   --surface-strong: #ffffff;
@@ -1223,27 +1229,9 @@ body {
 }
 
 
-.onboarding-slide {
-  text-align: center;
-  padding: var(--space-lg) 0;
-}
 
-.onboarding-icon svg {
-  width: 56px;
-  height: 56px;
-}
 
-.onboarding-icon {
-  color: var(--accent-text);
-  margin-bottom: var(--space-lg);
-}
 
-.onboarding-title {
-  font-size: var(--font-title2);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  margin-bottom: var(--space-md);
-}
 
 .onboarding-text {
   font-size: var(--font-subhead);
@@ -1251,82 +1239,15 @@ body {
   line-height: 1.5;
 }
 
-.onboarding-dots {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: var(--space-lg);
-}
 
-.onboarding-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--control-bg);
-  transition: background 0.2s ease, width 0.2s ease;
-}
 
-.onboarding-dot.active {
-  background: var(--accent);
-  width: 20px;
-  border-radius: 4px;
-}
 
-#onboarding-next {
-  width: 100%;
-  min-height: 48px;
-  font-size: var(--font-body);
-  font-weight: 700;
-  font-family: inherit;
-  color: white;
-  background-color: var(--accent);
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
 
-#onboarding-next:hover {
-  background-color: var(--accent-pressed);
-}
 
-.onboarding-choices {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin-top: var(--space-lg);
-  text-align: left;
-}
 
-.onboarding-choice {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-  padding: var(--space-md);
-  font-family: inherit;
-  background: var(--surface-strong);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
 
-.onboarding-choice:hover {
-  border-color: var(--accent);
-  background: var(--accent-tint);
-}
 
-.onboarding-choice-title {
-  font-size: var(--font-body);
-  font-weight: 700;
-  color: var(--text-primary);
-}
 
-.onboarding-choice-detail {
-  font-size: var(--font-footnote);
-  color: var(--text-muted);
-}
 
 .auth-fields {
   display: flex;
@@ -2606,7 +2527,9 @@ a.account-menu-item {
 .heatmap-label,
 .tracking-stat-label,
 .plan-mini-label,
-.feed-card-kind {
+.feed-card-kind,
+.ob-label,
+.ob-plan .ob-head span {
   font-weight: 600;
   letter-spacing: 0.06em;
 }
@@ -2636,4 +2559,502 @@ a.account-menu-item {
 .settings-panel .error:empty {
   min-height: 0;
   margin: 0;
+}
+
+/* ---------- Sign-up flow (onboarding.js) ---------- */
+/* One question per screen: a top bar (back + progress), the step in the
+   middle, and its buttons at the bottom. */
+.ob {
+  display: flex;
+  flex-direction: column;
+  min-height: min(760px, calc(100dvh - 2 * var(--space-lg)));
+  text-align: left;
+}
+
+@media (max-width: 480px), (orientation: landscape) and (max-height: 560px) {
+  .ob {
+    min-height: 100dvh;
+    padding-top: calc(var(--space-sm) + var(--safe-top));
+  }
+}
+
+.invisible {
+  visibility: hidden;
+}
+
+.ob-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+}
+
+.ob-back {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin-left: -12px;
+  color: var(--accent-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.ob-back svg {
+  width: 24px;
+  height: 24px;
+}
+
+.ob-progress {
+  flex: 1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--control-bg);
+}
+
+.ob-progress-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.35s ease;
+}
+
+.ob-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  outline: none;
+}
+
+.ob-body.centered {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.ob-body.entering {
+  animation: ob-enter 0.28s ease;
+}
+
+@keyframes ob-enter {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ob-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-top: var(--space-sm);
+}
+
+.ob-footer .auth-skip {
+  min-height: 44px;
+  margin: 0 auto;
+}
+
+/* The coach: the mascot and a speech bubble with the question. */
+.ob-mascot {
+  flex-shrink: 0;
+  width: 56px;
+  height: 63px;
+}
+
+.ob-body.centered > .ob-mascot {
+  width: 96px;
+  height: 108px;
+}
+
+.ob-coach {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.ob-bubble {
+  position: relative;
+  padding: 12px 14px;
+  font-size: var(--font-body);
+  font-weight: 600;
+  line-height: 1.3;
+  background: var(--popover-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-wrap: balance;
+}
+
+.ob-bubble::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  bottom: 16px;
+  width: 12px;
+  height: 12px;
+  background: var(--popover-bg);
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+
+.ob-em {
+  color: var(--accent-text);
+}
+
+.ob-wordmark {
+  font-size: var(--font-large-title);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--accent-text);
+}
+
+.ob-title {
+  font-size: var(--font-title1);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.ob-lead {
+  font-size: var(--font-body);
+  line-height: 1.4;
+  color: var(--text-secondary);
+  text-wrap: balance;
+}
+
+.ob-fine {
+  font-size: var(--font-footnote);
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.ob-label {
+  margin-bottom: calc(-1 * var(--space-xs));
+  font-size: var(--font-footnote);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Answers: big rows, a green outline on the picked one. */
+.ob-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ob-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 14px;
+  font-family: inherit;
+  text-align: left;
+  color: var(--text-primary);
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease, transform 0.08s ease;
+}
+
+.ob-option:active {
+  transform: scale(0.98);
+}
+
+.ob-option[aria-checked="true"] {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.ob-option.dimmed {
+  opacity: 0.45;
+}
+
+.ob-option:focus-visible,
+.ob-chips button:focus-visible,
+.ob-back:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ob-option-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  color: var(--text-secondary);
+  background: var(--field-bg);
+  border-radius: var(--radius-md);
+}
+
+.ob-option[aria-checked="true"] .ob-option-icon {
+  color: var(--accent-text);
+}
+
+.ob-option-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.ob-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ob-option-text b {
+  font-size: var(--font-body);
+  font-weight: 600;
+}
+
+.ob-option-text small {
+  font-size: var(--font-footnote);
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.ob-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 2px 7px;
+  vertical-align: 2px;
+  font-size: var(--font-caption2);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  background: var(--accent-tint);
+  border-radius: 999px;
+}
+
+.ob-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 20px;
+}
+
+.ob-bars i {
+  width: 5px;
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.ob-bars i.on {
+  background: currentColor;
+}
+
+.ob-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ob-chips button {
+  min-height: 44px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: var(--font-subhead);
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.ob-chips button[aria-checked="true"] {
+  color: var(--accent-text);
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Lists: Day 1's checklist, the test results, the plan. */
+.ob-list {
+  width: 100%;
+  padding: 0 var(--space-md);
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ob-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  font-size: var(--font-body);
+}
+
+.ob-row + .ob-row {
+  border-top: 1px solid var(--border);
+}
+
+.ob-row span:last-child {
+  text-align: right;
+  color: var(--text-secondary);
+}
+
+.ob-row.done span:last-child {
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.ob-plan .ob-row span:first-child {
+  flex: 1;
+}
+
+.ob-plan .ob-row span:not(:first-child) {
+  width: 64px;
+  text-align: right;
+}
+
+.ob-plan .ob-row .ob-goal {
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.ob-plan .ob-head {
+  min-height: 36px;
+}
+
+.ob-plan .ob-head span {
+  font-size: var(--font-caption);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ob-chart {
+  padding: 12px 14px 6px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ob-chart-label {
+  margin-bottom: 6px;
+  font-size: var(--font-footnote);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ob-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Day 1 done: the streak flame. */
+.ob-flame {
+  position: relative;
+  width: 150px;
+  height: 168px;
+}
+
+.ob-flame svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ob-flame-number {
+  position: absolute;
+  inset: 52px 0 0;
+  display: grid;
+  place-items: center;
+  font-size: 60px; /* hero number */
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 10px #00000040;
+  font-variant-numeric: tabular-nums;
+}
+
+.ob-pop {
+  animation: ob-pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes ob-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ob-week {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ob-week span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--field-bg);
+  border-radius: 50%;
+}
+
+.ob-week span.done {
+  color: #1c1c1e;
+  background: var(--ember);
+}
+
+/* The account step reuses the log-in screen's fields. */
+.ob .auth-fields {
+  margin-bottom: 0;
+}
+
+.ob .auth-legal {
+  margin-top: 0;
+}
+
+.ob .error {
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.ob-login {
+  align-self: flex-start;
+  min-height: 44px;
+  margin-left: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-body.entering,
+  .ob-pop {
+    animation: none;
+  }
+
+  .ob-progress-fill,
+  .ob-option {
+    transition: none;
+  }
 }

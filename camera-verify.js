@@ -8,7 +8,7 @@
 //
 // Usage: ForjaCamera.open("pushup", async ({ exercise, value, trace }) => {
 //   ...save it...; return { ok: true, value } or { ok: false, error: "text" }
-// })
+// }, { onClose })   <- optional: runs instead of returning to the app
 const ForjaCamera = (function () {
   const VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs";
   const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm";
@@ -163,6 +163,9 @@ const ForjaCamera = (function () {
   let setStartMs = 0;
   let lastProcessedMs = -Infinity;
   let onSave = null;
+  // Where closing goes: back to the app, unless the opener said otherwise
+  // (the sign-up flow returns to itself).
+  let onClose = null;
   let currentSideName = null;
   let prevState = "waiting";
   let lastBuzzAt = -Infinity;
@@ -484,7 +487,8 @@ const ForjaCamera = (function () {
 
   function close() {
     stopStream();
-    showScreen("app-screen");
+    if (onClose) onClose();
+    else showScreen("app-screen");
   }
 
   async function saveSet() {
@@ -565,11 +569,12 @@ const ForjaCamera = (function () {
   }
 
   return {
-    open(key, saveCallback) {
+    open(key, saveCallback, options = {}) {
       wireButtonsOnce();
       exerciseKey = key;
       exercise = ForjaCounter.EXERCISES[key];
       onSave = saveCallback;
+      onClose = options.onClose || null;
       result = 0;
       $("camera-title").textContent = exercise.title;
       $("camera-tip").innerHTML = exercise.tip;

@@ -2,7 +2,7 @@
 // separate from the page itself. It can intercept network requests -
 // which is what lets an app keep working offline.
 
-const CACHE_NAME = "streakfit-v2";
+const CACHE_NAME = "streakfit-v3";
 
 // The files needed to run the app at all. These get saved into the
 // browser's cache during "install", so they're available even offline.
@@ -14,6 +14,7 @@ const FILES_TO_CACHE = [
   "./supabase/functions/_shared/game-rules.js",
   "./supabase/functions/_shared/exercise-counter.js",
   "./camera-verify.js",
+  "./onboarding.js",
   "./manifest.json",
 ];
 
