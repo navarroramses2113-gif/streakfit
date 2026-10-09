@@ -292,21 +292,30 @@ const Onboarding = (function () {
       },
       footer: () => continueButton(!!state.pace),
     },
+    // Anyone losing weight (as any of their goals) gets cardio strongly
+    // suggested and picked for them - like the pace screen's recommendation
+    // - but can still say "Not now".
     walk: {
-      body: () =>
-        coach("Want walks or runs as part of your day?") +
-        choices(
-          [
-            { v: "yes", t: "Yes, add cardio", s: "Tracked with GPS", icon: ICON.walk },
-            { v: "no", t: "Not now", s: "You can add it any time", icon: ICON.close },
-          ],
-          "walk"
-        ) +
-        (state.walk === "yes"
-          ? `<p class="ob-label">Minutes a day</p><div class="ob-chips" role="radiogroup">${[10, 15, 20, 30]
-              .map((m) => `<button role="radio" aria-checked="${state.walkMinutes === m}" data-pick="walkMinutes" data-value="${m}">${m} min</button>`)
-              .join("")}</div>`
-          : ""),
+      body: () => {
+        const losingWeight = state.goals.includes("weight");
+        if (losingWeight && !state.walk) state.walk = "yes";
+        return (
+          coach(losingWeight ? "Since one of your goals is losing weight, we strongly suggest adding walks or runs." : "Want walks or runs as part of your day?") +
+          choices(
+            [
+              { v: "yes", t: "Yes, add cardio", s: "Tracked with GPS", icon: ICON.walk },
+              { v: "no", t: "Not now", s: "You can add it any time", icon: ICON.close },
+            ],
+            "walk",
+            { tag: (o) => (losingWeight && o.v === "yes" ? "For you" : "") }
+          ) +
+          (state.walk === "yes"
+            ? `<p class="ob-label">Minutes a day</p><div class="ob-chips" role="radiogroup">${[10, 15, 20, 30]
+                .map((m) => `<button role="radio" aria-checked="${state.walkMinutes === m}" data-pick="walkMinutes" data-value="${m}">${m} min</button>`)
+                .join("")}</div>`
+            : "")
+        );
+      },
       footer: () => continueButton(!!state.walk),
     },
     plan: {
