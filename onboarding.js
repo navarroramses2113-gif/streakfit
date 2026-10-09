@@ -80,7 +80,7 @@ const Onboarding = (function () {
   let lastRendered = null;
 
   function freshState() {
-    return { goals: [], source: null, level: null, placement: null, pace: null, walk: null, walkMinutes: 15, tested: {}, committed: false, reminderHour: null, usernameOnly: false, accountDone: false, error: "", errorIsInfo: false, busy: false, showLogin: false };
+    return { goals: [], source: null, level: null, placement: null, pace: null, walk: null, walkMinutes: 15, tested: {}, committed: false, reminderHour: null, customReminder: false, usernameOnly: false, accountDone: false, error: "", errorIsInfo: false, busy: false, showLogin: false };
   }
 
   const find = (list, v) => list.find((x) => x.v === v);
@@ -382,10 +382,15 @@ const Onboarding = (function () {
     },
     reminder: {
       noBack: true,
+      // Four common times, or "Pick a time" for any other hour. Reminders go
+      // out once an hour, so it's whole hours, the same as in Settings.
       body: () => {
         const label = (h) => `${h % 12 || 12}:00 ${h < 12 ? "AM" : "PM"}`;
+        const custom = state.customReminder;
+        const hours = Array.from({ length: 24 }, (_, h) => `<option value="${h}"${h === state.reminderHour ? " selected" : ""}>${label(h)}</option>`).join("");
         return `${coach("Your streak is on the line every day. When should we remind you?")}
-          <div class="ob-chips" role="radiogroup">${REMINDER_HOURS.map((h) => `<button role="radio" aria-checked="${state.reminderHour === h}" data-pick="reminderHour" data-value="${h}">${label(h)}</button>`).join("")}</div>
+          <div class="ob-chips" role="radiogroup">${REMINDER_HOURS.map((h) => `<button role="radio" aria-checked="${!custom && state.reminderHour === h}" data-pick="reminderHour" data-value="${h}">${label(h)}</button>`).join("")}<button role="radio" aria-checked="${custom}" data-action="custom-time">${custom ? label(state.reminderHour) : "Pick a time"}</button></div>
+          ${custom ? `<label class="ob-label" for="ob-reminder-hour">Remind me at</label><select id="ob-reminder-hour" class="ob-select">${hours}</select>` : ""}
           <p class="ob-fine">Only on days you haven't finished yet.</p>${errorLine()}`;
       },
       footer: () => cta(state.busy ? "Turning On..." : "Remind Me", "remind", state.busy || state.reminderHour === null) + quiet("Not now", "next"),
@@ -642,6 +647,7 @@ const Onboarding = (function () {
     if (pick) {
       const key = pick.dataset.pick;
       state[key] = key === "walkMinutes" || key === "reminderHour" ? Number(pick.dataset.value) : pick.dataset.value;
+      if (key === "reminderHour") state.customReminder = false;
       return render();
     }
 
@@ -651,6 +657,11 @@ const Onboarding = (function () {
       case "next":
         if (current === "plan") commitPlan();
         return go(nextScreen());
+      case "custom-time":
+        // Starts at 9 PM (not one of the four) unless an hour is already picked.
+        if (!state.customReminder && (state.reminderHour === null || REMINDER_HOURS.includes(state.reminderHour))) state.reminderHour = 21;
+        state.customReminder = true;
+        return render();
       case "login": return goToLogin();
       case "camera": return openCamera();
       case "skip-test":
@@ -663,6 +674,13 @@ const Onboarding = (function () {
       case "invite": return invite();
       case "finish": return finish();
     }
+  });
+
+  // "Pick a time": the chosen hour shows on the chip straight away.
+  screenEl.addEventListener("change", (event) => {
+    if (event.target.id !== "ob-reminder-hour") return;
+    state.reminderHour = Number(event.target.value);
+    render();
   });
 
   // The account button turns on as soon as the fields are filled in.
