@@ -3270,6 +3270,16 @@ a.account-menu-item {
   border-radius: 999px;
 }
 
+/* Under the leaderboard: the same gap as between the other sections. */
+.challenges-heading {
+  margin-top: var(--space-sm);
+}
+
+/* Challenges need an account with a username, like the leaderboard. */
+#tab-competition:has(#friends-section.hidden) #new-challenge-button {
+  display: none;
+}
+
 .challenge-list {
   display: flex;
   flex-direction: column;
