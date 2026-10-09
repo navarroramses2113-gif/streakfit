@@ -386,9 +386,12 @@
     }
   }
 
-  // "YYYY-MM-DD" in that time zone at that moment.
+  // "YYYY-MM-DD" in that time zone at that moment. Formatters are slow to
+  // make and the server converts many times, so one is kept per zone.
+  const dateFormats = new Map();
   function localDate(timeZone, ms) {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(ms));
+    if (!dateFormats.has(timeZone)) dateFormats.set(timeZone, new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }));
+    const parts = dateFormats.get(timeZone).formatToParts(new Date(ms));
     const part = (type) => parts.find((p) => p.type === type).value;
     return `${part("year")}-${part("month")}-${part("day")}`;
   }
