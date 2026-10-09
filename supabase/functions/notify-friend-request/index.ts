@@ -9,6 +9,7 @@
 // id - by the trigger retrying, or by anyone else - sends nothing.
 import { createAdminClient } from "../_shared/http.ts";
 import { sendPushToUsers } from "../_shared/push.ts";
+import * as pet from "../_shared/pet-voice.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const json = (body: unknown, status = 200) =>
@@ -47,10 +48,7 @@ Deno.serve(async (req) => {
 
   const requesterName = requesterProfile ? requesterProfile.username : "Someone";
 
-  const result = await sendPushToUsers(supabaseAdmin, [friendship.addressee_id], {
-    title: "Forja",
-    body: `${requesterName} wants to be your friend!`,
-  });
+  const result = await sendPushToUsers(supabaseAdmin, [friendship.addressee_id], pet.friendRequest(requesterName));
 
   return json({ sent: result.sent });
 });

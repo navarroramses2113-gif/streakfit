@@ -7,8 +7,13 @@
 // push_subscriptions.last_reminded_on, which only the server can write),
 // so calling this function again - by the cron job retrying, or by anyone
 // else - can never turn into a flood of reminders.
+import "../_shared/game-rules.js";
 import { createAdminClient } from "../_shared/http.ts";
+import * as pet from "../_shared/pet-voice.ts";
 import { sendPushToSubscriptions } from "../_shared/push.ts";
+
+// deno-lint-ignore no-explicit-any
+const rules = (globalThis as any).ForjaRules;
 
 // The user's local hour and date right now, or null if their saved
 // timezone isn't a real one. Progress data is written by the users
@@ -65,10 +70,35 @@ Deno.serve(async () => {
   // Skip any device already reminded today.
   const pending = (subscriptions || []).filter((sub) => sub.last_reminded_on !== dueDateByUser.get(sub.user_id));
 
-  const result = await sendPushToSubscriptions(supabaseAdmin, pending, {
-    title: "Forja",
-    body: "You haven't logged your workout today - don't let your streak slip!",
-  });
+  // The pet mentions the streak they'd keep by working out today - 0 when
+  // it's already gone (more missed days than the week's rest days cover).
+  // If streaks can't be read, the reminder still goes out, just without one.
+  const { data: statsRows } = await supabaseAdmin
+    .from("player_stats")
+    .select("user_id, streak, best_streak, last_logged_date, rest_days_used, week_start_date")
+    .in("user_id", [...dueDateByUser.keys()]);
+  const liveStreak = new Map<string, number>();
+  for (const row of statsRows || []) {
+    const stats = {
+      streak: row.streak ?? 0,
+      bestStreak: row.best_streak ?? 0,
+      lastLoggedDate: row.last_logged_date ?? null,
+      restDaysUsed: row.rest_days_used ?? 0,
+      weekStartDate: row.week_start_date ?? null,
+    };
+    const keeps = stats.lastLoggedDate && rules.nextStats(stats, dueDateByUser.get(row.user_id)).streak > 1;
+    liveStreak.set(row.user_id, keeps ? stats.streak : 0);
+  }
+
+  // One message per person (each gets their own line), sent to all their devices.
+  const result = { sent: 0, sentEndpoints: [] as string[], expiredRemoved: 0 };
+  for (const userId of new Set(pending.map((sub) => sub.user_id))) {
+    const message = pet.reminder(userId, dueDateByUser.get(userId)!, liveStreak.get(userId) ?? 0);
+    const sent = await sendPushToSubscriptions(supabaseAdmin, pending.filter((sub) => sub.user_id === userId), message);
+    result.sent += sent.sent;
+    result.sentEndpoints.push(...sent.sentEndpoints);
+    result.expiredRemoved += sent.expiredRemoved;
+  }
 
   // Record the reminder per local date (users in different timezones can be
   // on different dates at the same moment).

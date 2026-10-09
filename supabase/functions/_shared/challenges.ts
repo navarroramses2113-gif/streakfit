@@ -9,6 +9,7 @@
 // sets, walk/run posts and day posts - each placed on a challenge day by
 // WHEN the server received it, in the time zone the player joined from.
 import "./game-rules.js";
+import * as pet from "./pet-voice.ts";
 
 // deno-lint-ignore no-explicit-any
 const rules = (globalThis as any).ForjaRules;
@@ -170,7 +171,7 @@ async function tickChallenge(deps: Deps, row: Row) {
       .select("id");
     if (!claimed || claimed.length === 0) return;
     if (next === "cancelled") {
-      if (c.creatorId) await push([c.creatorId], { title: "Forja", body: `Nobody joined your ${name}, so it didn't start.` });
+      if (c.creatorId) await push([c.creatorId], pet.nobodyJoined(name));
       return;
     }
     c.status = "running";
@@ -260,7 +261,7 @@ async function notifyPassed(deps: Deps, c: Row, name: string, joined: Row[], sav
     const passer = joined.find((p) => before[p.user_id] > before[userId] && after[p.user_id] < after[userId]);
     if (!passer) continue;
     names = names ?? (await usernames(admin, joined.map((p) => p.user_id)));
-    await push([userId], { title: "Forja", body: `${names.get(passer.user_id) || "A friend"} passed you in ${withThe(name)}.` });
+    await push([userId], pet.passedYou(names.get(passer.user_id) || "A friend", withThe(name)));
     await admin.from("challenge_players").update({ passed_notified_on: today }).eq("challenge_id", c.id).eq("user_id", userId);
   }
   for (const player of joined) {
@@ -300,8 +301,8 @@ async function endChallenge(deps: Deps, c: Row, name: string, joined: Row[], sta
   const results: Promise<unknown>[] = [];
   for (const player of joined) {
     const place = places[player.user_id];
-    const body = place === 1 ? `You won ${withThe(name)}!` : `${capitalized(withThe(name))} is over. You came ${ordinal(place)}.`;
-    results.push(push([player.user_id], { title: "Forja", body }));
+    const message = place === 1 ? pet.youWon(withThe(name)) : pet.challengeOver(capitalized(withThe(name)), ordinal(place));
+    results.push(push([player.user_id], message));
   }
   await Promise.all(results);
 }
@@ -370,7 +371,7 @@ async function createChallenge(deps: Deps, userId: string, body: Row): Promise<R
 
   const names = await usernames(admin, [userId]);
   const name = rules.challengeName(checked.settings);
-  await push(friendIds, { title: "Forja", body: `${names.get(userId) || "A friend"} challenged you to ${withArticle(name)}.` });
+  await push(friendIds, pet.challengeInvite(names.get(userId) || "A friend", withArticle(name)));
   return ok({ challengeId, startDay });
 }
 
