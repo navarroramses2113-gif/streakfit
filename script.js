@@ -133,22 +133,59 @@ function loadLocalData() {
 // Fetches this user's row from the database. `async` marks this as a
 // function that does its work over time (a network request) rather than
 // instantly - callers use `await` to pause until it's actually done.
+//
+// Returns null if the row can't be read. A failed read (no signal, or a
+// login token that expired while the phone slept) must never be taken
+// for "brand new account": that once saved empty data over a real
+// account's history.
 async function loadUserData(userId) {
-  const { data: row } = await supabaseClient
-    .from("user_progress")
-    .select("data")
-    .eq("user_id", userId)
-    .maybeSingle(); // returns null instead of an error if no row exists yet
+  const readRow = () => supabaseClient.from("user_progress").select("data").eq("user_id", userId).maybeSingle();
 
-  if (row) {
-    return { data: migrateData(row.data), isNewAccount: false };
+  for (let attempt = 1; ; attempt++) {
+    const { data: row, error } = await readRow();
+    if (!error && row) return { data: migrateData(row.data), isNewAccount: false };
+    if (!error) break; // read fine, there's just no row yet
+    if (attempt === 3) return null;
+    await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
   }
 
   // Brand new account - seed it from any existing local progress, or
-  // plain defaults if there isn't any.
+  // plain defaults if there isn't any. Insert only: if a row turns out to
+  // exist after all, it's left alone and read instead.
   const initialData = loadLocalData() || defaultData();
-  await saveUserData(userId, initialData);
-  return { data: initialData, isNewAccount: true };
+  const { data: inserted, error: insertError } = await supabaseClient
+    .from("user_progress")
+    .upsert({ user_id: userId, data: initialData, updated_at: new Date().toISOString() }, { onConflict: "user_id", ignoreDuplicates: true })
+    .select("user_id");
+  if (insertError) return null;
+  if (inserted.length > 0) return { data: initialData, isNewAccount: true };
+  const { data: row, error } = await readRow();
+  return !error && row ? { data: migrateData(row.data), isNewAccount: false } : null;
+}
+
+// When a signed-in player's data can't be loaded: say so, with a way to
+// try again, instead of opening the app on empty data (which would then
+// be saved over theirs).
+function showLoadError(retry) {
+  let screen = document.getElementById("load-error-screen");
+  if (!screen) {
+    screen = document.createElement("div");
+    screen.id = "load-error-screen";
+    screen.className = "load-error-screen";
+    screen.setAttribute("role", "alertdialog");
+    screen.setAttribute("aria-labelledby", "load-error-text");
+    screen.innerHTML = `<p id="load-error-text">Couldn't load your account. Check your connection.</p><button class="auth-submit-button">Try Again</button>`;
+    document.body.appendChild(screen);
+  }
+  const button = screen.querySelector("button");
+  button.disabled = false;
+  button.onclick = () => {
+    button.disabled = true;
+    screen.remove();
+    retry();
+  };
+  hideSplash();
+  button.focus();
 }
 
 // Saves the given data into this user's row, creating it if it doesn't
@@ -1638,6 +1675,10 @@ function revealApp(show = true) {
 async function showApp(userId) {
   currentUserId = userId;
   const result = await loadUserData(userId);
+  if (!result) {
+    showLoadError(() => showApp(userId));
+    return;
+  }
   data = result.data;
   // A brand new account brings along what this phone did as a guest today
   // (its plan's starting numbers came with `data`), and the username typed

@@ -4423,3 +4423,28 @@ a.account-menu-item {
     display: none;
   }
 }
+
+/* Shown instead of the app when a signed-in player's data can't be loaded
+   (showLoadError in script.js). */
+.load-error-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: calc(var(--space-lg) + var(--safe-top)) var(--space-lg) calc(var(--space-lg) + var(--safe-bottom));
+  text-align: center;
+  background: var(--page-bg);
+}
+
+.load-error-screen p {
+  font-size: var(--font-body);
+  color: var(--text-primary);
+}
+
+.load-error-screen button {
+  max-width: 330px;
+}
