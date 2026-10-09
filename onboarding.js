@@ -147,10 +147,12 @@ const Onboarding = (function () {
     const mouth = wow
       ? '<ellipse cx="50" cy="68" rx="4.6" ry="5.6" fill="#1c1c1e"/><ellipse cx="50" cy="71" rx="2.8" ry="1.9" fill="#ff7a8a"/>'
       : '<path d="M42.5 66 Q50 74 57.5 66" stroke="#1c1c1e" stroke-width="3.4" fill="none" stroke-linecap="round"/>';
-    const star = (x, y, r) => `<path d="M${x} ${y - r} Q${x} ${y} ${x + r} ${y} Q${x} ${y} ${x} ${y + r} Q${x} ${y} ${x - r} ${y} Q${x} ${y} ${x} ${y - r} Z" fill="var(--ring-planks)"/>`;
-    return `<svg class="ob-mascot" viewBox="0 0 100 112" aria-hidden="true">
+    const star = (x, y, r) => `<path class="ob-pet-sparkle" d="M${x} ${y - r} Q${x} ${y} ${x + r} ${y} Q${x} ${y} ${x} ${y + r} Q${x} ${y} ${x - r} ${y} Q${x} ${y} ${x} ${y - r} Z" fill="var(--ring-planks)"/>`;
+    // It blinks every few seconds; the wow face bounces in and its sparkles
+    // twinkle (style.css, off with Reduce Motion).
+    return `<svg class="ob-mascot${wow ? " is-wow" : ""}" viewBox="0 0 100 112" aria-hidden="true">
       <g transform="rotate(-73 50 60)">${arc("var(--ring-pushups)", 0)}${arc("var(--ring-planks)", -75.4)}${arc("var(--ring-squats)", -150.8)}</g>
-      <circle cx="50" cy="60" r="26.5" fill="#fff6ea"/>${eye(41)}${eye(59)}${mouth}${wow ? star(90, 14, 7) + star(80, 5, 3.6) : ""}
+      <circle cx="50" cy="60" r="26.5" fill="#fff6ea"/><g class="ob-pet-eyes">${eye(41)}${eye(59)}</g>${mouth}${wow ? star(90, 14, 7) + star(80, 5, 3.6) : ""}
     </svg>`;
   }
   const coach = (text) => `<div class="ob-coach">${mascot("happy")}<p class="ob-bubble">${text}</p></div>`;

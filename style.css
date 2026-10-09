@@ -3095,9 +3095,84 @@ a.account-menu-item {
   margin-left: 0;
 }
 
+/* The pet comes alive: a quick blink every few seconds, and on
+   celebration screens the wow face bounces in and its sparkles twinkle. */
+.ob-pet-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ob-pet-blink 4.6s ease-in-out infinite;
+}
+
+@keyframes ob-pet-blink {
+  0%,
+  90%,
+  96%,
+  100% {
+    transform: none;
+  }
+
+  93% {
+    transform: scaleY(0.1);
+  }
+}
+
+.ob-mascot.is-wow {
+  transform-origin: 50% 70%;
+  animation: ob-pet-bounce 0.9s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+@keyframes ob-pet-bounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) translateY(12px);
+  }
+
+  45% {
+    opacity: 1;
+    transform: scale(1.08) translateY(-6px);
+  }
+
+  70% {
+    transform: scale(0.97) translateY(0);
+  }
+
+  85% {
+    transform: scale(1.02) translateY(-2px);
+  }
+
+  100% {
+    transform: none;
+  }
+}
+
+.ob-pet-sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ob-pet-twinkle 1.4s ease-in-out 0.5s infinite alternate both;
+}
+
+.ob-pet-sparkle + .ob-pet-sparkle {
+  animation-delay: 1.2s;
+}
+
+@keyframes ob-pet-twinkle {
+  from {
+    opacity: 0.35;
+    transform: scale(0.6) rotate(0deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1.1) rotate(20deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ob-body.entering,
-  .ob-pop {
+  .ob-pop,
+  .ob-pet-eyes,
+  .ob-mascot.is-wow,
+  .ob-pet-sparkle {
     animation: none;
   }
 
