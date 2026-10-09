@@ -1063,13 +1063,23 @@ async function refreshVerifiedProgress() {
 // kept locally - along with the recording, so an account made later today
 // can still have the server verify it (see claimGuestSets).
 async function saveCameraSet({ exercise, value, trace }) {
+  // The "+25" on Today is queued before anything redraws, so it plays
+  // before the green check and the day-complete moment it can lead to.
+  const key = { pushup: "pushups", plank: "planks", squat: "squats" }[exercise];
+  const before = todayProgress()[key];
+  const celebrate = (counted) => {
+    if (typeof Celebrations === "undefined" || data.lastLoggedDate === todayString()) return;
+    Celebrations.setSaved(exercise, before, key === "planks" ? Math.max(before, counted) : before + counted);
+  };
   if (!currentUserId) {
     keepGuestTrace(trace);
+    celebrate(value);
     recordVerifiedSet(exercise, value);
     return { ok: true, value };
   }
   const reply = await callServerFunction("submit-set", { trace, day: todayString() });
   if (!reply.ok) return { ok: false, error: serverErrorMessage(reply), code: reply.error };
+  celebrate(reply.value);
   await refreshVerifiedProgress();
   // Not awaited: the camera screen can close while the day is being saved.
   maybeCompleteDay();
@@ -1160,6 +1170,7 @@ function render() {
   retryLogButtonEl.classList.toggle("hidden", loggedToday || savingDay || !saveDayFailed);
 
   updateRings(loggedToday);
+  if (typeof Celebrations !== "undefined") Celebrations.renderToday(loggedToday, progress);
 
   document.querySelectorAll(".verify-button").forEach((button) => {
     button.disabled = loggedToday;
@@ -1851,6 +1862,7 @@ async function maybeCompleteDay() {
   // record (and isn't ranked), so their day is logged here, with the same
   // streak rules.
   let stats;
+  let levelUp = false;
   if (currentUserId) {
     const reply = await callServerFunction("log-day", { day: today });
     savingDay = false;
@@ -1872,6 +1884,7 @@ async function maybeCompleteDay() {
     stats = reply.stats;
     // The server moved the plan forward; tomorrow's targets come from it.
     if (reply.plan) serverPlan = reply.plan;
+    levelUp = !!(reply.planEvents && reply.planEvents.levelUp);
   } else {
     stats = ForjaRules.nextStats(
       {
@@ -1892,12 +1905,11 @@ async function maybeCompleteDay() {
   }
 
   saveData(data);
+  // Queued before render() so the ring waits to close until the moment
+  // plays on Today (the day often completes while the camera is open).
+  if (typeof Celebrations !== "undefined") Celebrations.dayComplete({ streak: data.streak, levelUp });
   render();
   renderHeatmap();
-
-  // Briefly pulse the streak number to celebrate the successful log.
-  streakCountEl.classList.add("pulse");
-  setTimeout(() => streakCountEl.classList.remove("pulse"), 250);
 
   // (The sign-up flow asks for an account its own way.)
   if (!currentUserId && data.history.length === 1 && !Onboarding.isActive()) {

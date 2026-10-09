@@ -4127,3 +4127,296 @@ a.account-menu-item {
     display: none;
   }
 }
+
+/* ---------- Celebrations on Today (celebrations.js) ---------- */
+/* A saved set: "+25" floats up off its card. */
+.exercise-tile {
+  position: relative;
+}
+
+.celebrate-plus {
+  position: absolute;
+  top: 44%;
+  left: 50%;
+  font-size: var(--font-title3);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  animation: celebrate-plus 1.2s ease-out forwards;
+}
+
+@keyframes celebrate-plus {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -38px) scale(1);
+  }
+}
+
+/* A target met: a green check on its "min" tag. */
+.min-tag.is-met {
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.min-tag.is-met::after {
+  content: " \2713";
+}
+
+.min-tag.pop {
+  display: inline-block;
+  animation: celebrate-tag-pop 0.45s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+
+@keyframes celebrate-tag-pop {
+  40% {
+    transform: scale(1.35);
+  }
+}
+
+/* The day done: a gapless ring snaps in over the segments, with the pet's
+   face in the middle. Stays for the rest of the day. */
+.rings-container {
+  position: relative;
+}
+
+#ring-complete {
+  opacity: 0;
+  transform-origin: 60px 60px;
+}
+
+.rings-container.is-complete #ring-complete {
+  opacity: 1;
+}
+
+#ring-complete.snap {
+  animation: celebrate-ring-snap 0.55s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+@keyframes celebrate-ring-snap {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ring-complete-arc {
+  fill: none;
+  stroke-width: 14;
+  transform: rotate(-90deg);
+  transform-origin: 60px 60px;
+}
+
+.ring-face {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 104px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.ring-face svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.ring-face.snap .pet-face {
+  transform-origin: 50% 60%;
+  animation: ob-pet-bounce 0.9s cubic-bezier(0.3, 1.5, 0.5, 1) 0.15s both;
+}
+
+/* A level-up day: a tag and tomorrow's targets under the ring. */
+.level-up-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 2px 8px;
+  font-size: var(--font-footnote);
+  border-radius: 999px;
+  background: var(--accent-tint);
+  animation: celebrate-tag-in 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+.level-up-line {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--font-footnote);
+  font-weight: 600;
+  color: var(--text-secondary);
+  animation: celebrate-fade-in 0.4s ease 0.2s both;
+}
+
+@keyframes celebrate-tag-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes celebrate-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* Every 7th day of a streak: one full-screen celebration. */
+.celebrate-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: calc(var(--space-lg) + var(--safe-top)) var(--space-lg) calc(var(--space-lg) + var(--safe-bottom));
+  overflow: hidden;
+  text-align: center;
+  background: var(--page-bg);
+  animation: celebrate-fade-in 0.25s ease both;
+}
+
+/* The pet flexing (FlexPet in celebrations.js moves it). */
+.flex-pet {
+  width: 230px;
+  height: auto;
+  margin-bottom: -18px;
+  overflow: visible;
+}
+
+.fp-shadow {
+  fill: var(--text-primary);
+  fill-opacity: 0.12;
+}
+
+/* With Reduce Motion it just stands in its final pose. */
+.flex-pet.still .fp-happy-l,
+.flex-pet.still .fp-happy-r,
+.flex-pet.still .fp-brows,
+.flex-pet.still .fp-mouth-o,
+.flex-pet.still .fp-mouth-grit,
+.flex-pet.still .fp-ting {
+  display: none;
+}
+
+.celebrate-number {
+  display: inline-block;
+  font-size: 88px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.celebrate-number.bump {
+  animation: celebrate-tag-pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.celebrate-screen h2 {
+  font-size: var(--font-title1);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.celebrate-screen p {
+  font-size: var(--font-callout);
+  color: var(--text-secondary);
+}
+
+.celebrate-week {
+  display: flex;
+  gap: 8px;
+  margin: var(--space-xs) 0 var(--space-md);
+}
+
+.celebrate-week span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: white;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.celebrate-week span.is-today {
+  animation: celebrate-day-fill 0.5s cubic-bezier(0.3, 1.8, 0.5, 1) 1.6s both;
+}
+
+@keyframes celebrate-day-fill {
+  from {
+    color: var(--text-muted);
+    background: var(--field-bg);
+    transform: scale(0.6);
+  }
+}
+
+.celebrate-close {
+  max-width: 330px;
+}
+
+.celebrate-confetti {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  width: 8px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--c);
+  opacity: 0;
+  pointer-events: none;
+  animation: celebrate-confetti 1.6s cubic-bezier(0.15, 0.6, 0.4, 1) var(--d) forwards;
+}
+
+@keyframes celebrate-confetti {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(0);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) rotate(var(--r));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .celebrate-plus,
+  .min-tag.pop,
+  #ring-complete.snap,
+  .ring-face.snap .pet-face,
+  .level-up-tag,
+  .level-up-line,
+  .celebrate-screen,
+  .celebrate-number.bump,
+  .celebrate-week span.is-today {
+    animation: none;
+  }
+
+  .celebrate-plus,
+  .celebrate-confetti {
+    display: none;
+  }
+}

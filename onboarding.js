@@ -140,7 +140,8 @@ const Onboarding = (function () {
   // ---------- pieces ----------
   // The coach is the logo's ring with a face inside: "happy" next to
   // questions, "wow" (bigger eyes, open mouth, sparkles) on celebrations.
-  function mascot(mood) {
+  // faceOnly draws just the face, for the middle of Today's ring.
+  function mascot(mood, faceOnly) {
     const wow = mood === "wow";
     const arc = (color, offset) => `<circle cx="50" cy="60" r="36" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="54 172.2" stroke-dashoffset="${offset}"/>`;
     const eye = (x) => `<ellipse cx="${x}" cy="56" rx="${wow ? 5.8 : 5}" ry="${wow ? 7 : 6.2}" fill="#1c1c1e"/><circle cx="${x + 1.7}" cy="53.6" r="1.8" fill="#fff"/>`;
@@ -150,6 +151,9 @@ const Onboarding = (function () {
     const star = (x, y, r) => `<path class="ob-pet-sparkle" d="M${x} ${y - r} Q${x} ${y} ${x + r} ${y} Q${x} ${y} ${x} ${y + r} Q${x} ${y} ${x - r} ${y} Q${x} ${y} ${x} ${y - r} Z" fill="var(--ring-planks)"/>`;
     // It blinks every few seconds; the wow face bounces in and its sparkles
     // twinkle (style.css, off with Reduce Motion).
+    if (faceOnly) {
+      return `<svg class="pet-face${wow ? " is-wow" : ""}" viewBox="20 30 60 60" aria-hidden="true"><circle cx="50" cy="60" r="26.5" fill="#fff6ea"/><g class="ob-pet-eyes">${eye(41)}${eye(59)}</g>${mouth}</svg>`;
+    }
     return `<svg class="ob-mascot${wow ? " is-wow" : ""}" viewBox="0 0 100 112" aria-hidden="true">
       <g transform="rotate(-73 50 60)">${arc("var(--ring-pushups)", 0)}${arc("var(--ring-planks)", -75.4)}${arc("var(--ring-squats)", -150.8)}</g>
       <circle cx="50" cy="60" r="26.5" fill="#fff6ea"/><g class="ob-pet-eyes">${eye(41)}${eye(59)}</g>${mouth}${wow ? star(90, 14, 7) + star(80, 5, 3.6) : ""}
@@ -701,6 +705,8 @@ const Onboarding = (function () {
 
   return {
     isActive: () => active,
+    // The pet, for Today's celebrations (celebrations.js).
+    mascot,
 
     start() {
       active = true;
