@@ -91,10 +91,21 @@ alter table public.feed_events
   add column challenge_days integer check (challenge_days between 1 and 365),
   add column challenge_beaten integer check (challenge_beaten between 0 and 10);
 
-alter table public.feed_events drop constraint feed_events_kind_check;
-alter table public.feed_events add constraint feed_events_kind_check check (kind in ('day', 'walk', 'run', 'challenge'));
+-- The two existing rules about post kinds are replaced (found by what
+-- they check rather than by name, so this works whatever they're called).
+do $$
+declare
+  rule record;
+begin
+  for rule in
+    select conname from pg_constraint
+    where conrelid = 'public.feed_events'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%kind%'
+  loop
+    execute format('alter table public.feed_events drop constraint %I', rule.conname);
+  end loop;
+end $$;
 
-alter table public.feed_events drop constraint feed_events_complete_for_kind;
+alter table public.feed_events add constraint feed_events_kind_check check (kind in ('day', 'walk', 'run', 'challenge'));
 alter table public.feed_events add constraint feed_events_complete_for_kind check (
   (kind = 'day' and streak is not null and pushups is not null and plank_seconds is not null and squats is not null)
   or (kind in ('walk', 'run') and distance_m is not null and duration_s is not null)
@@ -102,13 +113,5 @@ alter table public.feed_events add constraint feed_events_complete_for_kind chec
     and challenge_days is not null and challenge_beaten is not null)
 );
 
--- 5. Every 15 minutes, challenge-tick starts challenges, saves finished
---    days, puts people out and ends challenges. It reuses the call your
---    hourly reminders job already makes (same project address and key),
---    pointed at challenge-tick instead - so no key is written in this file.
---    Run this part AFTER the challenge-tick function is deployed.
-select cron.schedule(
-  'challenge-tick',
-  '*/15 * * * *',
-  (select replace(command, 'send-reminders', 'challenge-tick') from cron.job where command like '%send-reminders%' limit 1)
-);
+-- The 15-minute check is turned on separately, in
+-- challenges-schedule-2026-10-09.sql, once challenge-tick is deployed.
