@@ -16,34 +16,43 @@
 // breathing, blinking and flexing now and then until it's removed.
 //
 // The story: it pops up surprised, lands with a squish, scrunches up its
-// face and crouches, jumps - arms burst out and curl into a flex - lands,
-// pumps twice with a "ting", winks, and relaxes into a proud smile.
+// face and crouches, jumps - arms burst out and curl into a flex - lands
+// with an angry flex face, pumps twice with a "ting", winks, and relaxes
+// into a proud smile. Every later flex brings the angry face back.
 const FlexPet = (function () {
   const INK = "#1c1c1e";
   const FACE = "#fff6ea";
   const TONGUE = "#ff7a8a";
-  // Where things sit in the drawing (ring center 50,60; radius 36).
-  const SHOULDER = [80, 68];
-  const ELBOW = [112, 68];
-  const BICEP = [99, 68];
+  // Where things sit in the drawing (ring center 50,60; radius 36), for the
+  // right arm; the left one is mirrored.
+  const SHOULDER = [86, 68];
+  const ELBOW = [118, 68];
+  const BICEP = [102, 63];
 
   const star = (x, y, r, cls) => `<path class="${cls}" style="transform-origin:${x}px ${y}px" d="M${x} ${y - r} Q${x} ${y} ${x + r} ${y} Q${x} ${y} ${x} ${y + r} Q${x} ${y} ${x - r} ${y} Q${x} ${y} ${x} ${y - r} Z" fill="var(--ring-planks)"/>`;
 
-  // One arm, drawn for the right side in the flex pose (upper arm out,
-  // forearm up). side -1 mirrors every x around the pet's middle.
+  // One arm in the flex pose (upper arm out, forearm up), drawn like the
+  // rest of the pet: flat ring color, one darker shade for the underside,
+  // one white shine on the bicep. side -1 mirrors every x around the
+  // pet's middle (path points are written "x,y" so they can be mirrored).
   function arm(side, color) {
     const x = (v) => (side > 0 ? v : 100 - v);
+    const P = (d) => d.replace(/(-?[\d.]+),(-?[\d.]+)/g, (_, a, b) => `${+x(+a).toFixed(2)} ${b}`);
     const o = (p) => `transform-origin:${x(p[0])}px ${p[1]}px`;
+    const shade = `fill="#000" fill-opacity="0.16"`;
+    const crease = `fill="none" stroke="${INK}" stroke-opacity="0.3" stroke-width="1.8" stroke-linecap="round"`;
     return `<g class="fp-arm" data-side="${side}" style="${o(SHOULDER)}">
-      <line x1="${x(80)}" y1="68" x2="${x(112)}" y2="68" stroke="${color}" stroke-width="13" stroke-linecap="round"/>
+      <path d="${P("M82,59 L114,60 C122,60 126,64 126,70 C126,76 121,78 114,77.5 C104,80.5 92,80.5 82,77.5 Z")}" fill="${color}"/>
+      <path d="${P("M86,75.5 C96,79 108,79 116,75.5 C121,74 124.5,72.5 126,70 C126,76 121,78 114,77.5 C104,80.5 92,80.5 84,77.8 Z")}" ${shade}/>
       <g class="fp-bicep" style="${o(BICEP)}">
-        <ellipse cx="${x(99)}" cy="62" rx="11.5" ry="9.5" fill="${color}"/>
-        <path d="M${x(91)} 58 Q${x(98)} 52.5 ${x(105)} 56" fill="none" stroke="#fff" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
+        <path d="${P("M88,63.5 C87.5,50 97,43.5 105,45.5 C113,47.5 115.5,56 113.5,63.5 Z")}" fill="${color}"/>
+        <path d="${P("M93.5,53 C96.5,48.5 102,47.5 106,49.5")}" fill="none" stroke="#fff" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
       </g>
       <g class="fp-forearm" style="${o(ELBOW)}">
-        <line x1="${x(112)}" y1="68" x2="${x(112)}" y2="44" stroke="${color}" stroke-width="12" stroke-linecap="round"/>
-        <circle cx="${x(112)}" cy="37" r="9.5" fill="${color}"/>
-        <path d="M${x(105.5)} 34.5 Q${x(112)} 30.5 ${x(118.5)} 34.5" fill="none" stroke="${INK}" stroke-opacity="0.28" stroke-width="2" stroke-linecap="round"/>
+        <path d="${P("M109,68 C107,60 108,52 111,44 L125,44 C128,52 129.5,60 127,68 Z")}" fill="${color}"/>
+        <path d="${P("M109,68 C107,60 108,52 111,44 L114,44 C112,52 112,60 113,68 Z")}" ${shade}/>
+        <rect x="${Math.min(x(107), x(129))}" y="23" width="22" height="23" rx="8" fill="${color}"/>
+        <path d="${P("M107.5,29.5 L113,29.5 M107.5,34.5 L113,34.5 M107.5,39.5 L113,39.5 M110,24.5 C114,22.5 120,23 123,27")}" ${crease}/>
       </g>
     </g>`;
   }
@@ -52,6 +61,16 @@ const FlexPet = (function () {
     const ringArc = (color, offset) => `<circle cx="50" cy="60" r="36" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="54 172.2" stroke-dashoffset="${offset}"/>`;
     const openEye = (cx, cls) => `<g class="${cls}" style="transform-origin:${cx}px 56px"><ellipse cx="${cx}" cy="56" rx="5.8" ry="7" fill="${INK}"/><circle cx="${cx + 1.7}" cy="53.6" r="1.8" fill="#fff"/></g>`;
     const happyEye = (cx, cls) => `<path class="${cls}" d="M${cx - 6} 58 Q${cx} 49 ${cx + 6} 58" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/>`;
+    // Angry: the top of each eye cut off by a lid that slopes down to the nose.
+    const m = (v) => 100 - v;
+    const angryEyes = `<g class="fp-angry-eyes" fill="${INK}">
+      <path d="M34.5 51.5 L47.5 56 C47.5 61.5 45 64 41 64 C36.8 64 34.5 60.5 34.5 51.5 Z"/><circle cx="43.2" cy="59" r="1.5" fill="#fff"/>
+      <path d="M${m(34.5)} 51.5 L${m(47.5)} 56 C${m(47.5)} 61.5 ${m(45)} 64 ${m(41)} 64 C${m(36.8)} 64 ${m(34.5)} 60.5 ${m(34.5)} 51.5 Z"/><circle cx="${m(38.8)}" cy="59" r="1.5" fill="#fff"/>
+    </g>`;
+    // The "anger mark" on top of the head: four curved strokes, pulsing.
+    const vein = `<g class="fp-vein" style="transform-origin:50px 19px" fill="none" stroke="var(--ring-pushups)" stroke-width="2.8" stroke-linecap="round">
+      <path d="M47.5 13 Q47.5 16.5 44 16.5"/><path d="M52.5 13 Q52.5 16.5 56 16.5"/><path d="M47.5 25 Q47.5 21.5 44 21.5"/><path d="M52.5 25 Q52.5 21.5 56 21.5"/>
+    </g>`;
     return `<svg class="flex-pet" viewBox="-36 -26 172 162" aria-hidden="true">
       <ellipse class="fp-shadow" cx="50" cy="112" rx="30" ry="4.5" style="transform-origin:50px 112px"/>
       <g class="fp-jump">
@@ -62,17 +81,26 @@ const FlexPet = (function () {
             <circle cx="50" cy="60" r="26.5" fill="${FACE}"/>
             <g class="fp-eyes">
               ${openEye(41, "fp-eye-l")}${openEye(59, "fp-eye-r")}
-              ${happyEye(41, "fp-happy-l")}${happyEye(59, "fp-happy-r")}
+              ${happyEye(59, "fp-happy-r")}
+              ${angryEyes}
             </g>
             <g class="fp-brows" stroke="${INK}" stroke-width="3.4" stroke-linecap="round">
               <line x1="34" y1="45" x2="45" y2="49"/><line x1="66" y1="45" x2="55" y2="49"/>
             </g>
+            <g class="fp-brows-angry" stroke="${INK}" stroke-width="4.4" stroke-linecap="round">
+              <line x1="32" y1="45" x2="47" y2="51.5"/><line x1="68" y1="45" x2="53" y2="51.5"/>
+            </g>
             <g class="fp-mouth-o"><ellipse cx="50" cy="68" rx="4.6" ry="5.6" fill="${INK}"/><ellipse cx="50" cy="71" rx="2.8" ry="1.9" fill="${TONGUE}"/></g>
             <g class="fp-mouth-grit"><rect x="41" y="64.5" width="18" height="7" rx="3.5" fill="#fff" stroke="${INK}" stroke-width="2.4"/><line x1="42.5" y1="68" x2="57.5" y2="68" stroke="${INK}" stroke-width="1.4"/></g>
+            <g class="fp-mouth-angry" stroke="${INK}" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M38.5 65 C44 63 56 63 61.5 65 L59.5 72.5 C54 74.5 46 74.5 40.5 72.5 Z" fill="#fff" stroke-width="2.4"/>
+              <path d="M40 68.8 L60 68.8 M45 64.2 L45 73.6 M50 63.8 L50 74 M55 64.2 L55 73.6" fill="none" stroke-width="1.3"/>
+            </g>
             <g class="fp-mouth-smile"><path d="M39.5 64.5 Q50 80 60.5 64.5 Z" fill="${INK}" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/><ellipse cx="50" cy="72.2" rx="4.4" ry="2.4" fill="${TONGUE}"/></g>
+            ${vein}
           </g>
         </g>
-        ${star(127, 21, 8, "fp-ting fp-ting-r")}${star(-27, 21, 8, "fp-ting fp-ting-l")}
+        ${star(135, 18, 8, "fp-ting fp-ting-r")}${star(-35, 18, 8, "fp-ting fp-ting-l")}
       </g>
     </svg>`;
   }
@@ -275,21 +303,51 @@ const FlexPet = (function () {
       animate(el, [[0, { transform: "scale(0)", opacity: 0 }], ...pop(LOOP * 0.73), [LOOP, { transform: "scale(0)", opacity: 0 }]], LOOP, T, Infinity);
     }
 
-    // Faces: surprised -> gritting its teeth (crouch and jump) -> eyes
-    // squeezed shut with a big smile (the flex) -> a wink -> proud smile.
+    // Faces: surprised -> gritting its teeth (crouch and jump) -> angry
+    // (the flex and its pumps) -> a wink -> proud smile.
     const WOW = [0, 0.86];
     const GRIT = [0.86, 1.4];
-    const PROUD = [1.4, 2.78];
+    const ANGRY = [1.4, 2.78];
     const WINK = [2.78, 3.15];
     const SMILE = [3.15, T];
     show(q(".fp-eye-l"), [WOW, GRIT, WINK, SMILE]);
     show(q(".fp-eye-r"), [WOW, GRIT, SMILE]);
-    show(q(".fp-happy-l"), [PROUD]);
-    show(q(".fp-happy-r"), [PROUD, WINK]);
+    show(q(".fp-happy-r"), [WINK]);
     show(q(".fp-brows"), [GRIT]);
     show(q(".fp-mouth-o"), [WOW]);
     show(q(".fp-mouth-grit"), [GRIT]);
-    show(q(".fp-mouth-smile"), [PROUD, WINK, SMILE]);
+    show(q(".fp-mouth-smile"), [WINK, SMILE]);
+    const angry = [".fp-angry-eyes", ".fp-brows-angry", ".fp-mouth-angry", ".fp-vein"];
+    for (const sel of angry) show(q(sel), [ANGRY]);
+    // In the idle loop it gets angry again for each flex.
+    const FLEX = [LOOP * 0.62, LOOP * 0.9];
+    for (const sel of [".fp-eye-l", ".fp-eye-r", ".fp-mouth-smile", ...angry]) {
+      const during = angry.includes(sel) ? 1 : 0;
+      animate(q(sel), [
+        [0, { opacity: 1 - during }, "steps(1, end)"],
+        [FLEX[0], { opacity: during }, "steps(1, end)"],
+        [FLEX[1], { opacity: 1 - during }],
+        [LOOP, { opacity: 1 - during }],
+      ], LOOP, T, Infinity);
+    }
+    // The anger mark pops in with the flex and throbs with every pump.
+    const throb = (t) => [[t - 0.1, tf("scale(1)")], [t, tf("scale(1.35)")], [t + 0.16, tf("scale(1)")]];
+    animate(q(".fp-vein"), [
+      [0, tf("scale(0)")],
+      [1.4, tf("scale(0)")],
+      [1.52, tf("scale(1.3)")],
+      [1.64, tf("scale(1)")],
+      ...throb(2.0),
+      ...throb(2.5),
+      [T, tf("scale(1)")],
+    ], T);
+    animate(q(".fp-vein"), [
+      [0, tf("scale(0)")],
+      [FLEX[0], tf("scale(0)")],
+      [LOOP * 0.66, tf("scale(1.3)")],
+      ...throb(LOOP * 0.74),
+      [LOOP, tf("scale(1)")],
+    ], LOOP, T, Infinity);
     // Squinting while it strains; blinking now and then afterwards.
     for (const eye of all(".fp-eye-l, .fp-eye-r")) {
       animate(eye, [

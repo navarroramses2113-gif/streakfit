@@ -4307,9 +4307,12 @@ a.account-menu-item {
 }
 
 /* With Reduce Motion it just stands in its final pose. */
-.flex-pet.still .fp-happy-l,
 .flex-pet.still .fp-happy-r,
 .flex-pet.still .fp-brows,
+.flex-pet.still .fp-angry-eyes,
+.flex-pet.still .fp-brows-angry,
+.flex-pet.still .fp-mouth-angry,
+.flex-pet.still .fp-vein,
 .flex-pet.still .fp-mouth-o,
 .flex-pet.still .fp-mouth-grit,
 .flex-pet.still .fp-ting {
