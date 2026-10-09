@@ -1597,7 +1597,7 @@ function hideSplash() {
 // "hide this one" line added into every other show-a-different-screen
 // function (which is exactly how the reset-password screen almost got
 // left out of revealApp() below).
-const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "my-plan-screen", "reminder-setup-screen", "camera-screen"];
+const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "my-plan-screen", "challenge-screen", "reminder-setup-screen", "camera-screen"];
 
 function showScreen(idToShow) {
   SCREEN_IDS.forEach((id) => {
@@ -2396,6 +2396,8 @@ async function enterFeedTab() {
   // the last posts while the fresh ones arrive.
   if (!feedListEl.hasChildNodes()) showFeedMessage("Loading...");
   await loadFeed();
+  // Challenges preview (localhost only): a sample "challenge won" post.
+  if (typeof Challenges !== "undefined") Challenges.decorateFeed(feedListEl);
 }
 
 async function loadFeed() {
