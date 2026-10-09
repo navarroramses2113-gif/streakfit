@@ -3258,16 +3258,48 @@ a.account-menu-item {
   inset: -4px;
 }
 
-.challenge-preview-tag {
-  margin-left: 6px;
-  padding: 1px 8px;
-  font-size: var(--font-caption2);
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--ember);
-  border: 1px dashed var(--ember);
-  border-radius: 999px;
+/* No challenges yet: one row to start the first. */
+.challenge-new-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 52px;
+  font-family: inherit;
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--accent-text);
+  background: var(--accent-tint);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.challenge-new-row svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* "Couldn't load..." with a Try Again next to it. */
+.challenge-message {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 4px 4px 4px 12px;
+  font-size: var(--font-subhead);
+  color: var(--text-secondary);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+}
+
+.challenge-message .challenge-text-button {
+  margin: 0;
+}
+
+.challenge-result-tile {
+  margin: var(--space-md) 0;
 }
 
 /* Under the leaderboard: the same gap as between the other sections. */

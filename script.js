@@ -2077,6 +2077,7 @@ async function enterCompetitionTab() {
   friendsSectionEl.classList.remove("hidden");
   loadFriendRequests();
   loadLeaderboard();
+  if (typeof Challenges !== "undefined") Challenges.refresh();
 }
 
 document.getElementById("save-username-button").addEventListener("click", async () => {
@@ -2396,8 +2397,6 @@ async function enterFeedTab() {
   // the last posts while the fresh ones arrive.
   if (!feedListEl.hasChildNodes()) showFeedMessage("Loading...");
   await loadFeed();
-  // Challenges preview (localhost only): a sample "challenge won" post.
-  if (typeof Challenges !== "undefined") Challenges.decorateFeed(feedListEl);
 }
 
 async function loadFeed() {
@@ -2424,7 +2423,9 @@ async function loadFeed() {
   oldestDay.setDate(oldestDay.getDate() - (FEED_DAYS_SHOWN - 1));
   const { data: postRows, error: postsError } = await supabaseClient
     .from("feed_events")
-    .select("id, user_id, kind, day, streak, pushups, plank_seconds, squats, cardio_minutes, distance_m, duration_s, new_best, created_at")
+    // Every column, so the Feed keeps working whether or not the newer
+    // post kinds (like challenge wins) have their columns yet.
+    .select("*")
     .in("user_id", [currentUserId, ...feedFriendIds])
     .gte("day", dateToString(oldestDay))
     .order("created_at", { ascending: false })
@@ -2482,10 +2483,16 @@ function feedWhenText(post) {
 }
 
 const isActivityPost = (post) => post.kind === "walk" || post.kind === "run";
+const isChallengePost = (post) => post.kind === "challenge";
+const challengePostName = (post) => ForjaRules.challengeName({ type: post.challenge_type, exercise: post.challenge_exercise });
 
 function feedHeadline(post) {
   if (post.kind === "run") return "Went for a run";
   if (post.kind === "walk") return "Went for a walk";
+  if (isChallengePost(post)) {
+    const name = challengePostName(post);
+    return name === "Last One Standing" ? "Won Last One Standing" : `Won the ${name}`;
+  }
   const streak = Number(post.streak) || 0;
   if (STREAK_MILESTONES.includes(streak)) return `Hit a ${streak}-day streak`;
   if (post.new_best) return `New personal best: ${streak} days`;
@@ -2506,6 +2513,19 @@ function kudosSummaryText(names) {
 // cardio when the day had walks/runs); a walk or run shows distance, moving
 // time and pace, in the viewer's own units.
 function feedStats(post) {
+  if (isChallengePost(post)) {
+    const value = Number(post.challenge_value) || 0;
+    const days = { value: Number(post.challenge_days) || 0, label: "days" };
+    const beaten = { value: Number(post.challenge_beaten) || 0, label: "friends beaten" };
+    if (post.challenge_type === "dist") return [{ value: displayDistance(value / 1000), label: distanceUnitLabel() }, days, beaten];
+    if (post.challenge_type === "rep") {
+      const exercise = post.challenge_exercise;
+      const total = exercise === "planks" ? { value: formatDuration(value * 1000), label: "plank" } : { value, label: exercise === "squats" ? "squats" : "push-ups" };
+      return [total, days, beaten];
+    }
+    // Last One Standing and Climb: how many days the winner lasted.
+    return [{ value, label: "days lasted" }, beaten];
+  }
   if (isActivityPost(post)) {
     const km = (Number(post.distance_m) || 0) / 1000;
     const ms = (Number(post.duration_s) || 0) * 1000;
@@ -2525,7 +2545,7 @@ function feedStats(post) {
   return stats;
 }
 
-const FEED_KIND_LABELS = { day: "Full day", walk: "Walk", run: "Run" };
+const FEED_KIND_LABELS = { day: "Full day", walk: "Walk", run: "Run", challenge: "Challenge won" };
 
 // Usernames come from other people, so - like the leaderboard - every bit of
 // text goes in through textContent, and only fixed markup goes in innerHTML.
@@ -2542,7 +2562,7 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
         <span class="feed-card-name"></span>
         <span class="feed-card-when"></span>
       </div>
-      ${isActivityPost(post) ? "" : `<span class="leaderboard-streak">${Number(post.streak) || 0} ${FLAME_ICON_SVG}</span>`}
+      ${isActivityPost(post) || isChallengePost(post) ? "" : `<span class="leaderboard-streak">${Number(post.streak) || 0} ${FLAME_ICON_SVG}</span>`}
     </div>
     <div>
       <span class="feed-card-kind"></span>
@@ -2633,6 +2653,7 @@ let friendIds = [];
 async function enterMeTab() {
   const headerEl = document.getElementById("profile-header");
   const promptEl = document.getElementById("profile-header-prompt");
+  if (typeof Challenges !== "undefined") Challenges.showTrophies();
 
   if (!currentUserId) {
     headerEl.classList.add("hidden");

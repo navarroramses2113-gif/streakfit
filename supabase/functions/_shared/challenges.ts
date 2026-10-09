@@ -254,6 +254,8 @@ async function notifyPassed(deps: Deps, c: Row, name: string, joined: Row[], sav
   for (const userId of passed) {
     const player = joined.find((p) => p.user_id === userId);
     const today = rules.localDate(player.time_zone, now);
+    // Their last day is over: the result says it all.
+    if (today > rules.challengeEndDay(c)) continue;
     if (player.passed_notified_on && dayString(player.passed_notified_on) === today) continue;
     const passer = joined.find((p) => before[p.user_id] > before[userId] && after[p.user_id] < after[userId]);
     if (!passer) continue;
@@ -461,6 +463,7 @@ async function listChallenges(deps: Deps, userId: string, timeZone: unknown): Pr
           ? { score: 0, todayValue: 0, doneToday: false }
           : liveStanding(c, player, saved.get(`${row.id}/${player.user_id}`) ?? new Map(), liveByPlayer.get(key)!, now);
       return {
+        userId: player.user_id,
         name: names.get(player.user_id) || "Unknown",
         you: player.user_id === userId,
         score: standing.score,
