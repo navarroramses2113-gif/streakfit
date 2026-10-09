@@ -14,6 +14,17 @@ The mark is the daily ring: three arcs (push-ups red, plank yellow, squats teal)
 | `forja-lockup-on-light.png` / `.svg` | Ring + "Forja", dark text, for light backgrounds. |
 | `forja-wordmark-white.svg` / `forja-wordmark-black.svg` | The word "Forja" alone. |
 
+## The pet
+
+The coach from the sign-up flow: the logo's ring with a face inside. Square, transparent.
+
+| File | Mood |
+| --- | --- |
+| `forja-pet-happy.svg` / `forja-pet-happy-1024.png` | Happy: next to questions, everyday use. |
+| `forja-pet-wow.svg` / `forja-pet-wow-1024.png` | Wow: open mouth and sparkles, for celebrations. |
+
+Face colors: cream `#fff6ea`, eyes and mouth `#1c1c1e`.
+
 The SVG words are drawn as shapes, so they look right anywhere without the font installed.
 
 Colors: red `#ff5a5f`, yellow `#ffc233`, teal `#2dd4bf`, icon background `#141417`.

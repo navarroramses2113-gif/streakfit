@@ -138,13 +138,19 @@ const Onboarding = (function () {
   const afterDay1 = () => (state.walk === "yes" ? "almost" : "streak");
 
   // ---------- pieces ----------
+  // The coach is the logo's ring with a face inside: "happy" next to
+  // questions, "wow" (bigger eyes, open mouth, sparkles) on celebrations.
   function mascot(mood) {
-    const mouth = mood === "wow" ? '<ellipse cx="50" cy="76" rx="6" ry="7" fill="#3a1d0b"/>' : '<path d="M40 73 Q50 83 60 73" stroke="#3a1d0b" stroke-width="4" fill="none" stroke-linecap="round"/>';
+    const wow = mood === "wow";
+    const arc = (color, offset) => `<circle cx="50" cy="60" r="36" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="54 172.2" stroke-dashoffset="${offset}"/>`;
+    const eye = (x) => `<ellipse cx="${x}" cy="56" rx="${wow ? 5.8 : 5}" ry="${wow ? 7 : 6.2}" fill="#1c1c1e"/><circle cx="${x + 1.7}" cy="53.6" r="1.8" fill="#fff"/>`;
+    const mouth = wow
+      ? '<ellipse cx="50" cy="68" rx="4.6" ry="5.6" fill="#1c1c1e"/><ellipse cx="50" cy="71" rx="2.8" ry="1.9" fill="#ff7a8a"/>'
+      : '<path d="M42.5 66 Q50 74 57.5 66" stroke="#1c1c1e" stroke-width="3.4" fill="none" stroke-linecap="round"/>';
+    const star = (x, y, r) => `<path d="M${x} ${y - r} Q${x} ${y} ${x + r} ${y} Q${x} ${y} ${x} ${y + r} Q${x} ${y} ${x - r} ${y} Q${x} ${y} ${x} ${y - r} Z" fill="var(--ring-planks)"/>`;
     return `<svg class="ob-mascot" viewBox="0 0 100 112" aria-hidden="true">
-      <defs><linearGradient id="ob-ember-${mood}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--ember-light)"/><stop offset="1" stop-color="var(--ember)"/></linearGradient></defs>
-      <path d="M50 4 C60 26 86 38 86 68 C86 92 70 108 50 108 C30 108 14 92 14 68 C14 50 26 42 32 24 C38 34 44 36 50 4 Z" fill="url(#ob-ember-${mood})"/>
-      <ellipse cx="38" cy="62" rx="7" ry="9" fill="#fff"/><ellipse cx="62" cy="62" rx="7" ry="9" fill="#fff"/>
-      <circle cx="40" cy="64" r="4" fill="#1c1c1e"/><circle cx="60" cy="64" r="4" fill="#1c1c1e"/>${mouth}
+      <g transform="rotate(-73 50 60)">${arc("var(--ring-pushups)", 0)}${arc("var(--ring-planks)", -75.4)}${arc("var(--ring-squats)", -150.8)}</g>
+      <circle cx="50" cy="60" r="26.5" fill="#fff6ea"/>${eye(41)}${eye(59)}${mouth}${wow ? star(90, 14, 7) + star(80, 5, 3.6) : ""}
     </svg>`;
   }
   const coach = (text) => `<div class="ob-coach">${mascot("happy")}<p class="ob-bubble">${text}</p></div>`;
