@@ -8,14 +8,14 @@
 // a day and you're out), Climb (one shared plan that goes up every day,
 // last one left wins) and Distance (most distance walked or run).
 //
-// Shown on localhost while it's tested; set SHOW_ON_SITE to true once the
-// challenge tables and functions are live.
+// SHOW_ON_SITE: on since 2026-10-09 (the challenge tables and functions are
+// live); set it to false to hide challenges everywhere but localhost.
 //
 // Loaded after script.js and uses its helpers (showScreen, showTab,
 // callServerFunction, supabaseClient, currentUserId, ForjaCamera,
 // saveCameraSet, serverPlan, data, displayDistance, distanceUnitLabel).
 const Challenges = (function () {
-  const SHOW_ON_SITE = false;
+  const SHOW_ON_SITE = true;
   const ENABLED = SHOW_ON_SITE || ["localhost", "127.0.0.1"].includes(location.hostname);
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
