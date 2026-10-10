@@ -3782,3 +3782,64 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("service-worker.js");
   });
 }
+
+// STEP 9: Stay on the newest version. A Home Screen app can sit in the
+// background for days, still running the code it opened with - while the
+// server functions it talks to have moved on. Every time Forja comes back
+// to the front it reads the live index.html: if any file's ?v= number
+// differs from what's running, a new version is out and the app reloads.
+// Only at a calm moment, though - never mid-set, mid-walk, mid-sign-up or
+// while typing; otherwise it tries again the next time it comes back.
+const VERSIONED_FILE = /([\w./-]+\.(?:js|css))\?v=(\d+)/g;
+const versionsIn = (text) => [...text.matchAll(VERSIONED_FILE)].map((match) => match[0]).sort().join(" ");
+// Read when checking, not now: the files after this one aren't on the page yet.
+const runningVersions = () =>
+  versionsIn([...document.querySelectorAll("script[src], link[rel='stylesheet'][href]")].map((el) => el.getAttribute("src") || el.getAttribute("href")).join(" "));
+const UPDATE_RELOAD_KEY = "forja-reloaded-for";
+let lastUpdateCheck = 0;
+
+function calmMomentToReload() {
+  const typing = document.activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
+  return (
+    session === null &&
+    pendingRoute === null &&
+    !savingDay &&
+    !typing &&
+    !document.getElementById("app-screen").classList.contains("hidden") &&
+    !document.querySelector(".celebrate-screen, #load-error-screen") &&
+    !Onboarding.isActive()
+  );
+}
+
+async function checkForUpdate() {
+  if (document.visibilityState !== "visible" || Date.now() - lastUpdateCheck < 60000) return;
+  lastUpdateCheck = Date.now();
+  let live;
+  try {
+    const response = await fetch("./index.html", { cache: "no-store" });
+    if (!response.ok) return;
+    live = versionsIn(await response.text());
+  } catch (e) {
+    return; // offline - check again next time
+  }
+  if (!live || live === runningVersions()) return;
+  // Already reloaded once for this exact version and still not on it (the
+  // reload got an old copy) - don't loop; the next app start picks it up.
+  try {
+    if (sessionStorage.getItem(UPDATE_RELOAD_KEY) === live) return;
+  } catch (e) {
+    // storage blocked - a reload is still fine
+  }
+  if (!calmMomentToReload()) {
+    lastUpdateCheck = 0;
+    return;
+  }
+  try {
+    sessionStorage.setItem(UPDATE_RELOAD_KEY, live);
+  } catch (e) {
+    // storage blocked
+  }
+  location.reload();
+}
+
+document.addEventListener("visibilitychange", checkForUpdate);
