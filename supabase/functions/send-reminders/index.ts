@@ -6,11 +6,12 @@
 // Each device gets at most one reminder per local day AND chosen hour
 // (tracked in push_subscriptions.last_reminded_on/_hour, which only the
 // server can write), so calling this function again - by the cron job
-// retrying, or by anyone else - can never turn into a flood of reminders.
-// Moving your reminder to a new hour still gets you one that day: the
-// whole point of changing it is to be reminded at the new time.
+// retrying - can never turn into a flood of reminders. Only the schedule
+// may call it at all (isInternalCall). Moving your reminder to a new hour
+// still gets you one that day: the whole point of changing it is to be
+// reminded at the new time.
 import "../_shared/game-rules.js";
-import { createAdminClient } from "../_shared/http.ts";
+import { createAdminClient, isInternalCall } from "../_shared/http.ts";
 import * as pet from "../_shared/pet-voice.ts";
 import { sendPushToSubscriptions } from "../_shared/push.ts";
 
@@ -33,8 +34,11 @@ function localNow(timeZone: string, now: Date) {
   }
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
   const supabaseAdmin = createAdminClient();
+  if (!(await isInternalCall(req, supabaseAdmin))) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
+  }
   const now = new Date();
 
   const { data: progressRows, error: progressError } = await supabaseAdmin.from("user_progress").select("user_id, data");

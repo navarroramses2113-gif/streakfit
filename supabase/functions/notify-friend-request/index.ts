@@ -6,8 +6,9 @@
 // Each request notifies AT MOST ONCE: the function first claims the row by
 // setting friendships.notified_at (a column only the server can write),
 // and only sends if that claim succeeded. Calling it again with the same
-// id - by the trigger retrying, or by anyone else - sends nothing.
-import { createAdminClient } from "../_shared/http.ts";
+// id - by the trigger retrying - sends nothing. Only the trigger may call
+// it (isInternalCall).
+import { createAdminClient, isInternalCall } from "../_shared/http.ts";
 import { sendPushToUsers } from "../_shared/push.ts";
 import * as pet from "../_shared/pet-voice.ts";
 
@@ -16,6 +17,9 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
+  const supabaseAdmin = createAdminClient();
+  if (!(await isInternalCall(req, supabaseAdmin))) return json({ sent: 0, reason: "unauthorized" }, 401);
+
   let friendshipId;
   try {
     ({ friendshipId } = await req.json());
@@ -23,8 +27,6 @@ Deno.serve(async (req) => {
     return json({ sent: 0, reason: "bad request" }, 400);
   }
   if (typeof friendshipId !== "string" || !UUID.test(friendshipId)) return json({ sent: 0, reason: "bad request" }, 400);
-
-  const supabaseAdmin = createAdminClient();
 
   // Atomic claim: only a still-pending request that has never been
   // notified matches, and setting notified_at in the same statement means

@@ -4,15 +4,16 @@
 // people they've been passed, and ends challenges with places, Feed posts
 // and result notifications.
 //
-// Like send-reminders, anyone could call it, but every step is claimed or
-// checked in the database first, so an extra call never does anything the
-// schedule wouldn't have done anyway.
-import { createAdminClient } from "../_shared/http.ts";
+// Only the schedule may run it (isInternalCall). Even so, every step is
+// claimed or checked in the database first, so an extra call never does
+// anything the schedule wouldn't have done anyway.
+import { createAdminClient, isInternalCall } from "../_shared/http.ts";
 import { sendPushToUsers } from "../_shared/push.ts";
 import { tick } from "../_shared/challenges.ts";
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
   const admin = createAdminClient();
+  if (!(await isInternalCall(req, admin))) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
   const push = async (userIds: string[], payload: { title: string; body: string }) => {
     try {
       await sendPushToUsers(admin, userIds, payload);

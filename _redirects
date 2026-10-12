@@ -1,0 +1,29 @@
+# Netlify publishes every file in this repo, but the site only needs the
+# app. The server's code and SQL stay off it: they hold no secrets, this
+# just keeps how the server works to ourselves. "404!" answers "not found"
+# even though the file exists.
+#
+# The app DOES load two files from supabase/functions/_shared/
+# (game-rules.js and exercise-counter.js), so that folder is closed file by
+# file instead of all at once. A new Edge Function folder or a new file in
+# _shared needs a line here; new SQL goes in supabase/sql/ and is covered.
+
+/supabase/sql/*                            /404.html  404!
+/supabase/config.toml                      /404.html  404!
+/supabase/.gitignore                       /404.html  404!
+
+/supabase/functions/challenge/*            /404.html  404!
+/supabase/functions/challenge-tick/*       /404.html  404!
+/supabase/functions/delete-account/*       /404.html  404!
+/supabase/functions/log-activity/*         /404.html  404!
+/supabase/functions/log-day/*              /404.html  404!
+/supabase/functions/notify-friend-request/* /404.html  404!
+/supabase/functions/plan/*                 /404.html  404!
+/supabase/functions/send-reminders/*       /404.html  404!
+/supabase/functions/submit-set/*           /404.html  404!
+
+/supabase/functions/_shared/challenges.ts  /404.html  404!
+/supabase/functions/_shared/http.ts        /404.html  404!
+/supabase/functions/_shared/pet-voice.ts   /404.html  404!
+/supabase/functions/_shared/plan.ts        /404.html  404!
+/supabase/functions/_shared/push.ts        /404.html  404!

@@ -25,6 +25,19 @@ export function createAdminClient() {
   return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 }
 
+// True when the call came from the database itself (a pg_cron job or a
+// trigger): those send a secret kept in the database's Vault, which never
+// appears in any file. The database checks it (is_internal_call, callable
+// only with the service role), so the secret lives in one place. See
+// sql/lock-internal-calls-2026-10-12.sql.
+// deno-lint-ignore no-explicit-any
+export async function isInternalCall(req: Request, admin: any) {
+  const candidate = req.headers.get("x-internal-secret");
+  if (!candidate) return false;
+  const { data, error } = await admin.rpc("is_internal_call", { candidate });
+  return !error && data === true;
+}
+
 // Works out who is calling from the login token the app attached, by
 // asking Supabase Auth to validate it. Returns null if there isn't a valid
 // one - never trust a user id sent in the request body.
