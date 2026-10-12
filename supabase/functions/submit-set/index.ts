@@ -34,12 +34,30 @@ Deno.serve(async (req) => {
   } catch (err) {
     return json({ ok: false, error: "bad_trace", detail: String(err.message ?? err) }, 400);
   }
+  const admin = createAdminClient();
+
+  // Note why reps were turned down (counts only - see set_checks), so a
+  // "it only counted 1" report can be explained afterwards. Every recount
+  // is noted, a set where nothing counted most of all. Best effort: a
+  // failed note never costs the player their set.
+  const { error: checkError } = await admin.from("set_checks").insert({
+    user_id: user.id,
+    day,
+    exercise: recount.exercise,
+    counted: recount.value,
+    plausible: recount.plausible,
+    duration_ms: recount.durationMs,
+    rejected: recount.checks.rejected,
+    lost_share: recount.checks.lostShare,
+    ready_ms: recount.checks.readyMs,
+  });
+  if (checkError) console.error("set check note failed", checkError.message);
+
   if (!recount.plausible) return json({ ok: false, error: "implausible" }, 422);
 
   // Nothing countable - not an error, just nothing to save.
   if (recount.value <= 0) return json({ ok: true, value: 0 });
 
-  const admin = createAdminClient();
   const { data: existing, error: readError } = await admin
     .from("verified_sets")
     .select("exercise, value")

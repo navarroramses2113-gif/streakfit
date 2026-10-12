@@ -616,6 +616,13 @@
 
     const width = 2 + 2 * ex.needs.length;
     const session = createSetSession(trace.exercise, trace.w, trace.h);
+    // Why a set came out lower than the person expected, as plain counts -
+    // never positions: how many dips each check turned down, how much of
+    // the set the body was out of sight, and whether the start position
+    // (arms straight / standing tall / flat plank) was ever recognized.
+    const rejected = {};
+    let lostFrames = 0;
+    let readyMs = null;
     let prevT = -1;
     for (const frame of trace.frames) {
       if (!Array.isArray(frame) || !Number.isInteger(frame[0]) || frame[0] <= prevT || frame[0] > MAX_SET_MS) fail("timestamps");
@@ -628,14 +635,24 @@
       } else {
         fail("frame flag");
       }
-      session.replay(frame);
+      const { r } = session.replay(frame);
+      if (frame[1] === 0) lostFrames++;
+      if (REJECTED_EVENTS.includes(r.event)) rejected[r.event] = (rejected[r.event] || 0) + 1;
+      if (readyMs === null && r.state !== "waiting") readyMs = frame[0];
     }
 
     const durationMs = session.durationMs();
     const value = session.value();
     const maxRate = MAX_REPS_PER_SECOND[trace.exercise];
     const plausible = ex.kind === "plank" ? value <= Math.ceil(durationMs / 1000) : value <= Math.ceil((durationMs / 1000) * maxRate) + 2;
-    return { value, exercise: trace.exercise, frames: trace.frames.length, durationMs, plausible };
+    return {
+      value,
+      exercise: trace.exercise,
+      frames: trace.frames.length,
+      durationMs,
+      plausible,
+      checks: { rejected, lostShare: Math.round((lostFrames / trace.frames.length) * 100) / 100, readyMs },
+    };
   }
 
   return {
