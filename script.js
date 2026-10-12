@@ -3636,9 +3636,24 @@ trackingCancelEl.addEventListener("click", () => {
   resetRecordToIdle();
 });
 
-// Holds the just-finished route until the user decides on the summary
-// screen whether to actually keep it - saving happens only if they do.
-let pendingRoute = null;
+// Every finished route is kept - there's no "keep or discard?" question.
+// Simplified (near-redundant points dropped) then encoded (packed into one
+// compact string), which is what makes it reasonable to keep every route
+// forever. A route with fewer than two points (Start then straight to
+// Finish) has no line to show, so it isn't saved.
+function saveRoute(route, distanceKm, durationMs, elevationGainM) {
+  if (route.length < 2) return;
+  data.routes.push({
+    date: todayString(),
+    distanceKm,
+    durationMs,
+    elevationGainM: elevationGainM || 0,
+    encodedRoute: encodePolyline(simplifyRoute(route, ROUTE_SIMPLIFY_TOLERANCE)),
+  });
+  saveData(data);
+  renderPastRoutesList();
+  renderDistanceChart();
+}
 
 trackingFinishEl.addEventListener("click", async () => {
   stopTrackingWatchers();
@@ -3650,8 +3665,7 @@ trackingFinishEl.addEventListener("click", async () => {
   // The GPS track is the verification for walk/run, but GPS alone can't
   // tell walking from sitting with the tracker running - so the minutes
   // only count if the route actually covered ground at walking pace or
-  // faster. This counts toward today regardless of whether the route
-  // itself gets kept or discarded afterward.
+  // faster.
   const averageKmh = durationMs > 0 ? distanceKm / (durationMs / 3600000) : 0;
   const realPace = averageKmh >= ForjaRules.ACTIVITY.MIN_KMH;
   const countsTowardToday = realPace && data.lastLoggedDate !== todayString();
@@ -3659,9 +3673,8 @@ trackingFinishEl.addEventListener("click", async () => {
     todayProgress().walkRun += durationMinutes;
     saveData(data);
   }
+  saveRoute(route, distanceKm, durationMs, elevationGainM);
   render();
-
-  pendingRoute = { date: todayString(), distanceKm, durationMs, route, elevationGainM };
 
   resetRecordToIdle();
   showTrackingSummary(route, distanceKm, durationMs, elevationGainM, "new");
@@ -3687,14 +3700,12 @@ async function shareActivity(route, durationMs) {
   return reply.ok;
 }
 
-// mode is "new" (just finished tracking - shows the Keep/Discard prompt)
-// or "view" (browsing an already-saved route from Past Routes - shows a
-// plain Close button instead, since there's nothing left to decide).
+// mode is "new" (just finished tracking - already saved, so just "Done")
+// or "view" (browsing a saved route from Past Routes - "Close").
 function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode) {
   document.getElementById("tracking-summary-heading").textContent = mode === "view" ? "Route Detail" : "Nice work!";
   document.getElementById("tracking-summary-note").classList.add("hidden");
-  document.getElementById("keep-discard-section").classList.toggle("hidden", mode === "view");
-  document.getElementById("tracking-summary-close-button").classList.toggle("hidden", mode !== "view");
+  document.getElementById("tracking-summary-close-button").textContent = mode === "view" ? "Close" : "Done";
 
   summaryTimeEl.textContent = formatDuration(durationMs);
   summaryDistanceEl.textContent = displayDistance(distanceKm);
@@ -3729,31 +3740,6 @@ function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode
     summaryMap.setView([0, 0], 2);
   }
 }
-
-document.getElementById("keep-route-button").addEventListener("click", () => {
-  // Simplify (drop near-redundant points) then encode (pack into one
-  // compact string) before saving - this is what makes it reasonable to
-  // keep every route forever instead of pruning old ones.
-  const simplified = simplifyRoute(pendingRoute.route, ROUTE_SIMPLIFY_TOLERANCE);
-  data.routes.push({
-    date: pendingRoute.date,
-    distanceKm: pendingRoute.distanceKm,
-    durationMs: pendingRoute.durationMs,
-    elevationGainM: pendingRoute.elevationGainM || 0,
-    encodedRoute: encodePolyline(simplified),
-  });
-  pendingRoute = null;
-  saveData(data);
-
-  renderPastRoutesList();
-  renderDistanceChart();
-  showScreen("app-screen");
-});
-
-document.getElementById("discard-route-button").addEventListener("click", () => {
-  pendingRoute = null;
-  showScreen("app-screen");
-});
 
 document.getElementById("tracking-summary-close-button").addEventListener("click", () => {
   showScreen("app-screen");
@@ -3855,7 +3841,6 @@ function calmMomentToReload() {
   const typing = document.activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
   return (
     session === null &&
-    pendingRoute === null &&
     !savingDay &&
     !typing &&
     !document.getElementById("app-screen").classList.contains("hidden") &&
