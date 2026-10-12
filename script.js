@@ -3444,7 +3444,57 @@ function startWatchingPosition() {
     enableHighAccuracy: true,
     maximumAge: 0,
   });
+  keepScreenOn();
 }
+
+// A web app gets no GPS while the screen is locked or another app is in
+// front, so a walk recorded from a pocket comes out short (straight lines
+// between the few points it did get) and can fail the pace check. Keeping
+// the screen awake while tracking stops the auto-lock, which is most of
+// it. The phone drops the lock whenever Forja leaves the screen, so it's
+// asked for again on the way back (see the visibilitychange listener).
+// Phones without it (older iOS) just track the way they always did.
+let screenWakeLock = null;
+
+async function keepScreenOn() {
+  if (!("wakeLock" in navigator) || screenWakeLock) return;
+  try {
+    const lock = await navigator.wakeLock.request("screen");
+    // Paused or finished while the request was on its way, or a second
+    // request (resume + coming back on screen) got there first.
+    if (!session || session.isPaused || screenWakeLock) {
+      lock.release();
+      return;
+    }
+    screenWakeLock = lock;
+    lock.addEventListener("release", () => {
+      if (screenWakeLock === lock) screenWakeLock = null;
+    });
+  } catch (e) {
+    // refused (low battery mode, not visible yet) - nothing to do
+  }
+}
+
+function letScreenSleep() {
+  if (screenWakeLock) screenWakeLock.release();
+  screenWakeLock = null;
+}
+
+// Longer than this out of sight mid-walk and the route has a hole in it.
+const TRACKING_GAP_WARN_MS = 30000;
+
+document.addEventListener("visibilitychange", () => {
+  if (!session || session.isPaused) return;
+  if (document.visibilityState === "hidden") {
+    session.hiddenAt = Date.now();
+    return;
+  }
+  keepScreenOn();
+  if (session.hiddenAt && Date.now() - session.hiddenAt >= TRACKING_GAP_WARN_MS) {
+    trackingErrorEl.textContent = "Keep Forja open on screen - distance isn't tracked while it's closed.";
+  }
+  session.hiddenAt = null;
+});
 
 function startTracking() {
   if (!("geolocation" in navigator)) {
@@ -3465,6 +3515,7 @@ function startTracking() {
     totalPausedMs: 0,
     elevationGainM: 0,
     lastAltitude: null,
+    hiddenAt: null,
   };
 
   trackingErrorEl.textContent = "";
@@ -3507,6 +3558,7 @@ trackingPauseEl.addEventListener("click", () => {
     trackingPauseEl.textContent = "Resume";
     navigator.geolocation.clearWatch(session.watchId);
     clearInterval(session.timerId);
+    letScreenSleep();
   }
 });
 
@@ -3560,6 +3612,7 @@ function onTrackingError(error) {
 function stopTrackingWatchers() {
   if (session.watchId !== null) navigator.geolocation.clearWatch(session.watchId);
   if (session.timerId !== null) clearInterval(session.timerId);
+  letScreenSleep();
 }
 
 // Returns the Record tab to its normal idle view (map preview + Start
