@@ -3,10 +3,12 @@
 // current time in their OWN timezone, and only sends to the ones where it
 // actually matches right now, plus hasn't logged a workout yet today.
 //
-// Each device gets at most one reminder per local day (tracked in
-// push_subscriptions.last_reminded_on, which only the server can write),
-// so calling this function again - by the cron job retrying, or by anyone
-// else - can never turn into a flood of reminders.
+// Each device gets at most one reminder per local day AND chosen hour
+// (tracked in push_subscriptions.last_reminded_on/_hour, which only the
+// server can write), so calling this function again - by the cron job
+// retrying, or by anyone else - can never turn into a flood of reminders.
+// Moving your reminder to a new hour still gets you one that day: the
+// whole point of changing it is to be reminded at the new time.
 import "../_shared/game-rules.js";
 import { createAdminClient } from "../_shared/http.ts";
 import * as pet from "../_shared/pet-voice.ts";
@@ -40,8 +42,9 @@ Deno.serve(async () => {
     return new Response(JSON.stringify({ error: "server_error" }), { status: 500 });
   }
 
-  // user_id -> that user's local date, for everyone due a reminder now.
+  // user_id -> that user's local date and hour, for everyone due a reminder now.
   const dueDateByUser = new Map<string, string>();
+  const dueHourByUser = new Map<string, number>();
   for (const row of progressRows || []) {
     const d = row.data || {};
     // Never turned reminders on - nothing to send.
@@ -53,6 +56,7 @@ Deno.serve(async () => {
     // "Today" in THIS user's own timezone, not one shared UTC day.
     if (d.lastLoggedDate === local.date) continue;
     dueDateByUser.set(row.user_id, local.date);
+    dueHourByUser.set(row.user_id, local.hour);
   }
 
   if (dueDateByUser.size === 0) {
@@ -61,14 +65,16 @@ Deno.serve(async () => {
 
   const { data: subscriptions, error: subsError } = await supabaseAdmin
     .from("push_subscriptions")
-    .select("endpoint, user_id, p256dh, auth_key, last_reminded_on")
+    .select("endpoint, user_id, p256dh, auth_key, last_reminded_on, last_reminded_hour")
     .in("user_id", [...dueDateByUser.keys()]);
   if (subsError) {
     return new Response(JSON.stringify({ error: "server_error" }), { status: 500 });
   }
 
-  // Skip any device already reminded today.
-  const pending = (subscriptions || []).filter((sub) => sub.last_reminded_on !== dueDateByUser.get(sub.user_id));
+  // Skip any device already reminded today at this hour.
+  const pending = (subscriptions || []).filter(
+    (sub) => sub.last_reminded_on !== dueDateByUser.get(sub.user_id) || sub.last_reminded_hour !== dueHourByUser.get(sub.user_id)
+  );
 
   // The pet mentions the streak they'd keep by working out today - 0 when
   // it's already gone (more missed days than the week's rest days cover).
@@ -100,16 +106,22 @@ Deno.serve(async () => {
     result.expiredRemoved += sent.expiredRemoved;
   }
 
-  // Record the reminder per local date (users in different timezones can be
-  // on different dates at the same moment).
-  const endpointsByDate = new Map<string, string[]>();
+  // Record the reminder per local date and hour (users in different
+  // timezones can be on different dates and hours at the same moment), and
+  // when it went out, so "did it send?" has an answer later.
+  const sentAt = now.toISOString();
+  const endpointsBySlot = new Map<string, string[]>();
   for (const sub of pending) {
     if (!result.sentEndpoints.includes(sub.endpoint)) continue;
-    const date = dueDateByUser.get(sub.user_id)!;
-    endpointsByDate.set(date, [...(endpointsByDate.get(date) || []), sub.endpoint]);
+    const slot = dueDateByUser.get(sub.user_id) + "|" + dueHourByUser.get(sub.user_id);
+    endpointsBySlot.set(slot, [...(endpointsBySlot.get(slot) || []), sub.endpoint]);
   }
-  for (const [date, endpoints] of endpointsByDate) {
-    await supabaseAdmin.from("push_subscriptions").update({ last_reminded_on: date }).in("endpoint", endpoints);
+  for (const [slot, endpoints] of endpointsBySlot) {
+    const [date, hour] = slot.split("|");
+    await supabaseAdmin
+      .from("push_subscriptions")
+      .update({ last_reminded_on: date, last_reminded_hour: Number(hour), last_reminded_at: sentAt })
+      .in("endpoint", endpoints);
   }
 
   return new Response(JSON.stringify({ sent: result.sent, expiredRemoved: result.expiredRemoved }), {
