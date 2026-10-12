@@ -15,6 +15,16 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // PRIVATE half lives only server-side, never in this file.
 const VAPID_PUBLIC_KEY = "BDbknJwLFn1rKbU5fImh75k6LHtrktnNi_kMwOAWonpds6RyrzuOa16QBIfqbR4rOWSNEuXccvgCM1fJfFGF2PY";
 
+// A password reset link opens the app with "type=recovery" in the address
+// (or with an error, when the link expired or was already used). Read it
+// before Supabase takes it out of the address: while a reset is under way,
+// nothing may drop the person into the app until they've set a new
+// password - Supabase reports the link's session first, and only then
+// that it's a reset.
+const linkParams = new URLSearchParams(window.location.hash.slice(1));
+let inPasswordRecovery = linkParams.get("type") === "recovery";
+let resetLinkFailed = linkParams.has("error") && !inPasswordRecovery;
+
 // `supabase` (lowercase, no "Client") is the global the CDN script tag
 // creates. We name OUR instance `supabaseClient` so the two don't clash.
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -1770,10 +1780,13 @@ let justLoggedOut = false;
 // in or out - one listener handles all three cases below.
 supabaseClient.auth.onAuthStateChange((event, session) => {
   // Clicking a password reset link logs you into a special temporary
-  // session and fires this exact event - we need to catch it BEFORE the
-  // normal "session exists -> show the app" check below, otherwise it'd
-  // just drop you into the app instead of letting you set a new password.
-  if (event === "PASSWORD_RECOVERY") {
+  // session. Supabase announces that session (INITIAL_SESSION) BEFORE it
+  // says it's a reset (PASSWORD_RECOVERY), so the link itself is what
+  // counts (inPasswordRecovery, read from the address at start-up) -
+  // otherwise the first event would start loading the app, and it would
+  // open over this screen a moment later.
+  if (event === "PASSWORD_RECOVERY") inPasswordRecovery = true;
+  if (inPasswordRecovery && session) {
     showResetPasswordScreen();
     return;
   }
@@ -1793,6 +1806,16 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
   if (justLoggedOut) {
     justLoggedOut = false;
     showAuthScreen();
+    return;
+  }
+
+  // A reset link that expired or was already used: say so where a new one
+  // can be sent, instead of quietly opening the app.
+  if (resetLinkFailed) {
+    resetLinkFailed = false;
+    showForgotPasswordScreen();
+    forgotPasswordErrorEl.classList.remove("success");
+    forgotPasswordErrorEl.textContent = "That reset link has expired or was already used. Send yourself a new one.";
     return;
   }
 
@@ -3034,6 +3057,9 @@ resetPasswordSubmitEl.addEventListener("click", async () => {
   // The password is updated and the recovery session is now a normal
   // one - fetch it directly and go straight into the app, rather than
   // relying on another auth event to do it for us.
+  inPasswordRecovery = false;
+  newPasswordEl.value = "";
+  resetPasswordSubmitEl.disabled = false;
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (session) {
     showApp(session.user.id);
