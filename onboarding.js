@@ -517,6 +517,7 @@ const Onboarding = (function () {
     if (!list.length) return;
     const e = list[0];
     ensureGuestData();
+    if (!testing) loadBestSet(e.exercise);
     ForjaCamera.open(
       e.exercise,
       async (set) => {
@@ -525,6 +526,9 @@ const Onboarding = (function () {
         return outcome;
       },
       {
+        // Day 1 gets the same set reward as Today; "find my level" has no
+        // target yet, so it just shows the number.
+        reward: testing ? null : setReward,
         onClose: () => {
           showScreen("onboarding-screen");
           if (testing && allTested()) go("result");

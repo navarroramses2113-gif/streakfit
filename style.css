@@ -67,6 +67,7 @@ input[type="number"]::-webkit-inner-spin-button {
 
   /* Trophies and challenge winners. */
   --trophy: #f5b83d;
+  --trophy-tint: #f5b83d22; /* behind gold text, e.g. "New best set" */
 
   /* Ember: the sign-up flow's placeholder mascot and its streak flame. */
   --ember: #e08a4c;
@@ -118,6 +119,7 @@ input[type="number"]::-webkit-inner-spin-button {
 :root[data-theme="light"] {
   color-scheme: light;
   --trophy: #c08a12;
+  --trophy-tint: #c08a121f;
   --ember: #c76a2c;
   --ember-light: #f0a500;
   --page-bg: #f2f2f7;
@@ -1998,26 +2000,307 @@ body {
   display: none;
 }
 
+/* The review has its own small heading (.reward-eyebrow). */
 #camera-screen.is-review .large-title {
-  text-align: center;
-  margin-top: var(--space-xl);
+  display: none;
+}
+
+/* ---------- after a set: what it earned ----------
+   --set-color is the exercise's ring color (set by camera-verify.js). */
+.camera-review {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+}
+
+.camera-review.hidden {
+  display: none;
+}
+
+.reward-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--font-footnote);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.reward-eyebrow i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--set-color);
+}
+
+.reward-ring {
+  position: relative;
+  width: 210px;
+  height: 210px;
+}
+
+.reward-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.reward-ring circle {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: round;
+}
+
+.reward-ring-track {
+  stroke: var(--heatmap-empty);
+}
+
+.reward-ring-fill {
+  stroke: var(--set-color);
+}
+
+.reward-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
 }
 
 .camera-result {
-  font-size: clamp(6rem, 30vw, 9rem);
+  margin: 0;
+  font-size: 64px;
   font-weight: 800;
   line-height: 1;
-  margin: var(--space-lg) 0 var(--space-xs);
-  color: var(--accent-text);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.camera-result.is-zero {
+  color: var(--text-muted);
 }
 
 .camera-result-label {
-  font-size: 1rem;
-  font-weight: 700;
+  margin: 0;
+  font-size: var(--font-subhead);
+  font-weight: 600;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-bottom: var(--space-lg);
+}
+
+.reward-today {
+  margin: calc(var(--space-sm) * -1) 0 0;
+  min-height: 20px;
+  font-size: var(--font-subhead);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.reward-today b {
+  color: var(--text-primary);
+}
+
+.reward-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.reward-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: var(--font-subhead);
+  font-weight: 700;
+}
+
+.reward-badge svg {
+  width: 16px;
+  height: 16px;
+}
+
+.reward-badge.is-done {
+  color: var(--accent-text);
+  background: var(--accent-tint);
+}
+
+.reward-badge.is-best {
+  color: var(--trophy);
+  background: var(--trophy-tint);
+}
+
+.reward-badge.is-day {
+  color: white;
+  background: var(--accent);
+}
+
+.reward-coach {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+  min-height: 64px;
+}
+
+.reward-pet {
+  flex: none;
+  width: 54px;
+  transform-origin: 50% 100%;
+}
+
+.reward-pet svg {
+  display: block;
+  width: 54px;
+  height: auto;
+  overflow: visible;
+}
+
+/* The sign-up pet bounces in on its own; here the reward moves it instead. */
+.reward-pet .ob-mascot {
+  animation: none;
+}
+
+.reward-coach .pet-bubble {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 4px;
+  text-align: left;
+}
+
+.reward-coach .pet-bubble::before {
+  left: -7px;
+  bottom: 13px;
+  transform: rotate(45deg);
+}
+
+.reward-coach.is-quiet {
+  visibility: hidden;
+}
+
+.pet-bubble .gold {
+  color: var(--trophy);
+}
+
+.reward-day {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.reward-day:empty {
+  display: none;
+}
+
+.reward-day span {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  font-size: var(--font-footnote);
+  font-weight: 600;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.reward-day span i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c);
+  opacity: 0.45;
+}
+
+.reward-day span.is-done {
+  color: var(--text-primary);
+  background: var(--surface-solid);
+}
+
+.reward-day span.is-done i {
+  opacity: 1;
+}
+
+.reward-day span.is-done::after {
+  content: "✓";
+  font-weight: 800;
+  color: var(--accent-text);
+}
+
+.reward-pop {
+  animation: reward-pop 0.45s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+.reward-pet.hop {
+  animation: pet-coach-hop-in 0.6s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+
+.reward-pet.shake {
+  animation: pet-coach-shake 0.6s ease-in-out both;
+}
+
+#camera-save-button.is-verified {
+  animation: reward-stamp 0.4s ease-out both;
+}
+
+/* Confetti in the ring colors, bursting from the ring. */
+.reward-bit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+@keyframes reward-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes reward-stamp {
+  0% {
+    transform: scale(1.2);
+  }
+  60% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reward-pop,
+  .reward-pet.hop,
+  .reward-pet.shake,
+  #camera-save-button.is-verified {
+    animation: none;
+  }
 }
 
 .camera-result-label:empty,
@@ -2026,9 +2309,13 @@ body {
 }
 
 .camera-result-note {
-  font-size: 1rem;
+  margin: 0;
+  font-size: var(--font-subhead);
   color: var(--text-secondary);
-  margin: var(--space-sm) 0 var(--space-lg);
+}
+
+.camera-review .tracking-buttons {
+  width: 100%;
 }
 
 /* The title and the setup tip only matter before the set starts - once

@@ -687,7 +687,7 @@ const Challenges = (function () {
         return setupView();
       }
       case "camera":
-        return ForjaCamera.open(el.dataset.chExercise, saveCameraSet);
+        return openSetCamera(el.dataset.chExercise); // same set reward as from Today
       case "today":
         showScreen("app-screen");
         return showTab("today");

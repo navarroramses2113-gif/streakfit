@@ -1044,6 +1044,11 @@ function todayProgress() {
 function recordVerifiedSet(exerciseKey, value) {
   if (data.lastLoggedDate === todayString() || !(value > 0)) return;
 
+  // A guest's best single set, for "New best set" (signed in, the server's
+  // verified sets say it - see loadBestSet).
+  data.bestSets = data.bestSets || {};
+  data.bestSets[exerciseKey] = Math.max(data.bestSets[exerciseKey] || 0, value);
+
   const progress = todayProgress();
   if (exerciseKey === "pushup") progress.pushups += value;
   else if (exerciseKey === "squat") progress.squats += value;
@@ -1277,11 +1282,109 @@ function renderGraceStatus() {
 }
 
 document.querySelectorAll(".verify-button").forEach((button) => {
-  button.addEventListener("click", () => {
-    const exerciseKey = button.dataset.exercise;
-    ForjaCamera.open(exerciseKey, saveCameraSet);
-  });
+  button.addEventListener("click", () => openSetCamera(button.dataset.exercise));
 });
+
+// ---------- what a finished set earned (the camera's review screen) ----------
+// Opens the camera for a set that counts toward today. Its best single set
+// so far is looked up on the way in, so the finished set can be compared.
+function openSetCamera(exercise, options = {}) {
+  loadBestSet(exercise);
+  ForjaCamera.open(exercise, saveCameraSet, { ...options, reward: setReward });
+}
+
+const SET_KEY = { pushup: "pushups", plank: "planks", squat: "squats" };
+const SET_NAMES = { pushups: "Push-ups", planks: "Plank", squats: "Squats" };
+const DAY_KEYS = ["pushups", "planks", "squats"];
+const bestSetBefore = {}; // exercise -> best single set before this one (0 = none yet)
+
+// Signed in: the best set the server ever verified. A guest: the best this
+// phone has seen (data.bestSets, kept by recordVerifiedSet).
+async function loadBestSet(exercise) {
+  bestSetBefore[exercise] = 0;
+  if (!currentUserId) {
+    bestSetBefore[exercise] = (data && data.bestSets && data.bestSets[exercise]) || 0;
+    return;
+  }
+  const viewerId = currentUserId;
+  const { data: rows, error } = await supabaseClient
+    .from("verified_sets")
+    .select("value")
+    .eq("user_id", viewerId)
+    .eq("exercise", exercise)
+    .order("value", { ascending: false })
+    .limit(1);
+  if (error || viewerId !== currentUserId) return;
+  bestSetBefore[exercise] = rows && rows[0] ? rows[0].value : 0;
+}
+
+// What a set of `value` would mean for today, for camera-verify.js's
+// review screen. Lines are in the pet's voice and contain only numbers and
+// fixed words (they're drawn as HTML).
+function setReward(exercise, value) {
+  if (!data) return null;
+  const key = SET_KEY[exercise];
+  const m = data.minimums;
+  const progress = todayProgress();
+  const before = progress[key];
+  // Reps add up across sets; a plank is the best single hold.
+  const total = key === "planks" ? Math.max(before, value) : before + value;
+  const target = Math.max(m[key], 1);
+  const totalOf = (k) => (k === key ? total : progress[k]);
+  const walkLeft = m.walkRun !== null && progress.walkRun < m.walkRun;
+  const unit = key === "planks" ? "s" : "";
+  const lower = key === "planks" ? "plank" : SET_NAMES[key].toLowerCase();
+  const was = key === "planks" ? "was" : "were";
+  const best = bestSetBefore[exercise] || 0;
+
+  const finishesIt = value > 0 && before < m[key] && total >= m[key];
+  const newBest = value > 0 && best > 0 && value > best;
+  const dayDone = finishesIt && data.lastLoggedDate !== todayString() && DAY_KEYS.every((k) => totalOf(k) >= m[k]) && !walkLeft;
+  const dayNumber = dayDone ? ForjaRules.nextStats({ streak: data.streak, bestStreak: data.bestStreak, lastLoggedDate: data.lastLoggedDate, restDaysUsed: data.restDaysUsed, weekStartDate: data.weekStartDate }, todayString()).streak : 0;
+
+  const badges = [];
+  if (newBest) badges.push({ kind: "best", text: `New best set · ${value}${unit}` });
+  if (dayDone) badges.push({ kind: "day", text: `Day ${dayNumber} done!` });
+  else if (finishesIt) badges.push({ kind: "done", text: `${SET_NAMES[key]} done` });
+
+  // What's still left today after this set, for "Next: ...".
+  const left = DAY_KEYS.filter((k) => totalOf(k) < m[k]).map((k) => (k === "planks" ? "plank" : SET_NAMES[k].toLowerCase()));
+  if (walkLeft) left.push("the walk");
+
+  let line;
+  let face = "happy";
+  if (value <= 0) {
+    face = "worried";
+    line = key === "planks" ? "Didn't catch a hold. <b>Side-on, whole body</b> in frame." : "Didn't catch any reps. <b>Side-on, whole body</b> in frame.";
+  } else if (dayDone) {
+    face = "wow";
+    line = `That's the day! <b>Day ${dayNumber}</b> is yours.`;
+  } else if (newBest) {
+    face = "wow";
+    line = key === "planks" ? `<b>${value}s</b> without stopping. <span class="gold">New record.</span>` : `<b>${value}</b> in one go. <span class="gold">New record.</span> I felt that.`;
+  } else if (finishesIt) {
+    line = key === "planks" ? `${value} seconds of not quitting. Plank's done.` : `That's ${lower} done for today.`;
+    if (left.length) line += ` Next: <b>${left[0]}</b>.`;
+  } else if (before >= m[key]) {
+    line = `Extra credit. ${SET_NAMES[key]} ${was} already done.`;
+  } else if (key === "planks") {
+    line = value > before ? `${value}s. You need one <b>${m.planks}s</b> hold.` : `${value}s. Your best today is still <b>${before}s</b>.`;
+  } else {
+    line = `+${value}. <b>${m[key] - total} more</b> and ${lower} are done.`;
+  }
+
+  return {
+    key,
+    from: before / target,
+    to: total / target,
+    total,
+    target: m[key],
+    badges,
+    line,
+    face,
+    day: DAY_KEYS.map((k) => ({ key: k, name: SET_NAMES[k], done: totalOf(k) >= m[k] })),
+  };
+}
 
 // Builds the "last 12 weeks" grid of small squares, one per day, colored
 // based on whether that day is in data.history.

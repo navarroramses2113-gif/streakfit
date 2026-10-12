@@ -425,9 +425,30 @@
     <p id="camera-feedback" class="camera-feedback"></p>
     <p id="camera-live" class="camera-live"></p>
 
+    <!-- After a set: its number inside today's ring for that exercise, what
+         it earned (target done / new best set / the day), the pet's line
+         and today's three exercises. Drawn by camera-verify.js. -->
     <div id="camera-review" class="camera-review hidden">
-      <p id="camera-result" class="camera-result"></p>
-      <p id="camera-result-label" class="camera-result-label"></p>
+      <p class="reward-eyebrow"><i></i><span id="reward-name"></span></p>
+      <div id="reward-ring" class="reward-ring">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <g transform="rotate(-90 60 60)">
+            <circle class="reward-ring-track" cx="60" cy="60" r="50"></circle>
+            <circle id="reward-ring-fill" class="reward-ring-fill" cx="60" cy="60" r="50"></circle>
+          </g>
+        </svg>
+        <div class="reward-ring-center">
+          <p id="camera-result" class="camera-result"></p>
+          <p id="camera-result-label" class="camera-result-label"></p>
+        </div>
+      </div>
+      <p id="reward-today" class="reward-today"></p>
+      <div id="reward-badges" class="reward-badges" aria-live="polite"></div>
+      <div id="reward-coach" class="reward-coach">
+        <span id="reward-pet" class="reward-pet"></span>
+        <p id="reward-line" class="pet-bubble"></p>
+      </div>
+      <div id="reward-day" class="reward-day"></div>
       <p id="camera-result-note" class="camera-result-note"></p>
       <!-- The rep-by-rep list only shows with debug details on. -->
       <ul id="camera-attempts" class="camera-attempts"></ul>
@@ -763,10 +784,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase/functions/_shared/game-rules.js?v=6"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=9"></script>
-  <script src="camera-verify.js?v=9"></script>
+  <script src="camera-verify.js?v=10"></script>
   <script src="onboarding.js?v=8"></script>
   <script src="script.js?v=26"></script>
-  <script src="challenges.js?v=3"></script>
+  <script src="challenges.js?v=4"></script>
   <script src="celebrations.js?v=3"></script>
 </body>
 </html>

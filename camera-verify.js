@@ -172,6 +172,9 @@ const ForjaCamera = (function () {
   let attempts = [];
   let result = 0;
   let resultUnit = "";
+  let rewardFor = null; // options.reward: what a finished set earned (see renderReward)
+  let saved = false; // verified and waiting for "Done"
+  let rewardRun = 0; // bumped to stop a reward animation that's no longer on screen
 
   // The pose model is ~6 MB, so it only downloads the first time someone
   // actually opens the camera - not on every app load.
@@ -457,21 +460,172 @@ const ForjaCamera = (function () {
     result = session.value();
     stopStream();
 
-    // The finished set gets one message and one number - none of the live
-    // coaching text. (The rep-by-rep list is for debug mode only.)
+    // The finished set gets its number and what it earned - none of the
+    // live coaching text. (The rep-by-rep list is for debug mode only.)
     const counted = result > 0;
     resultUnit = exercise.kind === "plank" ? "s" : "";
-    $("camera-title").textContent = counted ? "Nice work!" : "Nothing counted";
-    $("camera-result").textContent = result + resultUnit;
-    $("camera-result").classList.toggle("hidden", !counted);
-    $("camera-result-label").textContent = counted ? (exercise.kind === "plank" ? "plank hold" : "verified " + exercise.title.toLowerCase()) : "";
-    $("camera-result-note").textContent = counted ? "" : "Make sure your whole body is in frame, side-on, and try again.";
-    $("camera-save-button").classList.toggle("hidden", !counted);
-    $("camera-save-button").disabled = false;
-    $("camera-save-button").textContent = "Save set";
+    saved = false;
+    // Without a reward there's no pet to say why nothing counted.
+    $("camera-result-note").textContent = !counted && !rewardFor ? "Make sure your whole body is in frame, side-on, and try again." : "";
+    const save = $("camera-save-button");
+    save.classList.toggle("hidden", !counted);
+    save.classList.remove("is-verified");
+    save.disabled = false;
+    save.textContent = "Save set";
+    $("camera-redo-button").classList.remove("hidden");
+    $("camera-redo-button").textContent = counted ? "Redo set" : "Try again";
     $("camera-attempts").classList.toggle("hidden", !Debug.isOn());
     renderAttempts();
     setMode("review");
+    renderReward(rewardFor ? rewardFor(exerciseKey, result) : null);
+  }
+
+  // ---------- what the set earned ----------
+  // reward (from whoever opened the camera, or null when there's no day
+  // to measure against, like the sign-up "find my level" test):
+  //   { from, to }       today's progress for this exercise, 0-1, before and after
+  //   { total, target }  for "12 of 8 today"
+  //   badges             [{ kind: "best" | "done" | "day", text }]
+  //   line, face         the pet's line (HTML, numbers and fixed words only) and face
+  //   day                [{ key, name, done }] today's exercises
+  // The number counts up while the ring fills (frame by frame - iPhones
+  // animate a ring's dash length unreliably); then the badges pop in with
+  // a little confetti and the pet says its line.
+  const SET_COLORS = { pushup: "var(--ring-pushups)", plank: "var(--ring-planks)", squat: "var(--ring-squats)" };
+  const DAY_COLORS = { pushups: "var(--ring-pushups)", planks: "var(--ring-planks)", squats: "var(--ring-squats)" };
+  const RING_LENGTH = 2 * Math.PI * 50;
+  const TROPHY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v6a4 4 0 0 1-8 0V4z"/><path d="M8 5H5a2 2 0 0 0 0 4h3"/><path d="M16 5h3a2 2 0 0 1 0 4h-3"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="9" y1="21" x2="15" y2="21"/></svg>';
+  const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, reducedMotion() ? 0 : ms));
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+
+  function frames(ms, onFrame) {
+    return new Promise((resolve) => {
+      if (reducedMotion()) {
+        onFrame(1);
+        resolve();
+        return;
+      }
+      const start = performance.now();
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / ms);
+        onFrame(t);
+        if (t < 1) requestAnimationFrame(step);
+        else resolve();
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  const drawRing = (fraction) => {
+    const length = Math.max(0, Math.min(1, fraction)) * RING_LENGTH;
+    $("reward-ring-fill").setAttribute("stroke-dasharray", `${length} ${RING_LENGTH}`);
+    $("reward-ring-fill").style.opacity = length > 0 ? 1 : 0; // a zero-length round cap still draws a dot
+  };
+
+  function popIn(el) {
+    el.classList.remove("reward-pop");
+    void el.offsetWidth;
+    el.classList.add("reward-pop");
+  }
+
+  function confetti(amount) {
+    if (reducedMotion() || !Element.prototype.animate) return;
+    const host = $("reward-ring");
+    const colors = ["var(--ring-pushups)", "var(--ring-planks)", "var(--ring-squats)", "var(--accent)"];
+    for (let i = 0; i < amount; i++) {
+      const bit = document.createElement("i");
+      bit.className = "reward-bit";
+      bit.style.background = colors[i % colors.length];
+      host.appendChild(bit);
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 110 + Math.random() * 90;
+      bit.animate(
+        [
+          { transform: "translate(-50%, -50%) rotate(0deg)", opacity: 1 },
+          { transform: `translate(${Math.round(Math.cos(angle) * distance)}px, ${Math.round(Math.sin(angle) * distance * 0.85 + 40)}px) rotate(${Math.round(Math.random() * 540 - 270)}deg)`, opacity: 0 },
+        ],
+        { duration: 1100 + Math.random() * 300, easing: "cubic-bezier(0.2, 0.7, 0.4, 1)", fill: "forwards" }
+      ).onfinish = () => bit.remove();
+    }
+  }
+
+  async function renderReward(reward) {
+    const run = ++rewardRun;
+    const still = () => run === rewardRun;
+    const fmt = (n) => n + resultUnit;
+    $("camera-screen").style.setProperty("--set-color", SET_COLORS[exerciseKey]);
+    $("reward-name").textContent = exercise.title;
+    $("camera-result-label").textContent = exercise.kind === "plank" ? "plank hold" : exercise.title.toLowerCase();
+    $("camera-result").classList.toggle("is-zero", result === 0);
+    $("camera-result").textContent = fmt(0);
+    $("reward-today").innerHTML = "";
+    $("reward-badges").innerHTML = "";
+    document.querySelectorAll(".reward-bit").forEach((bit) => bit.remove());
+    const coach = $("reward-coach");
+    coach.classList.add("is-quiet");
+    $("reward-pet").classList.remove("hop", "shake");
+    $("reward-line").innerHTML = "";
+    // This exercise's marker turns done only once the ring has filled.
+    const finishedNow = reward && reward.from < 1 && reward.to >= 1;
+    $("reward-day").innerHTML = reward
+      ? reward.day
+          .map((d) => `<span id="reward-day-${d.key}" class="${d.done && !(finishedNow && d.key === reward.key) ? "is-done" : ""}" style="--c:${DAY_COLORS[d.key]}"><i></i>${d.name}</span>`)
+          .join("")
+      : "";
+
+    const from = reward ? Math.min(1, reward.from) : 0;
+    const to = reward ? Math.min(1, reward.to) : result > 0 ? 1 : 0;
+    drawRing(from);
+    await pause(150);
+    if (!still()) return;
+    await frames(800, (t) => {
+      if (!still()) return;
+      const e = easeOut(t);
+      drawRing(from + (to - from) * e);
+      $("camera-result").textContent = fmt(Math.round(result * e));
+    });
+    if (!still()) return;
+    $("camera-result").textContent = fmt(result);
+    if (reward && result > 0) $("reward-today").innerHTML = `<b>${fmt(reward.total)}</b> of ${fmt(reward.target)} today`;
+
+    if (finishedNow && !reducedMotion()) {
+      const fill = $("reward-ring-fill");
+      await frames(320, (t) => {
+        fill.style.strokeWidth = 12 + 6 * Math.sin(Math.PI * t);
+      });
+      fill.style.strokeWidth = "";
+      if (!still()) return;
+    }
+    if (finishedNow) {
+      const marker = $("reward-day-" + reward.key);
+      if (marker) {
+        marker.classList.add("is-done");
+        popIn(marker);
+      }
+    }
+
+    const badges = reward ? reward.badges : [];
+    for (const badge of badges) {
+      const el = document.createElement("span");
+      el.className = "reward-badge is-" + badge.kind;
+      el.innerHTML = (badge.kind === "best" ? TROPHY_ICON : badge.kind === "done" ? "✓ " : "") + badge.text;
+      $("reward-badges").appendChild(el);
+      popIn(el);
+      await pause(160);
+      if (!still()) return;
+    }
+    if (badges.length) confetti(badges.some((b) => b.kind === "day") ? 46 : badges.some((b) => b.kind === "best") ? 32 : 18);
+
+    if (reward && reward.line && typeof Onboarding !== "undefined") {
+      $("reward-pet").innerHTML = Onboarding.mascot(reward.face || "happy");
+      $("reward-line").innerHTML = reward.line;
+      coach.classList.remove("is-quiet");
+      if (!reducedMotion()) {
+        void $("reward-pet").offsetWidth;
+        $("reward-pet").classList.add(reward.face === "worried" ? "shake" : "hop");
+      }
+    }
   }
 
   function renderAttempts() {
@@ -486,6 +640,8 @@ const ForjaCamera = (function () {
   }
 
   function close() {
+    rewardRun++;
+    saved = false;
     stopStream();
     if (onClose) onClose();
     else showScreen("app-screen");
@@ -493,6 +649,11 @@ const ForjaCamera = (function () {
 
   async function saveSet() {
     const button = $("camera-save-button");
+    // Already verified: this is the "Done" tap.
+    if (saved) {
+      close();
+      return;
+    }
     button.disabled = true;
     button.textContent = "Verifying...";
 
@@ -522,7 +683,18 @@ const ForjaCamera = (function () {
       $("camera-close-button").classList.remove("hidden");
       return;
     }
-    close();
+    // Verified: the button stamps, then waits for a tap to go back - there's
+    // nothing left to redo.
+    saved = true;
+    $("camera-redo-button").classList.add("hidden");
+    button.disabled = false;
+    button.textContent = "✓ Verified";
+    button.classList.remove("is-verified");
+    void button.offsetWidth;
+    button.classList.add("is-verified");
+    setTimeout(() => {
+      if (saved) button.textContent = "Done";
+    }, 900);
   }
 
   function renderSoundButton() {
@@ -535,6 +707,7 @@ const ForjaCamera = (function () {
     $("camera-start-button").addEventListener("click", startSet);
     $("camera-finish-button").addEventListener("click", finishSet);
     $("camera-redo-button").addEventListener("click", () => {
+      rewardRun++; // stop the last set's reward animation
       setMode("idle");
       startSet();
     });
@@ -575,6 +748,9 @@ const ForjaCamera = (function () {
       exercise = ForjaCounter.EXERCISES[key];
       onSave = saveCallback;
       onClose = options.onClose || null;
+      rewardFor = options.reward || null;
+      saved = false;
+      rewardRun++;
       result = 0;
       $("camera-title").textContent = exercise.title;
       $("camera-tip").innerHTML = exercise.tip;
