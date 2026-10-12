@@ -1671,6 +1671,12 @@ function revealApp(show = true) {
 // Runs once we know someone is logged in: loads their data from the
 // database, then reveals the app.
 async function showApp(userId) {
+  // A different account than the last one (logged out, then in as someone
+  // else): its username must be looked up again, not carried over.
+  if (userId !== currentUserId) {
+    myUsername = null;
+    friendIds = [];
+  }
   currentUserId = userId;
   const result = await loadUserData(userId);
   if (!result) {
@@ -1861,6 +1867,8 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
   currentUserId = null;
   data = null;
   serverPlan = null;
+  myUsername = null; // or the next account (or a guest) would show and share this one's name
+  friendIds = [];
   // Nothing from the last account's Feed may linger for whoever signs in next.
   document.getElementById("feed-list").innerHTML = "";
   document.getElementById("feed-tab-badge").classList.add("hidden");
@@ -2187,11 +2195,13 @@ async function enterCompetitionTab() {
   }
 
   if (!myUsername) {
+    const viewerId = currentUserId;
     const { data: profile } = await supabaseClient
       .from("profiles")
       .select("username")
-      .eq("user_id", currentUserId)
+      .eq("user_id", viewerId)
       .maybeSingle();
+    if (viewerId !== currentUserId) return; // switched accounts meanwhile
 
     if (profile) {
       myUsername = profile.username;
@@ -2797,12 +2807,14 @@ async function enterMeTab() {
     return;
   }
 
+  const viewerId = currentUserId;
   if (!myUsername) {
     const { data: profile } = await supabaseClient
       .from("profiles")
       .select("username")
-      .eq("user_id", currentUserId)
+      .eq("user_id", viewerId)
       .maybeSingle();
+    if (viewerId !== currentUserId) return; // switched accounts meanwhile
     if (profile) myUsername = profile.username;
   }
 
