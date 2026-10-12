@@ -938,15 +938,6 @@ body {
 }
 
 
-.motivation {
-  font-size: var(--font-footnote);
-  font-style: italic;
-  font-weight: 400;
-  color: var(--text-secondary);
-  margin-bottom: var(--space-md);
-  line-height: 1.4;
-}
-
 .stat-container {
   display: flex;
   flex-direction: column;
@@ -1008,7 +999,8 @@ body {
      SVG's default 3 o'clock, and fills clockwise within that slice. */
   transform: rotate(-90deg);
   transform-origin: 60px 60px;
-  transition: stroke-dasharray 0.4s ease;
+  /* No CSS transition: iPhones animate a dash length unreliably, so a
+     saved set's slice is grown frame by frame in celebrations.js. */
 }
 
 .ring-pushups { stroke: var(--ring-pushups); }
@@ -4300,13 +4292,28 @@ a.account-menu-item {
   transform-origin: 60px 60px;
 }
 
+/* The pet's face in a closed ring - sized so the coach's own ring body,
+   grown to the big ring when it jumps in, leaves exactly this face
+   (0.694 x the ring's 170px). Tappable on a finished day. */
 .ring-face {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 104px;
+  width: 118px;
   transform: translate(-50%, -50%);
   pointer-events: none;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ring-face.is-tappable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.ring-face:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
 }
 
 .ring-face svg {
@@ -4320,30 +4327,300 @@ a.account-menu-item {
   animation: ob-pet-bounce 0.9s cubic-bezier(0.3, 1.5, 0.5, 1) 0.15s both;
 }
 
-/* A level-up day: a tag and tomorrow's targets under the ring. */
-.level-up-tag {
-  display: inline-block;
-  margin-left: 4px;
-  padding: 2px 8px;
-  font-size: var(--font-footnote);
-  border-radius: 999px;
-  background: var(--accent-tint);
-  animation: celebrate-tag-in 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+.ring-face .pet-face {
+  transform-origin: 50% 100%;
 }
 
-.level-up-line {
+.ring-face.land .pet-face {
+  animation: pet-face-land 0.45s ease-out both;
+}
+
+.ring-face.hop .pet-face {
+  animation: pet-face-hop 0.6s ease-out both;
+}
+
+@keyframes pet-face-land {
+  0% {
+    transform: scale(1.12, 0.86);
+  }
+  60% {
+    transform: scale(0.97, 1.03);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes pet-face-hop {
+  0%,
+  100% {
+    transform: none;
+  }
+  35% {
+    transform: translateY(-10px) scale(0.95, 1.05);
+  }
+  65% {
+    transform: scale(1.07, 0.93);
+  }
+}
+
+/* ---------- Today's pet coach ---------- */
+/* The pet and its speech bubble at the top of Today. When the day is done
+   it jumps into the ring, this spot folds away and the bubble under the
+   ring (.pet-bubble.is-below) takes over. */
+.pet-coach {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  min-height: 72px;
+  max-height: 160px;
+  margin-bottom: var(--space-md);
+  transition: max-height 0.35s ease, min-height 0.35s ease, margin-bottom 0.35s ease, opacity 0.2s ease, visibility 0s;
+}
+
+.pet-coach.is-gone {
+  min-height: 0;
+  max-height: 0;
+  margin-bottom: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: max-height 0.35s ease, min-height 0.35s ease, margin-bottom 0.35s ease, opacity 0.2s ease, visibility 0s 0.35s;
+}
+
+.pet-coach.no-motion {
+  transition: none;
+}
+
+.pet-coach-pet {
+  flex: none;
+  width: 60px;
+  min-height: 44px;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transform-origin: 50% 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pet-coach-pet:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-md);
+}
+
+.pet-coach-pet svg {
   display: block;
-  margin-top: 4px;
-  font-size: var(--font-footnote);
-  font-weight: 600;
-  color: var(--text-secondary);
-  animation: celebrate-fade-in 0.4s ease 0.2s both;
+  width: 60px;
+  height: auto;
+  overflow: visible;
 }
 
-@keyframes celebrate-tag-in {
+/* The sign-up pet bounces in on its own; here the coach moves it instead. */
+.pet-coach .ob-mascot {
+  animation: none;
+}
+
+/* The copy that jumps into the ring, flying above the page (the extra
+   class beats the sign-up pet's own bounce-in). */
+.ob-mascot.pet-coach-flyer {
+  position: fixed;
+  left: 0;
+  top: 0;
+  margin: 0;
+  overflow: visible;
+  transform-origin: 0 0;
+  pointer-events: none;
+  z-index: 50;
+  animation: none;
+}
+
+.pet-bubble {
+  position: relative;
+  margin: 0;
+  padding: 11px 14px;
+  font-size: var(--font-body);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+  background: var(--popover-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-wrap: balance;
+}
+
+.pet-bubble::before {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--popover-bg);
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.pet-coach .pet-bubble {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 6px;
+  text-align: left;
+}
+
+.pet-coach .pet-bubble::before {
+  left: -7px;
+  bottom: 14px;
+  transform: rotate(45deg);
+}
+
+.pet-bubble.is-below {
+  margin: 0 auto var(--space-md);
+  max-width: 340px;
+  text-align: center;
+}
+
+.pet-bubble.is-below::before {
+  left: calc(50% - 6px);
+  top: -7px;
+  transform: rotate(135deg);
+}
+
+.pet-bubble b {
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.pet-bubble .warn {
+  color: var(--warning);
+}
+
+.pet-bubble.is-new {
+  animation: pet-bubble-in 0.3s ease-out both;
+}
+
+.pet-bubble.is-quiet {
+  visibility: hidden;
+}
+
+.pet-coach-pet.hop-in {
+  animation: pet-coach-hop-in 0.6s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+
+.pet-coach-pet.wave {
+  animation: pet-coach-wave 1s ease-in-out both;
+}
+
+.pet-coach-pet.nod {
+  animation: pet-coach-nod 0.7s ease-in-out both;
+}
+
+.pet-coach-pet.bounce {
+  animation: pet-coach-bounce 0.8s ease-out both;
+}
+
+.pet-coach-pet.shake {
+  animation: pet-coach-shake 0.7s ease-in-out both;
+}
+
+.pet-coach-pet.idle {
+  animation: pet-coach-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes pet-bubble-in {
   from {
     opacity: 0;
-    transform: scale(0.6);
+    transform: translateY(-6px) scale(0.96);
+  }
+}
+
+@keyframes pet-coach-hop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(26px) scale(0.6);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-8px) scale(1.06, 0.95);
+  }
+  75% {
+    transform: scale(1.08, 0.9);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes pet-coach-wave {
+  0%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: rotate(-12deg);
+  }
+  40% {
+    transform: rotate(10deg);
+  }
+  60% {
+    transform: rotate(-8deg);
+  }
+  80% {
+    transform: rotate(5deg);
+  }
+}
+
+@keyframes pet-coach-nod {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: translateY(4px) scale(1.04, 0.95);
+  }
+  60% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes pet-coach-bounce {
+  0%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: translateY(-12px) scale(0.96, 1.05);
+  }
+  50% {
+    transform: scale(1.08, 0.9);
+  }
+  70% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes pet-coach-shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  15%,
+  45%,
+  75% {
+    transform: translateX(-4px) rotate(-3deg);
+  }
+  30%,
+  60%,
+  90% {
+    transform: translateX(4px) rotate(3deg);
+  }
+}
+
+@keyframes pet-coach-breathe {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: scale(1.025, 0.975);
   }
 }
 
@@ -4488,8 +4765,10 @@ a.account-menu-item {
   .min-tag.pop,
   #ring-complete.snap,
   .ring-face.snap .pet-face,
-  .level-up-tag,
-  .level-up-line,
+  .ring-face.land .pet-face,
+  .ring-face.hop .pet-face,
+  .pet-bubble.is-new,
+  .pet-coach-pet,
   .celebrate-screen,
   .celebrate-number.bump,
   .celebrate-week span.is-today {

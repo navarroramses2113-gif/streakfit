@@ -143,11 +143,14 @@ const Onboarding = (function () {
   // faceOnly draws just the face, for the middle of Today's ring.
   function mascot(mood, faceOnly) {
     const wow = mood === "wow";
+    const worried = mood === "worried"; // Today's coach, when a streak is about to end
     const arc = (color, offset) => `<circle cx="50" cy="60" r="36" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="54 172.2" stroke-dashoffset="${offset}"/>`;
     const eye = (x) => `<ellipse cx="${x}" cy="56" rx="${wow ? 5.8 : 5}" ry="${wow ? 7 : 6.2}" fill="#1c1c1e"/><circle cx="${x + 1.7}" cy="53.6" r="1.8" fill="#fff"/>`;
     const mouth = wow
       ? '<ellipse cx="50" cy="68" rx="4.6" ry="5.6" fill="#1c1c1e"/><ellipse cx="50" cy="71" rx="2.8" ry="1.9" fill="#ff7a8a"/>'
-      : '<path d="M42.5 66 Q50 74 57.5 66" stroke="#1c1c1e" stroke-width="3.4" fill="none" stroke-linecap="round"/>';
+      : worried
+        ? '<path d="M43.5 70 Q50 65.5 56.5 70" stroke="#1c1c1e" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M35.5 47.5 L45 44.5 M64.5 47.5 L55 44.5" stroke="#1c1c1e" stroke-width="2.8" stroke-linecap="round"/>'
+        : '<path d="M42.5 66 Q50 74 57.5 66" stroke="#1c1c1e" stroke-width="3.4" fill="none" stroke-linecap="round"/>';
     const star = (x, y, r) => `<path class="ob-pet-sparkle" d="M${x} ${y - r} Q${x} ${y} ${x + r} ${y} Q${x} ${y} ${x} ${y + r} Q${x} ${y} ${x - r} ${y} Q${x} ${y} ${x} ${y - r} Z" fill="var(--ring-planks)"/>`;
     // It blinks every few seconds; the wow face bounces in and its sparkles
     // twinkle (style.css, off with Reduce Motion).

@@ -477,7 +477,13 @@
   <main id="app-screen" class="card hidden">
     <div id="tab-today" class="tab-panel">
       <h1 class="large-title">Today</h1>
-      <p id="motivation-message" class="motivation"></p>
+      <!-- The pet, where a daily quote used to be: it says what today
+           still needs. When the day is done it jumps into the ring and
+           talks from under it instead (celebrations.js). -->
+      <div id="pet-coach" class="pet-coach">
+        <button id="pet-coach-pet" class="pet-coach-pet" type="button" aria-label="Forja pet - tap for another tip"></button>
+        <p id="pet-coach-bubble" class="pet-bubble" role="status" aria-live="polite"></p>
+      </div>
 
       <div class="stat-container">
         <span id="streak-count" class="stat-number">0</span>
@@ -503,6 +509,9 @@
           <circle id="ring-walkrun" class="ring-progress ring-walkrun hidden" cx="60" cy="60" r="50"></circle>
         </svg>
       </div>
+
+      <!-- The pet's line on a finished day, pointing up at it in the ring. -->
+      <p id="pet-coach-below" class="pet-bubble is-below hidden" role="status" aria-live="polite"></p>
 
       <div class="rings-legend">
         <span class="rings-legend-item"><span class="rings-dot rings-dot-pushups"></span>Push-ups</span>
@@ -755,9 +764,9 @@
   <script src="supabase/functions/_shared/game-rules.js?v=6"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=9"></script>
   <script src="camera-verify.js?v=9"></script>
-  <script src="onboarding.js?v=7"></script>
+  <script src="onboarding.js?v=8"></script>
   <script src="script.js?v=26"></script>
   <script src="challenges.js?v=3"></script>
-  <script src="celebrations.js?v=2"></script>
+  <script src="celebrations.js?v=3"></script>
 </body>
 </html>

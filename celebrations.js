@@ -1,11 +1,13 @@
 // Celebrations on Today, kept small on purpose:
-// - a saved set counts up, with a "+25" floating off its card;
+// - the pet coaches from the top of Today (what's left, what's next);
+// - a saved set fills its slice of the ring and counts up, with a "+25"
+//   floating off its card;
 // - an exercise that reaches its target gets a green check on its tag;
-// - a finished day closes the ring into one full circle with the pet's
-//   face inside (and it stays that way for the rest of the day);
+// - a finished day: the pet jumps into the ring, which closes into one full
+//   circle with its face inside (and it stays that way for the rest of the day);
 // - every 7th day of a streak gets one full-screen celebration, where the
 //   pet comes alive and flexes;
-// - on days the plan steps up, the line under the ring says so.
+// - on days the plan steps up, the pet's line under the ring says so.
 // Each moment waits until Today is actually on screen (e.g. after the
 // camera closes). With Reduce Motion nothing moves; the end states still show.
 
@@ -440,22 +442,74 @@ const Celebrations = (function () {
     requestAnimationFrame(frame);
   }
 
+  // Runs onFrame(t) every frame for `ms`, t going 0 -> 1.
+  function frames(ms, onFrame) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / ms);
+        onFrame(t);
+        if (t < 1) requestAnimationFrame(step);
+        else resolve();
+      };
+      requestAnimationFrame(step);
+    });
+  }
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+
   // ---------- a saved set ----------
+  // The set is saved while the camera screen still covers Today, so its
+  // slice of the ring and its number stay where they were (ringShown /
+  // heldValue, read by script.js) until Today is back on screen. Then the
+  // slice grows frame by frame - a CSS transition of a ring's dash length
+  // is unreliable on iPhones - while the number counts up and a "+25"
+  // floats off the card. A slice that reaches full swells for a beat.
+  const FILL_MS = 700;
+  const ringHold = {}; // key -> the fraction the slice keeps showing
+  const valueHold = {}; // key -> the number the card keeps showing
+
+  function ringShown(key, fraction) {
+    return key in ringHold ? ringHold[key] : fraction;
+  }
+  function heldValue(key, value) {
+    return key in valueHold ? valueHold[key] : value;
+  }
+
   function setSaved(exercise, before, after) {
     const key = KEY_OF[exercise];
     if (!key || !(after > before) || inSignUp()) return;
+    const target = Math.max(data.minimums[key], 1);
+    ringHold[key] = before / target;
+    valueHold[key] = before;
     enqueue(async () => {
       await wait(250); // let Today settle after the camera closes
       const input = $(key);
       const tile = input.closest(".exercise-tile");
-      if (!reduced()) countUp(input, before, after, 600);
       const plus = document.createElement("span");
       plus.className = "celebrate-plus";
       plus.style.color = COLOR[key];
       plus.textContent = key === "planks" ? `+${after - before}s` : `+${after - before}`;
       tile.appendChild(plus);
       setTimeout(() => plus.remove(), 1300);
-      await wait(650);
+      delete valueHold[key];
+      const from = before / target;
+      const to = after / target;
+      if (reduced()) {
+        input.value = after;
+      } else {
+        countUp(input, before, after, FILL_MS);
+        await frames(FILL_MS, (t) => drawRingSlice(key, from + (to - from) * easeOut(t)));
+        input.value = after;
+      }
+      delete ringHold[key];
+      updateRings(data.lastLoggedDate === todayString());
+      if (from < 1 && to >= 1 && !reduced()) {
+        const slice = $("ring-" + key);
+        await frames(320, (t) => {
+          slice.style.strokeWidth = 14 + 5 * Math.sin(Math.PI * t);
+        });
+        slice.style.strokeWidth = "";
+      }
     });
   }
 
@@ -469,9 +523,19 @@ const Celebrations = (function () {
       layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
       layer.id = "ring-complete";
       document.querySelector(".rings-svg").appendChild(layer);
+      // On a finished day the pet lives here; tapping it says another line.
       const face = document.createElement("div");
       face.id = "ring-face";
       face.className = "ring-face";
+      face.setAttribute("role", "button");
+      face.setAttribute("tabindex", "0");
+      face.setAttribute("aria-label", "Forja pet - tap for another tip");
+      face.addEventListener("click", coachNextLine);
+      face.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        coachNextLine();
+      });
       document.querySelector(".rings-container").appendChild(face);
     }
     const keys = data.minimums.walkRun !== null ? ["pushups", "planks", "squats", "walkRun"] : ["pushups", "planks", "squats"];
@@ -487,18 +551,21 @@ const Celebrations = (function () {
     return { layer, face: $("ring-face") };
   }
 
+  // animate: false, "snap" (the face pops in) or "land" (the coach just
+  // jumped in - its face squashes down as it lands).
   function showClosed(closed, animate) {
     const { layer, face } = closedRing();
     const container = document.querySelector(".rings-container");
     container.classList.toggle("is-complete", closed);
+    face.classList.toggle("is-tappable", closed);
     if (closed && !face.hasChildNodes()) face.innerHTML = Onboarding.mascot("wow", true);
     if (!closed) face.innerHTML = "";
     layer.classList.remove("snap");
-    face.classList.remove("snap");
+    face.classList.remove("snap", "land", "hop");
     if (closed && animate) {
       void layer.getBoundingClientRect();
       layer.classList.add("snap");
-      face.classList.add("snap");
+      face.classList.add(animate === "land" ? "land" : "snap");
     }
   }
 
@@ -509,12 +576,16 @@ const Celebrations = (function () {
     if (inSignUp()) return;
     dayPending = true;
     enqueue(async () => {
-      await wait(300);
+      await wait(100);
+      // The pet leaps from its spot at the top into the ring; as it lands
+      // the ring closes around it and it stays there for the rest of the day.
+      const landed = await coachJump();
       dayPending = false;
-      showClosed(true, true);
+      showClosed(true, landed ? "land" : "snap");
       streakCountEl.classList.add("pulse");
       setTimeout(() => streakCountEl.classList.remove("pulse"), 250);
-      drawStatus();
+      await wait(landed ? 260 : 0);
+      coachRender(true, todayProgress(), true);
       if (streak > 0 && streak % 7 === 0 && !isToday(MILESTONE_KEY)) {
         await wait(1300);
         await milestone(streak);
@@ -522,19 +593,281 @@ const Celebrations = (function () {
     });
   }
 
-  // "Day complete!" - plus, on a level-up day, the tag and tomorrow's targets.
-  function drawStatus() {
-    if (!data || data.lastLoggedDate !== todayString() || !isToday(LEVEL_UP_KEY) || typeof serverPlan === "undefined" || !serverPlan) return;
-    const tomorrow = ForjaRules.planOn(serverPlan, ForjaRules.addDays(todayString(), 1)).plan.targets;
-    const tag = document.createElement("span");
-    tag.className = "level-up-tag";
-    tag.textContent = "Level up ▲";
-    const line = document.createElement("span");
-    line.className = "level-up-line";
-    line.textContent = `Tomorrow: ${tomorrow.pushups} push-ups · ${formatDuration(tomorrow.planks * 1000)} plank · ${tomorrow.squats} squats`;
-    statusMessageEl.textContent = "Day complete! ";
-    statusMessageEl.append(tag, line);
+  // ---------- the pet coach ----------
+  // Where a daily quote used to be, the pet says what today still needs -
+  // in its own voice (blunt, funny, never rude: it teases the effort, never
+  // the person). Every number comes from the real day: what's left, the
+  // streak (as the server would count it, rest days included) and the
+  // plan's next level-up. Once the day is done the pet lives in the closed
+  // ring and talks from under it. It hops in when Today opens, moves to fit
+  // the moment, and tapping it gets another line.
+  const MOVES = { fresh: "wave", newbie: "wave", partway: "nod", close: "bounce", risk: "shake" };
+  const FACES = { close: "wow", risk: "worried" };
+  let coachMoment = null; // the moment the pet last talked about
+  let coachLines = []; // what it can say about it (tap = the next one)
+  let coachIndex = 0;
+  let coachKey = null; // moment + first line, so a redraw with nothing new stays quiet
+  let coachIntroQueued = false;
+  let coachMoveTimer = null;
+
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const plankText = (seconds) => (seconds < 60 ? `${seconds}s` : formatDuration(seconds * 1000));
+  const joinList = (items) => (items.length < 2 ? items.join("") : items.slice(0, -1).join(", ") + " and " + items[items.length - 1]);
+  const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+
+  function statsNow() {
+    return { streak: data.streak, bestStreak: data.bestStreak, lastLoggedDate: data.lastLoggedDate, restDaysUsed: data.restDaysUsed, weekStartDate: data.weekStartDate };
   }
+  // The streak today's workout would carry on (0 = it's already gone).
+  function liveStreak() {
+    const stats = statsNow();
+    return stats.lastLoggedDate && ForjaRules.nextStats(stats, todayString()).streak > 1 ? stats.streak : 0;
+  }
+  // True when skipping today would end it (no rest day left to cover it).
+  function streakEndsTonight() {
+    return liveStreak() > 0 && ForjaRules.nextStats(statsNow(), ForjaRules.addDays(todayString(), 1)).streak === 1;
+  }
+
+  // What's left today, in the order of the ring. A plank is one hold, so a
+  // short one still needs the full time.
+  function leftToDo(progress) {
+    const m = data.minimums;
+    const left = [];
+    if (progress.pushups < m.pushups) left.push(progress.pushups > 0 ? plural(m.pushups - progress.pushups, "more push-up", "more push-ups") : plural(m.pushups, "push-up", "push-ups"));
+    if (progress.planks < m.planks) left.push(`a ${progress.planks > 0 ? "full " : ""}${plankText(m.planks)} plank`);
+    if (progress.squats < m.squats) left.push(progress.squats > 0 ? plural(m.squats - progress.squats, "more squat", "more squats") : plural(m.squats, "squat", "squats"));
+    if (m.walkRun !== null && progress.walkRun < m.walkRun) left.push(progress.walkRun > 0 ? `${m.walkRun - progress.walkRun} more minutes of walking` : `a ${m.walkRun}-min walk or run`);
+    return left;
+  }
+
+  // Streaks get a big moment every 7th day; say how far off the next one is.
+  function weekLine(streak, done) {
+    if (done) {
+      const next = (Math.floor(streak / 7) + 1) * 7;
+      const days = next - streak;
+      return days === 1 ? `<b>1 more day</b> to a ${next}-day streak. Same time tomorrow?` : `<b>${days} more days</b> to a ${next}-day streak.`;
+    }
+    const next = Math.ceil((streak + 1) / 7) * 7;
+    const days = next - streak; // today included
+    return days === 1 ? `Today makes it a <b>${next}-day streak</b>. No pressure.` : `<b>${days} more days</b> and you hit a ${next}-day streak. Today counts.`;
+  }
+
+  function doneLines() {
+    const streak = data.streak;
+    let first = `Day <b>${streak}</b> done. See you tomorrow.`;
+    if (typeof serverPlan !== "undefined" && serverPlan) {
+      const tomorrow = ForjaRules.addDays(todayString(), 1);
+      if (isToday(LEVEL_UP_KEY)) {
+        const t = ForjaRules.planOn(serverPlan, tomorrow).plan.targets;
+        first = `<b>Level up!</b> Tomorrow: ${t.pushups} push-ups · ${plankText(t.planks)} plank · ${t.squats} squats.`;
+      } else {
+        const next = ForjaRules.nextLevelUp(serverPlan, tomorrow);
+        if (next) first = `Day <b>${streak}</b> done. Level up in <b>${plural(next.inDays, "day", "days")}</b>.`;
+      }
+    }
+    return [first, weekLine(streak, true), "That's it for today. Go brag to someone."];
+  }
+
+  // { moment, lines } for the day as it stands, or null while it's saving.
+  function coachSays(done, progress) {
+    if (done) return { moment: "done", lines: doneLines() };
+    const left = leftToDo(progress);
+    if (left.length === 0) return null; // every target met - the day is being saved
+    const streak = liveStreak();
+    const total = data.minimums.walkRun !== null ? 4 : 3;
+    const started = progress.pushups + progress.planks + progress.squats + progress.walkRun > 0;
+    if (!started) {
+      if (streakEndsTonight() && new Date().getHours() >= 20) {
+        return {
+          moment: "risk",
+          lines: [`<span class="warn">Your ${streak}-day streak ends at midnight.</span> There's still time.`, `It's getting late. Me and your <b>${streak}-day streak</b> are nervous.`],
+        };
+      }
+      if (streak === 0) return { moment: "newbie", lines: [`Fresh start. <b>${capital(joinList(left))}</b>. Let's go.`, "Day <b>1</b> is the hardest one. Get it over with."] };
+      return {
+        moment: "fresh",
+        lines: [`Day <b>${streak + 1}</b> is up for grabs. Start with ${plural(data.minimums.pushups, "push-up", "push-ups")}?`, weekLine(streak, false), `${capital(joinList(left))}. Then the day logs itself.`],
+      };
+    }
+    if (left.length === 1) {
+      return {
+        moment: "close",
+        lines: [`Just <b>${left[0]}</b> between you and day <b>${streak + 1}</b>.`, `So close I can taste it. <b>${capital(left[0])}</b>.`],
+      };
+    }
+    const doneCount = total - left.length;
+    return {
+      moment: "partway",
+      lines: [`Nice. Now <b>${joinList(left)}</b>.`, doneCount > 0 ? `<b>${doneCount} of ${total}</b> done. Don't get comfy.` : "You've started. That's the hard part."],
+    };
+  }
+
+  function speak(el, html) {
+    el.classList.remove("is-new");
+    void el.offsetWidth; // restart the pop-in
+    el.innerHTML = html;
+    el.classList.add("is-new");
+  }
+
+  function move(name) {
+    const pet = $("pet-coach-pet");
+    pet.classList.remove("hop-in", "wave", "nod", "bounce", "shake", "idle");
+    if (reduced()) return;
+    void pet.offsetWidth;
+    pet.classList.add(name);
+    clearTimeout(coachMoveTimer);
+    coachMoveTimer = setTimeout(() => {
+      pet.classList.remove(name);
+      pet.classList.add("idle");
+    }, 1000);
+  }
+
+  function drawPet(moment) {
+    const pet = $("pet-coach-pet");
+    const face = FACES[moment] || "happy";
+    if (pet.dataset.face !== face) {
+      pet.dataset.face = face;
+      pet.innerHTML = Onboarding.mascot(face);
+    }
+  }
+
+  // Top spot (the day isn't done) or in the ring (it is). animate = the
+  // pet just jumped in: the empty top spot folds away and the line pops in.
+  function placeCoach(done, animate) {
+    const coach = $("pet-coach");
+    if (coach.classList.contains("is-gone") === done) return;
+    if (!animate) coach.classList.add("no-motion");
+    coach.classList.toggle("is-gone", done);
+    void coach.offsetWidth;
+    coach.classList.remove("no-motion");
+    $("pet-coach-pet").style.visibility = "";
+    $("pet-coach-bubble").classList.remove("is-quiet");
+    $("pet-coach-below").classList.toggle("hidden", !done);
+  }
+
+  function coachRender(done, progress, animate) {
+    if (!data || inSignUp()) return;
+    const says = coachSays(done, progress);
+    if (!says) return;
+    placeCoach(done, animate);
+    // On a finished day the line under the ring replaces "Day complete!".
+    statusMessageEl.classList.toggle("hidden", done);
+    const key = says.moment + "|" + says.lines[0];
+    if (key === coachKey) {
+      coachLines = says.lines; // same thing to say; just keep the lines fresh
+      return;
+    }
+    const first = coachKey === null;
+    const changed = says.moment !== coachMoment;
+    coachKey = key;
+    coachMoment = says.moment;
+    coachLines = says.lines;
+    coachIndex = 0;
+    if (!done) drawPet(says.moment);
+    const bubble = done ? $("pet-coach-below") : $("pet-coach-bubble");
+    if (first || animate) {
+      // Right away: the first draw (the intro below brings it in) or the
+      // landing after the jump.
+      speak(bubble, says.lines[0]);
+      if (first) coachIntro();
+      return;
+    }
+    // A new line (a set saved, the day moved on) plays once Today is seen,
+    // after the ring has filled.
+    enqueue(async () => {
+      speak(bubble, says.lines[0]);
+      if (!done && changed) move(MOVES[says.moment] || "nod");
+      await wait(300);
+    });
+  }
+
+  // Opening Today: the pet hops in, then says its line with its move.
+  function coachIntro() {
+    if (coachIntroQueued) return;
+    coachIntroQueued = true;
+    enqueue(async () => {
+      coachIntroQueued = false;
+      if (!coachMoment) return;
+      if (coachMoment === "done") {
+        faceHop();
+        speak($("pet-coach-below"), coachLines[coachIndex]);
+        return;
+      }
+      const bubble = $("pet-coach-bubble");
+      bubble.classList.add("is-quiet");
+      move("hop-in");
+      await wait(550);
+      bubble.classList.remove("is-quiet");
+      speak(bubble, coachLines[coachIndex]);
+      move(MOVES[coachMoment] || "nod");
+    });
+  }
+
+  function faceHop() {
+    const face = $("ring-face");
+    if (!face || reduced()) return;
+    face.classList.remove("snap", "land", "hop");
+    void face.offsetWidth;
+    face.classList.add("hop");
+  }
+
+  function coachNextLine() {
+    if (!coachLines.length) return;
+    coachIndex = (coachIndex + 1) % coachLines.length;
+    if (coachMoment === "done") {
+      speak($("pet-coach-below"), coachLines[coachIndex]);
+      faceHop();
+    } else {
+      speak($("pet-coach-bubble"), coachLines[coachIndex]);
+      move(coachMoment === "risk" ? "shake" : "bounce");
+    }
+  }
+
+  // The jump: a copy of the pet leaves its spot, crouches, arcs down and
+  // grows until its ring body matches the big ring, then fades as the ring
+  // closes under it (showClosed "land"). Resolves true once it has landed,
+  // or false right away when there's nothing to animate (Reduce Motion, or
+  // the pet isn't at the top). Transform/opacity only.
+  function coachJump() {
+    const pet = $("pet-coach-pet");
+    const svg = pet.querySelector("svg");
+    if (reduced() || !svg || $("pet-coach").classList.contains("is-gone") || !svg.animate) return Promise.resolve(false);
+    const from = svg.getBoundingClientRect();
+    const ring = document.querySelector(".rings-svg").getBoundingClientRect();
+    if (!from.width || !ring.width) return Promise.resolve(false);
+    const unit = from.width / 100; // the pet is drawn on a 100-wide grid, its ring r36 around (50, 60)
+    const scale = (ring.width * (50 / 120)) / (36 * unit); // ...the big ring is r50 on a 120 grid
+    const endX = ring.left + ring.width / 2 - scale * 50 * unit;
+    const endY = ring.top + ring.height / 2 - scale * 60 * unit;
+    const midX = (from.left + endX) / 2;
+    const midY = Math.min(from.top, endY) - 60;
+    const flyer = svg.cloneNode(true);
+    flyer.classList.add("pet-coach-flyer");
+    flyer.style.width = from.width + "px";
+    flyer.style.height = from.height + "px";
+    document.body.appendChild(flyer);
+    pet.style.visibility = "hidden";
+    $("pet-coach-bubble").classList.add("is-quiet");
+    return new Promise((resolve) => {
+      const flight = flyer.animate(
+        [
+          { transform: `translate(${from.left}px, ${from.top}px) scale(1)` },
+          { transform: `translate(${from.left - 2}px, ${from.top + 7}px) scale(1.06, 0.9)`, offset: 0.14 },
+          { transform: `translate(${midX}px, ${midY}px) scale(${(1 + scale) / 2})`, offset: 0.55, easing: "ease-in" },
+          { transform: `translate(${endX}px, ${endY}px) scale(${scale})` },
+        ],
+        { duration: 820, easing: "ease-out", fill: "forwards" }
+      );
+      const landed = () => {
+        flyer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, fill: "forwards" }).onfinish = () => flyer.remove();
+        resolve(true);
+      };
+      flight.onfinish = landed;
+      flight.oncancel = landed;
+    });
+  }
+
+  $("pet-coach-pet").addEventListener("click", coachNextLine);
 
   // ---------- every 7th day ----------
   function confetti(host) {
@@ -619,10 +952,11 @@ const Celebrations = (function () {
     metBefore = met;
 
     if (!dayPending) showClosed(loggedToday, false);
-    if (loggedToday && !dayPending) drawStatus();
+    // Until the jump plays, the pet stays at the top.
+    coachRender(loggedToday && !dayPending, progress, false);
   }
 
-  return { setSaved, dayComplete, renderToday };
+  return { setSaved, dayComplete, renderToday, ringShown, heldValue, enterToday: coachIntro };
 })();
 
 // script.js may already have drawn Today before this file loaded (the app

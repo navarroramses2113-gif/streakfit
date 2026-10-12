@@ -258,9 +258,12 @@ RING_CONFIG.forEach((ring) => {
 // how much of the circle it's allotted, and `fraction` (0-1) is how much
 // of ITS OWN slice is currently filled. Plays the "closure" pulse exactly
 // once, the moment this segment crosses from not-yet-done into done.
-function setSegmentProgress(ring, startOffset, span, fraction) {
+// A slice whose set was just saved stays where it was until Today is back
+// on screen; then celebrations.js grows it (see Celebrations.ringShown).
+function setSegmentProgress(ring, startOffset, span, fraction, ignoreHold) {
   const trackLength = Math.max(span - RING_SEGMENT_GAP, 0);
-  const clamped = Math.max(0, Math.min(1, fraction));
+  const shown = !ignoreHold && typeof Celebrations !== "undefined" ? Celebrations.ringShown(ring.key, fraction) : fraction;
+  const clamped = Math.max(0, Math.min(1, shown));
   const progressLength = trackLength * clamped;
 
   ring.trackEl.style.strokeDasharray = `${trackLength} ${RING_CIRCUMFERENCE - trackLength}`;
@@ -306,6 +309,16 @@ function updateRings(forceComplete) {
   activeRings.forEach((ring, index) => {
     setSegmentProgress(ring, index * segmentSpan, segmentSpan, fractions[index]);
   });
+}
+
+// Draws one slice at `fraction` right now, held or not - one frame of the
+// fill animation in celebrations.js.
+function drawRingSlice(key, fraction) {
+  const activeRings = data.minimums.walkRun !== null ? RING_CONFIG : RING_CONFIG.slice(0, 3);
+  const index = activeRings.findIndex((ring) => ring.key === key);
+  if (index === -1) return;
+  const span = RING_CIRCUMFERENCE / activeRings.length;
+  setSegmentProgress(activeRings[index], index * span, span, fraction, true);
 }
 
 const pushupsMinTagEl = document.getElementById("pushups-min-tag");
@@ -1189,9 +1202,11 @@ function render() {
   bestStreakCountEl.textContent = data.bestStreak;
 
   const progress = todayProgress();
-  pushupsEl.value = progress.pushups;
-  planksEl.value = progress.planks;
-  squatsEl.value = progress.squats;
+  // A set saved behind the camera screen counts up once Today is seen.
+  const shown = (key) => (typeof Celebrations !== "undefined" ? Celebrations.heldValue(key, progress[key]) : progress[key]);
+  pushupsEl.value = shown("pushups");
+  planksEl.value = shown("planks");
+  squatsEl.value = shown("squats");
   walkrunEl.value = progress.walkRun;
 
   const loggedToday = data.lastLoggedDate === todayString();
@@ -1598,32 +1613,6 @@ document.getElementById("calendar-close-button").addEventListener("click", () =>
   showScreen("app-screen");
 });
 
-// A pool of messages to rotate through. Feel free to edit/add your own.
-const MOTIVATIONS = [
-  "Discipline is choosing between what you want now and what you want most.",
-  "You don't have to be great to start, but you have to start to be great.",
-  "Small daily wins compound into results that feel impossible in advance.",
-  "The streak isn't the goal - it's proof you're becoming someone new.",
-  "Motivation gets you started. The streak is what keeps you going.",
-  "Nobody regrets the workout they finished. Get today's reps in.",
-  "Consistency beats intensity. Show up today, even if it's the bare minimum.",
-  "Future you is built entirely out of what present you decides right now.",
-];
-
-// Returns which day of the year it is (1 = Jan 1st, 365/366 = Dec 31st).
-// We use this as a stable "seed" so the message is the same all day but
-// changes tomorrow, instead of picking a random one on every refresh.
-function dayOfYear(date) {
-  const startOfYear = new Date(date.getFullYear(), 0, 0);
-  const msPerDay = 1000 * 60 * 60 * 24;
-  return Math.floor((date - startOfYear) / msPerDay);
-}
-
-function renderMotivation() {
-  const motivationEl = document.getElementById("motivation-message");
-  const index = dayOfYear(new Date()) % MOTIVATIONS.length;
-  motivationEl.textContent = MOTIVATIONS[index];
-}
 
 // Fades the splash screen out - guarded so it only ever runs once, and
 // wrapped in a brief timeout so it displays for at least a fraction of a
@@ -1663,7 +1652,6 @@ function revealApp(show = true) {
   render();
   renderHeatmap();
   renderDistanceChart();
-  renderMotivation();
   renderMinTags();
   renderSettingsInputs();
   updateMeTabAuthSection();
@@ -2012,6 +2000,9 @@ function showTab(tabName) {
     TABS[name].button.classList.toggle("active", isActive);
   }
 
+  if (tabName === "today" && typeof Celebrations !== "undefined") {
+    Celebrations.enterToday(); // the pet hops back in and says where things stand
+  }
   if (tabName === "feed") {
     enterFeedTab();
   }
