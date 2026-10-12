@@ -16,7 +16,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=25">
+  <link rel="stylesheet" href="style.css?v=26">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. -->
@@ -712,10 +712,13 @@
         <div id="past-routes-list" class="leaderboard"></div>
       </div>
 
-      <div id="record-active-panel" class="tracking-buttons hidden">
-        <button id="tracking-cancel" class="tracking-cancel-button">Cancel</button>
+      <!-- Finish and Cancel need a 1-second hold, so a bump can't end or
+           throw away a walk; a quick tap shows the hint instead. -->
+      <div id="record-active-panel" class="tracking-buttons hold-panel hidden">
+        <p id="hold-hint" class="hold-hint" role="status" aria-live="polite"></p>
+        <button id="tracking-cancel" class="tracking-cancel-button hold-button" aria-label="Cancel - hold to confirm"><span class="hold-fill"></span><span class="hold-label">Cancel</span></button>
         <button id="tracking-pause" class="tracking-pause-button">Pause</button>
-        <button id="tracking-finish" class="auth-submit-button">Finish</button>
+        <button id="tracking-finish" class="auth-submit-button hold-button" aria-label="Finish - hold to confirm"><span class="hold-fill"></span><span class="hold-label">Finish</span></button>
       </div>
     </div>
 

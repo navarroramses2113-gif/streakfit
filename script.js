@@ -3631,10 +3631,105 @@ function resetRecordToIdle() {
   showPreviewLocation();
 }
 
-trackingCancelEl.addEventListener("click", () => {
+// Finish and Cancel end a walk, so a bump in a pocket or a stray thumb
+// mustn't do it: they need a 1-second hold. While held, a fill sweeps
+// across the button; let go early and it drains back and nothing happens.
+// A quick tap shows "Hold to finish" so the rule teaches itself.
+const HOLD_TO_CONFIRM_MS = 1000;
+const holdHintEl = document.getElementById("hold-hint");
+let holdHintTimer = null;
+
+function showHoldHint(text) {
+  holdHintEl.textContent = text;
+  holdHintEl.classList.add("is-shown");
+  clearTimeout(holdHintTimer);
+  holdHintTimer = setTimeout(() => holdHintEl.classList.remove("is-shown"), 1600);
+}
+
+function setupHoldButton(button, hintText, onConfirm) {
+  const fill = button.querySelector(".hold-fill");
+  let heldSince = null; // null = not being held
+  let progress = 0; // 0-1, how full the button is
+  let frame = null;
+  let lastPressAt = -Infinity;
+
+  const draw = () => {
+    fill.style.transform = `scaleX(${progress})`;
+  };
+
+  function tick(now) {
+    if (heldSince !== null) {
+      progress = Math.min(1, (now - heldSince) / HOLD_TO_CONFIRM_MS);
+      draw();
+      if (progress >= 1) {
+        heldSince = null;
+        frame = null;
+        progress = 0;
+        draw();
+        button.classList.remove("is-holding");
+        if (navigator.vibrate) navigator.vibrate(30);
+        onConfirm();
+        return;
+      }
+    } else {
+      progress = Math.max(0, progress - 0.08); // let go early: drain back
+      draw();
+      if (progress <= 0) {
+        frame = null;
+        return;
+      }
+    }
+    frame = requestAnimationFrame(tick);
+  }
+
+  function press() {
+    lastPressAt = performance.now();
+    if (heldSince !== null) return;
+    heldSince = performance.now() - progress * HOLD_TO_CONFIRM_MS; // re-grab mid-drain picks up where it is
+    button.classList.add("is-holding");
+    if (!frame) frame = requestAnimationFrame(tick);
+  }
+
+  function release() {
+    if (heldSince === null) return;
+    if (progress < 0.25) showHoldHint(hintText);
+    heldSince = null;
+    button.classList.remove("is-holding");
+    if (!frame) frame = requestAnimationFrame(tick);
+  }
+
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault(); // no text selection / focus jump on a long press
+    button.setPointerCapture(event.pointerId);
+    press();
+  });
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", release);
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
+  button.addEventListener("keydown", (event) => {
+    if (event.key !== " " && event.key !== "Enter") return;
+    event.preventDefault();
+    if (!event.repeat) press();
+  });
+  button.addEventListener("keyup", (event) => {
+    if (event.key !== " " && event.key !== "Enter") return;
+    event.preventDefault();
+    release();
+  });
+  // The click a tap or key press ends with is handled by the hold above.
+  // A click with no press before it comes from assistive tech (or a
+  // script) - nothing to hold there, so it counts straight away.
+  button.addEventListener("click", () => {
+    if (performance.now() - lastPressAt < HOLD_TO_CONFIRM_MS + 1500) return;
+    onConfirm();
+  });
+}
+
+function cancelTracking() {
   stopTrackingWatchers();
   resetRecordToIdle();
-});
+}
 
 // Every finished route is kept - there's no "keep or discard?" question.
 // Simplified (near-redundant points dropped) then encoded (packed into one
@@ -3655,7 +3750,7 @@ function saveRoute(route, distanceKm, durationMs, elevationGainM) {
   renderDistanceChart();
 }
 
-trackingFinishEl.addEventListener("click", async () => {
+async function finishTracking() {
   stopTrackingWatchers();
 
   const durationMs = elapsedTrackingMs();
@@ -3689,7 +3784,10 @@ trackingFinishEl.addEventListener("click", async () => {
   // that this walk completes includes its minutes.
   if (currentUserId && realPace) await shareActivity(route, durationMs);
   maybeCompleteDay();
-});
+}
+
+setupHoldButton(trackingCancelEl, "Hold to cancel", cancelTracking);
+setupHoldButton(trackingFinishEl, "Hold to finish", finishTracking);
 
 // Posts a finished walk/run to the Feed. The server works out distance,
 // pace and walk-vs-run from the GPS points itself. If it fails (no signal)
