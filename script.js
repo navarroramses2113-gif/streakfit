@@ -1695,6 +1695,7 @@ async function showApp(userId) {
   // Catches a day that hit its minimums but didn't get saved (no signal).
   maybeCompleteDay();
   updateFriendRequestBadge();
+  updateFeedBadge();
 
   if (signingUp) {
     // The sign-up flow carries on (reminders, friends) from here.
@@ -1726,6 +1727,66 @@ async function updateFriendRequestBadge() {
 
   badgeEl.classList.toggle("hidden", !count);
 }
+
+// The same dot on the Feed tab when a friend has posted since this phone
+// last had the Feed open. "Seen" is the newest friend post's own time (the
+// server's clock, so a phone set a few minutes off can't hide a post),
+// kept per account on this phone. On a phone that has never opened the
+// Feed, nothing that's already there counts as new.
+const FEED_SEEN_KEY = "forja-feed-seen";
+
+function readFeedSeen() {
+  try {
+    return JSON.parse(localStorage.getItem(FEED_SEEN_KEY) || "{}")[currentUserId] ?? null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function writeFeedSeen(ms) {
+  try {
+    const seen = JSON.parse(localStorage.getItem(FEED_SEEN_KEY) || "{}");
+    seen[currentUserId] = ms;
+    localStorage.setItem(FEED_SEEN_KEY, JSON.stringify(seen));
+  } catch (e) {
+    // storage blocked - the dot just may show again
+  }
+}
+
+const feedOnScreen = () => !document.getElementById("app-screen").classList.contains("hidden") && !TABS.feed.panel.classList.contains("hidden");
+
+async function updateFeedBadge() {
+  const badgeEl = document.getElementById("feed-tab-badge");
+  const viewerId = currentUserId;
+  if (!viewerId) {
+    badgeEl.classList.add("hidden");
+    return;
+  }
+  // Friends' posts only (RLS already limits the Feed to you and your friends).
+  const { data: rows, error } = await supabaseClient
+    .from("feed_events")
+    .select("created_at")
+    .neq("user_id", viewerId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error || viewerId !== currentUserId) return;
+  const newest = rows && rows[0] ? Date.parse(rows[0].created_at) : 0;
+  const seen = readFeedSeen();
+  if (seen === null || feedOnScreen()) {
+    if (newest > (seen || 0)) writeFeedSeen(newest);
+    if (seen === null && !newest) writeFeedSeen(0);
+    badgeEl.classList.add("hidden");
+    return;
+  }
+  badgeEl.classList.toggle("hidden", !(newest > seen));
+}
+
+// Coming back to the app: friends may have posted or sent a request since.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !currentUserId) return;
+  updateFeedBadge();
+  updateFriendRequestBadge();
+});
 
 // Lets someone use the full app without an account yet. Their data is
 // only saved to this browser (via saveData's guest branch) until they
@@ -1802,6 +1863,7 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
   serverPlan = null;
   // Nothing from the last account's Feed may linger for whoever signs in next.
   document.getElementById("feed-list").innerHTML = "";
+  document.getElementById("feed-tab-badge").classList.add("hidden");
 
   if (justLoggedOut) {
     justLoggedOut = false;
@@ -2460,10 +2522,17 @@ async function enterFeedTab() {
     });
     return;
   }
+  // Opening the Feed is what "seen" means: the dot goes, and the newest
+  // post's time is remembered.
+  document.getElementById("feed-tab-badge").classList.add("hidden");
   // First visit: say something while it loads. Later visits keep showing
   // the last posts while the fresh ones arrive.
   if (!feedListEl.hasChildNodes()) showFeedMessage("Loading...");
-  await loadFeed();
+  try {
+    await loadFeed();
+  } finally {
+    updateFeedBadge(); // even if the Feed didn't load, it was opened
+  }
 }
 
 async function loadFeed() {

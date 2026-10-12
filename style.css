@@ -393,8 +393,12 @@ body {
   height: 20px;
 }
 
+/* Only the drawing dims on an inactive tab - not the tab's red dot. */
 .tab-icon {
   position: relative;
+}
+
+.tab-icon svg {
   opacity: 0.6;
   transition: opacity 0.15s ease;
 }
@@ -422,7 +426,7 @@ body {
   color: var(--accent-text);
 }
 
-.tab-btn.active .tab-icon {
+.tab-btn.active .tab-icon svg {
   opacity: 1;
 }
 
