@@ -100,6 +100,10 @@ input[type="number"]::-webkit-inner-spin-button {
   --overlay: #ffffff12;
   --nav-bg: rgba(20, 20, 22, 0.75);
   --heatmap-empty: #27272a;
+  /* A rest day that kept the streak: halfway between an empty day and a
+     workout day (solid - a see-through green goes muddy on black). */
+  --heatmap-rest: #247644;
+  --heatmap-rest-mark: #f4f4f5; /* its moon on the History calendar */
   --streak-gradient: linear-gradient(135deg, #ffffff 0%, #a1a1aa 100%);
   --text-primary: #f4f4f5;
   --text-secondary: #9a9a96;
@@ -138,6 +142,8 @@ input[type="number"]::-webkit-inner-spin-button {
   --overlay: #0000001a;
   --nav-bg: rgba(255, 255, 255, 0.8);
   --heatmap-empty: #e5e5ea;
+  --heatmap-rest: #22c55e59;
+  --heatmap-rest-mark: #15803d;
   --streak-gradient: linear-gradient(135deg, #1c1c1e 0%, #6b6b72 100%);
   --text-primary: #1c1c1e;
   --text-secondary: #636366;
@@ -1854,6 +1860,55 @@ body {
   border: 2px solid var(--accent);
 }
 
+/* A rest day: pale green with a small moon in the corner. */
+.calendar-day.rest {
+  position: relative;
+  background-color: var(--heatmap-rest);
+  color: var(--text-primary);
+}
+
+.calendar-day.rest::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  /* A crescent: only the circle's offset shadow shows. */
+  box-shadow: -2.5px 1.5px 0 0 var(--heatmap-rest-mark);
+  transform: rotate(-20deg);
+}
+
+.calendar-legend {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: calc(var(--space-sm) - var(--space-lg)); /* tucked under the grid's own bottom margin */
+  margin-bottom: var(--space-lg);
+  font-size: var(--font-footnote);
+  color: var(--text-secondary);
+}
+
+.calendar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.calendar-legend i {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.calendar-legend-done {
+  background-color: var(--accent);
+}
+
+.calendar-legend-rest {
+  background-color: var(--heatmap-rest);
+}
+
 .section-heading {
   font-size: var(--font-footnote);
   font-weight: 700;
@@ -1942,6 +1997,10 @@ body {
 .heatmap-day.completed {
   background-color: var(--accent);
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+.heatmap-day.rest {
+  background-color: var(--heatmap-rest);
 }
 
 .heatmap-day:hover {

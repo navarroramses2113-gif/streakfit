@@ -1398,8 +1398,15 @@ function setReward(exercise, value) {
   };
 }
 
+// The days a rest day kept the streak going (nothing stores them; see
+// ForjaRules.restDays). The current streak's own numbers settle the
+// latest stretch.
+function restDaySet() {
+  return new Set(ForjaRules.restDays(data.history, { streak: data.streak, lastLoggedDate: data.lastLoggedDate }));
+}
+
 // Builds the "last 12 weeks" grid of small squares, one per day, colored
-// based on whether that day is in data.history.
+// based on whether that day is in data.history (or was a rest day).
 function renderHeatmap() {
   const heatmapEl = document.getElementById("heatmap");
 
@@ -1407,6 +1414,7 @@ function renderHeatmap() {
   heatmapEl.innerHTML = "";
 
   const totalDays = 56; // 8 weeks * 7 days
+  const rested = restDaySet();
 
   // Loop from the oldest day (83 days ago) up to today, creating one
   // square per day in order. CSS Grid (set up in style.css) is what
@@ -1423,10 +1431,12 @@ function renderHeatmap() {
 
     if (data.history.includes(dateStr)) {
       cell.classList.add("completed");
+    } else if (rested.has(dateStr)) {
+      cell.classList.add("rest");
     }
 
     // The "title" attribute shows as a small tooltip when you hover.
-    cell.title = dateStr;
+    cell.title = rested.has(dateStr) ? `${dateStr} · rest day` : dateStr;
 
     heatmapEl.appendChild(cell);
   }
@@ -1698,6 +1708,7 @@ function renderCalendarMonth() {
   }
 
   const todayStr = todayString();
+  const rested = restDaySet();
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = dateToString(new Date(year, month, day));
@@ -1706,6 +1717,9 @@ function renderCalendarMonth() {
     cell.className = "calendar-day";
     if (data.history.includes(dateStr)) {
       cell.classList.add("completed");
+    } else if (rested.has(dateStr)) {
+      cell.classList.add("rest");
+      cell.title = "Rest day";
     }
     if (dateStr === todayStr) {
       cell.classList.add("is-today");

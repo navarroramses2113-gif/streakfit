@@ -100,6 +100,49 @@
     };
   }
 
+  // Which days were rest days: missed days the streak survived. Nothing
+  // stores them - a gap only becomes rest days when the next day is logged
+  // and fits the week's allowance - so this replays nextStats over every
+  // logged day, oldest first. Days after the last logged one aren't rest
+  // days (yet).
+  //
+  // `current` ({streak, lastLoggedDate}, the server's own numbers) settles
+  // the current streak for sure: every missed day inside it was a rest day,
+  // whatever the replay thinks (its rest-day weeks can start on other days
+  // than the server's did, e.g. after history was lost).
+  // Returns "YYYY-MM-DD" strings, oldest first.
+  function restDays(history, current) {
+    const days = [...new Set(history.filter(isValidDay))].sort();
+    const plusDays = (day, n) => new Date(new Date(day + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
+    const missedBetween = (a, b) => Array.from({ length: Math.max(0, daysBetween(a, b) - 1) }, (_, i) => plusDays(a, i + 1));
+    let rested = [];
+    let stats = {};
+    for (const day of days) {
+      const next = nextStats(stats, day);
+      if (stats.lastLoggedDate && next.streak > 1) rested.push(...missedBetween(stats.lastLoggedDate, day));
+      stats = next;
+    }
+    const last = current && current.lastLoggedDate;
+    let end = last ? days.indexOf(last) : -1;
+    if (end >= 0 && current.streak >= 1) {
+      // Walk back over the streak's logged days (never across a gap no
+      // rest days could cover).
+      let start = end;
+      let count = 1;
+      while (count < current.streak && start > 0 && daysBetween(days[start - 1], days[start]) - 1 <= REST_DAYS_PER_WEEK) {
+        start--;
+        count++;
+      }
+      // All of it found: the gap just before it is what broke the streak
+      // before, so it wasn't rest days either.
+      const from = count === current.streak && start > 0 ? days[start - 1] : days[start];
+      rested = rested.filter((day) => !(day > from && day < last));
+      for (let i = start; i < end; i++) rested.push(...missedBetween(days[i], days[i + 1]));
+      rested.sort();
+    }
+    return rested;
+  }
+
   // A new best only makes the Feed from day 3 - "new best: 1 day" on
   // someone's very first workout would be noise, not news.
   const NEW_BEST_MIN_STREAK = 3;
@@ -714,7 +757,7 @@
 
   return {
     FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, ACTIVITY, PLAN_RULES, EXERCISE_KEYS,
-    isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, feedPost, routeDistanceKm, checkActivity,
+    isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, restDays, feedPost, routeDistanceKm, checkActivity,
     ROUTE_PRIVACY_M, simplifyRoute, encodePolyline, decodePolyline, trimRouteEnds, feedRoute,
     stepSize, startTargets, newPlan, planOn, completePlanDay,
     planShortfalls, setCountsFromSets, planFromMinimums, planFromRow, planToRow, nextLevelUp, addDays,
