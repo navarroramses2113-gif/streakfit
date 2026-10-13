@@ -18,7 +18,8 @@
   // could rank on 1 push-up a day. (These equal the beginner level.)
   const FLOORS = { pushups: 5, planks: 20, squats: 10 };
 
-  // You get this many missed days forgiven per rolling 7-day window.
+  // You get this many missed days forgiven per calendar week, Monday to
+  // Sunday.
   const REST_DAYS_PER_WEEK = 2;
 
   const MAX_SETS_PER_DAY = 60;
@@ -35,6 +36,13 @@
   // Number of days between two "YYYY-MM-DD" strings (b - a).
   function daysBetween(a, b) {
     return Math.round((new Date(b + "T00:00:00Z") - new Date(a + "T00:00:00Z")) / 86400000);
+  }
+
+  // The Monday of the week a "YYYY-MM-DD" day is in (weeks run Monday to
+  // Sunday).
+  function weekOf(day) {
+    const fromMonday = (new Date(day + "T00:00:00Z").getUTCDay() + 6) % 7;
+    return addDays(day, -fromMonday);
   }
 
   // The client says what day it is for them, but the server can't see
@@ -64,16 +72,15 @@
   }
 
   // What the streak numbers become when `day` is logged. `stats` is
-  // {streak, bestStreak, lastLoggedDate, restDaysUsed, weekStartDate}.
+  // {streak, bestStreak, lastLoggedDate, restDaysUsed, weekStartDate}:
+  // restDaysUsed is how many rest days the week starting weekStartDate (a
+  // Monday) has used. Each missed day uses its own week's allowance, so a
+  // gap over a weekend can draw on two weeks. (Saves from before weeks ran
+  // Monday to Sunday can have another weekday there; it counts for the
+  // week it falls in.)
   function nextStats(stats, day) {
-    let weekStartDate = stats.weekStartDate;
-    let restDaysUsed = stats.restDaysUsed || 0;
-    // A rest-day week lasts 7 days from when it started; after that the
-    // allowance resets.
-    if (!weekStartDate || daysBetween(weekStartDate, day) >= 7) {
-      weekStartDate = day;
-      restDaysUsed = 0;
-    }
+    const used = {}; // week's Monday -> rest days used
+    if (stats.weekStartDate) used[weekOf(stats.weekStartDate)] = stats.restDaysUsed || 0;
 
     let streak;
     if (!stats.lastLoggedDate) {
@@ -82,21 +89,30 @@
       const missedDays = daysBetween(stats.lastLoggedDate, day) - 1; // a gap of 1 means nothing was skipped
       if (missedDays <= 0) {
         streak = (stats.streak || 0) + 1;
-      } else if (restDaysUsed + missedDays <= REST_DAYS_PER_WEEK) {
-        // The gap fits in this week's rest days: the streak survives.
-        streak = (stats.streak || 0) + 1;
-        restDaysUsed += missedDays;
       } else {
-        streak = 1;
+        const withGap = { ...used };
+        for (let i = 1; i <= missedDays && i <= 2 * REST_DAYS_PER_WEEK + 1; i++) {
+          const week = weekOf(addDays(stats.lastLoggedDate, i));
+          withGap[week] = (withGap[week] || 0) + 1;
+        }
+        const fits = missedDays <= 2 * REST_DAYS_PER_WEEK && Object.values(withGap).every((n) => n <= REST_DAYS_PER_WEEK);
+        if (fits) {
+          // Every missed day fits in its week's rest days: the streak survives.
+          streak = (stats.streak || 0) + 1;
+          Object.assign(used, withGap);
+        } else {
+          streak = 1;
+        }
       }
     }
 
+    const week = weekOf(day);
     return {
       streak,
       bestStreak: Math.max(stats.bestStreak || 0, streak),
       lastLoggedDate: day,
-      restDaysUsed,
-      weekStartDate,
+      restDaysUsed: used[week] || 0,
+      weekStartDate: week,
     };
   }
 
@@ -108,13 +124,12 @@
   //
   // `current` ({streak, lastLoggedDate}, the server's own numbers) settles
   // the current streak for sure: every missed day inside it was a rest day,
-  // whatever the replay thinks (its rest-day weeks can start on other days
-  // than the server's did, e.g. after history was lost).
+  // whatever the replay thinks (the server may have counted differently,
+  // e.g. under the old rolling rest-day weeks, or after history was lost).
   // Returns "YYYY-MM-DD" strings, oldest first.
   function restDays(history, current) {
     const days = [...new Set(history.filter(isValidDay))].sort();
-    const plusDays = (day, n) => new Date(new Date(day + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
-    const missedBetween = (a, b) => Array.from({ length: Math.max(0, daysBetween(a, b) - 1) }, (_, i) => plusDays(a, i + 1));
+    const missedBetween = (a, b) => Array.from({ length: Math.max(0, daysBetween(a, b) - 1) }, (_, i) => addDays(a, i + 1));
     let rested = [];
     let stats = {};
     for (const day of days) {
@@ -126,10 +141,10 @@
     let end = last ? days.indexOf(last) : -1;
     if (end >= 0 && current.streak >= 1) {
       // Walk back over the streak's logged days (never across a gap no
-      // rest days could cover).
+      // rest days could cover - at most two weeks' worth, over a weekend).
       let start = end;
       let count = 1;
-      while (count < current.streak && start > 0 && daysBetween(days[start - 1], days[start]) - 1 <= REST_DAYS_PER_WEEK) {
+      while (count < current.streak && start > 0 && daysBetween(days[start - 1], days[start]) - 1 <= 2 * REST_DAYS_PER_WEEK) {
         start--;
         count++;
       }
@@ -757,7 +772,7 @@
 
   return {
     FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, ACTIVITY, PLAN_RULES, EXERCISE_KEYS,
-    isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, restDays, feedPost, routeDistanceKm, checkActivity,
+    isValidDay, daysBetween, weekOf, dayInRange, totalsFromSets, shortfalls, nextStats, restDays, feedPost, routeDistanceKm, checkActivity,
     ROUTE_PRIVACY_M, simplifyRoute, encodePolyline, decodePolyline, trimRouteEnds, feedRoute,
     stepSize, startTargets, newPlan, planOn, completePlanDay,
     planShortfalls, setCountsFromSets, planFromMinimums, planFromRow, planToRow, nextLevelUp, addDays,

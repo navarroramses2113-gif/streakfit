@@ -1259,11 +1259,6 @@ function render() {
   walkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
   startTrackingButtonEl.disabled = loggedToday;
 
-  const beforeReset = data.weekStartDate;
-  refreshRestDayWeek();
-  if (data.weekStartDate !== beforeReset) {
-    saveData(data);
-  }
   renderGraceStatus();
 }
 
@@ -1274,23 +1269,14 @@ function daysBetween(dateStr1, dateStr2) {
   return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
 }
 
-// You get this many missed days forgiven per rolling 7-day window.
-const REST_DAYS_PER_WEEK = 2;
-
-// If more than 7 days have passed since we started counting rest days,
-// start a fresh week: reset the counter back to 0.
-function refreshRestDayWeek() {
-  const today = todayString();
-
-  if (!data.weekStartDate || daysBetween(data.weekStartDate, today) >= 7) {
-    data.weekStartDate = today;
-    data.restDaysUsed = 0;
-  }
-}
-
+// Rest days left this week (Monday to Sunday). The saved count is for the
+// week of the last workout; a new week starts with all of them. (The saved
+// numbers are left alone: a missed Sunday still uses last week's.)
 function renderGraceStatus() {
   const restDaysCountEl = document.getElementById("rest-days-count");
-  restDaysCountEl.textContent = REST_DAYS_PER_WEEK - data.restDaysUsed;
+  const thisWeek = ForjaRules.weekOf(todayString());
+  const used = data.weekStartDate && ForjaRules.weekOf(data.weekStartDate) === thisWeek ? data.restDaysUsed : 0;
+  restDaysCountEl.textContent = ForjaRules.REST_DAYS_PER_WEEK - used;
 }
 
 document.querySelectorAll(".verify-button").forEach((button) => {
