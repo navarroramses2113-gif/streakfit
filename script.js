@@ -331,6 +331,18 @@ function drawRingSlice(key, fraction) {
   setSegmentProgress(activeRings[index], index * span, span, fraction, true);
 }
 
+// The day closing: every slice grows across the gap after it until the
+// ring is whole (t 0 -> 1) - one frame of it, for celebrations.js.
+function drawRingClosing(t) {
+  const activeRings = data.minimums.walkRun !== null ? RING_CONFIG : RING_CONFIG.slice(0, 3);
+  const span = RING_CIRCUMFERENCE / activeRings.length;
+  activeRings.forEach((ring, index) => {
+    const length = span - RING_SEGMENT_GAP + (RING_SEGMENT_GAP + 0.5) * t;
+    ring.progressEl.style.strokeDasharray = `${length} ${RING_CIRCUMFERENCE - length}`;
+    ring.progressEl.style.strokeDashoffset = `${-index * span}`;
+  });
+}
+
 const pushupsMinTagEl = document.getElementById("pushups-min-tag");
 const planksMinTagEl = document.getElementById("planks-min-tag");
 const squatsMinTagEl = document.getElementById("squats-min-tag");

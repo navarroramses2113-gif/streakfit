@@ -4649,25 +4649,6 @@ a.account-menu-item {
   opacity: 1;
 }
 
-#ring-complete.snap {
-  animation: celebrate-ring-snap 0.55s cubic-bezier(0.3, 1.5, 0.5, 1) both;
-}
-
-@keyframes celebrate-ring-snap {
-  0% {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(1.05);
-  }
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 .ring-complete-arc {
   fill: none;
   stroke-width: 14;
@@ -5146,7 +5127,6 @@ a.account-menu-item {
 @media (prefers-reduced-motion: reduce) {
   .celebrate-plus,
   .min-tag.pop,
-  #ring-complete.snap,
   .ring-face.snap .pet-face,
   .ring-face.land .pet-face,
   .ring-face.hop .pet-face,

@@ -553,20 +553,25 @@ const Celebrations = (function () {
 
   // animate: false, "snap" (the face pops in) or "land" (the coach just
   // jumped in - its face squashes down as it lands).
+  // The ring closes by each slice growing across the gap after it, then the
+  // gapless copy takes over; meanwhile the whole ring (face included) pops.
+  // (The copy used to scale in on its own - mid-scale its edges couldn't
+  // match the gaps, and iPhones showed notches there.)
   function showClosed(closed, animate) {
-    const { layer, face } = closedRing();
+    const { face } = closedRing();
     const container = document.querySelector(".rings-container");
-    container.classList.toggle("is-complete", closed);
     face.classList.toggle("is-tappable", closed);
     if (closed && !face.hasChildNodes()) face.innerHTML = Onboarding.mascot("wow", true);
     if (!closed) face.innerHTML = "";
-    layer.classList.remove("snap");
     face.classList.remove("snap", "land", "hop");
-    if (closed && animate) {
-      void layer.getBoundingClientRect();
-      layer.classList.add("snap");
-      face.classList.add(animate === "land" ? "land" : "snap");
+    if (!closed || !animate || reduced()) {
+      container.classList.toggle("is-complete", closed);
+      return;
     }
+    void face.offsetWidth;
+    face.classList.add(animate === "land" ? "land" : "snap");
+    frames(240, (t) => drawRingClosing(easeOut(t))).then(() => container.classList.add("is-complete"));
+    if (container.animate) container.animate([{ transform: "none" }, { transform: "scale(1.05)", offset: 0.45 }, { transform: "none" }], { duration: 420, easing: "ease-out" });
   }
 
   // ---------- the day ----------
@@ -823,17 +828,54 @@ const Celebrations = (function () {
     }
   }
 
+  // On the way down, the flying pet's ring (the logo: radius 36, 12 thick,
+  // arcs of 54 turned -73 degrees) turns into a small copy of Today's ring
+  // (radius 50, 14 thick, slices from 12 o'clock with a gap after each), so
+  // it lands exactly on it. Follows the flight's own clock.
+  function morphFlyerRing(flyer, flight, duration) {
+    const group = flyer.querySelector("g");
+    if (!group) return;
+    const arcs = Array.from(group.querySelectorAll("circle"));
+    const slices = data.minimums.walkRun !== null ? 4 : 3;
+    const k = 36 / 50; // Today's ring in the pet's units
+    const petCircle = 2 * Math.PI * 36;
+    const span = (2 * Math.PI * 50) / slices;
+    const from = { turn: -73, width: 12, dash: 54, offsets: [0, -75.4, -150.8] };
+    const to = { turn: -90, width: 14 * k, dash: (span - RING_SEGMENT_GAP) * k, offsets: arcs.map((_, i) => -i * span * k) };
+    const mix = (a, b, p) => a + (b - a) * p;
+    const draw = (p) => {
+      group.setAttribute("transform", `rotate(${mix(from.turn, to.turn, p)} 50 60)`);
+      const dash = mix(from.dash, to.dash, p);
+      arcs.forEach((arc, i) => {
+        arc.setAttribute("stroke-width", mix(from.width, to.width, p).toFixed(2));
+        arc.setAttribute("stroke-dasharray", `${dash.toFixed(2)} ${(petCircle - dash).toFixed(2)}`);
+        arc.setAttribute("stroke-dashoffset", mix(from.offsets[i], to.offsets[i], p).toFixed(2));
+      });
+    };
+    const step = () => {
+      const t = Math.min(1, (flight.currentTime || 0) / duration);
+      const p = Math.min(1, Math.max(0, (t - 0.2) / 0.75)); // mostly on the way down
+      draw(p * p * (3 - 2 * p));
+      if (flight.playState === "running") requestAnimationFrame(step);
+      else draw(1);
+    };
+    requestAnimationFrame(step);
+  }
+
   // The jump: a copy of the pet leaves its spot, crouches, arcs down and
-  // grows until its ring body matches the big ring, then fades as the ring
-  // closes under it (showClosed "land"). Resolves true once it has landed,
-  // or false right away when there's nothing to animate (Reduce Motion, or
-  // the pet isn't at the top). Transform/opacity only.
+  // grows until its ring body matches the big ring (morphFlyerRing). Today's
+  // ring fades out on the way, so the two never overlap, and is back the
+  // moment the pet lands - which is when the copy goes and the ring closes
+  // under it (showClosed "land"). Resolves true once it has landed, or false
+  // right away when there's nothing to animate (Reduce Motion, or the pet
+  // isn't at the top). Transform/opacity only, plus the flyer's ring.
   function coachJump() {
     const pet = $("pet-coach-pet");
     const svg = pet.querySelector("svg");
     if (reduced() || !svg || $("pet-coach").classList.contains("is-gone") || !svg.animate) return Promise.resolve(false);
     const from = svg.getBoundingClientRect();
-    const ring = document.querySelector(".rings-svg").getBoundingClientRect();
+    const ringSvg = document.querySelector(".rings-svg");
+    const ring = ringSvg.getBoundingClientRect();
     if (!from.width || !ring.width) return Promise.resolve(false);
     const unit = from.width / 100; // the pet is drawn on a 100-wide grid, its ring r36 around (50, 60)
     const scale = (ring.width * (50 / 120)) / (36 * unit); // ...the big ring is r50 on a 120 grid
@@ -858,8 +900,12 @@ const Celebrations = (function () {
         ],
         { duration: 820, easing: "ease-out", fill: "forwards" }
       );
+      morphFlyerRing(flyer, flight, 820);
+      ringSvg.animate([{ opacity: 1 }, { opacity: 1, offset: 0.15 }, { opacity: 0, offset: 0.5 }, { opacity: 0 }], { duration: 820 });
+      // It landed exactly on Today's ring and face, so it just goes (a fade
+      // would show two faces while the ring pops).
       const landed = () => {
-        flyer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, fill: "forwards" }).onfinish = () => flyer.remove();
+        flyer.remove();
         resolve(true);
       };
       flight.onfinish = landed;
