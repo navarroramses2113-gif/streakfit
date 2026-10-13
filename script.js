@@ -4013,9 +4013,16 @@ document.getElementById("tracking-summary-close-button").addEventListener("click
 // into a PNG file AHEAD of the tap: iPhones only open the share sheet when
 // navigator.share runs right inside the tap, with nothing slow before it.
 // shareRoute.points is already trimmed (showTrackingSummary).
+//
+// The Sticker PNG (see-through, stats + route only) is also exactly what
+// Instagram's own Stories connection takes as its "sticker" once Forja is
+// an App Store app - the person's photo goes behind it there.
 const shareRoute = { points: [], distanceKm: 0, durationMs: 0, template: "sticker", file: null, drawId: 0 };
 const shareRouteCanvasEl = document.getElementById("share-route-canvas");
 const shareRouteButtonEl = document.getElementById("share-route-button");
+const shareRouteCopyEl = document.getElementById("share-route-copy");
+// Copying an image needs the newer clipboard (iPhone Safari 13.4+).
+const canCopyImage = !!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem);
 
 const SHARE_TEMPLATES = {
   // See-through, white, with a soft shadow so it reads over any photo.
@@ -4126,6 +4133,7 @@ async function renderShareImage() {
   const style = SHARE_TEMPLATES[shareRoute.template];
   shareRoute.file = null;
   shareRouteButtonEl.disabled = true;
+  shareRouteCopyEl.disabled = true;
   const ctx = shareRouteCanvasEl.getContext("2d");
   const logo = await shareLogoImage(style.text);
   if (drawId !== shareRoute.drawId) return;
@@ -4142,6 +4150,7 @@ async function renderShareImage() {
   if (drawId !== shareRoute.drawId || !blob) return;
   shareRoute.file = new File([blob], `forja-${shareIsRun() ? "run" : "walk"}.png`, { type: "image/png" });
   shareRouteButtonEl.disabled = false;
+  shareRouteCopyEl.disabled = false;
 }
 
 function pickShareTemplate(template) {
@@ -4150,7 +4159,11 @@ function pickShareTemplate(template) {
     button.setAttribute("aria-checked", String(button.dataset.template === template));
   });
   document.getElementById("share-route-preview").dataset.template = template;
-  document.getElementById("share-route-note").classList.toggle("invisible", template !== "sticker");
+  const sticker = template === "sticker";
+  shareRouteCopyEl.classList.toggle("hidden", !(sticker && canCopyImage));
+  const note = document.getElementById("share-route-note");
+  note.textContent = canCopyImage ? "Copy, then paste it on your photo in an Instagram story." : "See-through: save it, then add it over a photo in Instagram.";
+  note.classList.toggle("invisible", !sticker);
   renderShareImage();
 }
 
@@ -4188,6 +4201,23 @@ shareRouteButtonEl.addEventListener("click", async () => {
   link.download = file.name;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+// Like share, the copy has to start right inside the tap (iPhone rule).
+// In Instagram, a pasted image becomes a sticker you can move and resize.
+let shareCopyResetTimer = null;
+shareRouteCopyEl.addEventListener("click", async () => {
+  const file = shareRoute.file;
+  if (!file) return;
+  const label = shareRouteCopyEl.querySelector("span");
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": file })]);
+    label.textContent = "Copied";
+  } catch (error) {
+    label.textContent = "Couldn't copy";
+  }
+  clearTimeout(shareCopyResetTimer);
+  shareCopyResetTimer = setTimeout(() => (label.textContent = "Copy"), 2000);
 });
 
 // The Today tab's small GPS button just takes you to the Record tab,

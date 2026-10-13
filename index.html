@@ -516,10 +516,16 @@
       <button role="radio" data-template="dark" aria-checked="false">Dark</button>
       <button role="radio" data-template="light" aria-checked="false">Light</button>
     </div>
-    <button id="share-route-button" class="auth-submit-button share-route-button" disabled>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Share image
-    </button>
-    <p id="share-route-note" class="share-route-note">See-through: put it over a photo in Instagram.</p>
+    <div class="tracking-buttons">
+      <!-- Sticker only: copy, then paste it onto a photo in an Instagram story. -->
+      <button id="share-route-copy" class="tracking-cancel-button share-route-open hidden" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span>Copy</span>
+      </button>
+      <button id="share-route-button" class="auth-submit-button share-route-button" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Share
+      </button>
+    </div>
+    <p id="share-route-note" class="share-route-note">Copy, then paste it on your photo in an Instagram story.</p>
   </main>
 
   <!-- The actual app - hidden until we know the user is logged in. -->
