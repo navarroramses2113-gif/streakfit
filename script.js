@@ -1747,7 +1747,7 @@ function hideSplash() {
 // "hide this one" line added into every other show-a-different-screen
 // function (which is exactly how the reset-password screen almost got
 // left out of revealApp() below).
-const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "my-plan-screen", "challenge-screen", "reminder-setup-screen", "camera-screen"];
+const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "share-route-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "my-plan-screen", "challenge-screen", "reminder-setup-screen", "camera-screen"];
 
 function showScreen(idToShow) {
   SCREEN_IDS.forEach((id) => {
@@ -2845,6 +2845,10 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
     cell.append(value, label);
     statsEl.appendChild(cell);
   });
+  if (isActivityPost(post) && post.route) {
+    const shape = routeShapeSvg(post.route);
+    if (shape) statsEl.after(shape);
+  }
 
   // Everyone who gave kudos, with you first.
   const kudos = { iGave: giverIds.includes(currentUserId), others: giverIds.filter((id) => id !== currentUserId), busy: false };
@@ -3400,126 +3404,79 @@ function haversineDistanceKm(lat1, lon1, lat2, lon2) {
 
 // ---- Efficient permanent route storage ----
 //
-// Every kept route is stored forever now (matching what real fitness
-// apps like Strava do - your history is a core feature, not something
-// to prune). What keeps that cheap is storing each route in a heavily
-// compressed form instead of raw GPS points: first DROP nearly-redundant
-// points that don't change the route's shape (Douglas-Peucker), then
-// pack what's left into a single short string (Google's "Encoded
-// Polyline" format - the same technique Google Maps and most mapping
-// tools use). A route that might otherwise be 500 verbose {lat,lng}
-// objects becomes a few dozen points encoded as one compact string.
+// Every kept route is stored forever (like Strava - your history is a core
+// feature). What keeps that cheap is storing each route small: nearly
+// redundant points dropped, the rest packed into one short string. The
+// helpers live in game-rules.js, shared with the server (which also uses
+// them for the route shape friends see in the Feed).
 
 // How far a point can deviate from a straight line before it's considered
-// meaningful enough to keep, in degrees (~4 meters). Bigger = smaller
-// files but a blockier-looking route; smaller = more faithful but larger.
+// meaningful enough to keep, in degrees (~4 meters).
 const ROUTE_SIMPLIFY_TOLERANCE = 0.00004;
 
-function perpendicularDistance(point, lineStart, lineEnd) {
-  const [px, py] = point;
-  const [x1, y1] = lineStart;
-  const [x2, y2] = lineEnd;
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-
-  if (dx === 0 && dy === 0) {
-    return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
-  }
-
-  // Project the point onto the line, clamped to the segment itself.
-  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
-  const nearestX = x1 + t * dx;
-  const nearestY = y1 + t * dy;
-  return Math.sqrt((px - nearestX) ** 2 + (py - nearestY) ** 2);
-}
-
-// Douglas-Peucker: recursively keeps only the points that meaningfully
-// change the route's shape, dropping the ones that fall almost exactly
-// on a straight line between their neighbors.
 function simplifyRoute(points, tolerance) {
-  if (points.length <= 2) return points;
-
-  let maxDistance = 0;
-  let splitIndex = 0;
-
-  for (let i = 1; i < points.length - 1; i++) {
-    const distance = perpendicularDistance(points[i], points[0], points[points.length - 1]);
-    if (distance > maxDistance) {
-      maxDistance = distance;
-      splitIndex = i;
-    }
-  }
-
-  if (maxDistance > tolerance) {
-    const left = simplifyRoute(points.slice(0, splitIndex + 1), tolerance);
-    const right = simplifyRoute(points.slice(splitIndex), tolerance);
-    return left.slice(0, -1).concat(right); // avoid duplicating the shared middle point
-  }
-
-  return [points[0], points[points.length - 1]];
-}
-
-// Google's Encoded Polyline format: each point is stored as the small
-// DIFFERENCE from the previous point (GPS points move only a little
-// between samples), using a base64-like variable-length encoding so
-// small differences take just 1-2 characters instead of a full number.
-function encodeNumber(num) {
-  let value = num << 1;
-  if (num < 0) value = ~value;
-  let output = "";
-  while (value >= 0x20) {
-    output += String.fromCharCode((0x20 | (value & 0x1f)) + 63);
-    value >>= 5;
-  }
-  return output + String.fromCharCode(value + 63);
+  return ForjaRules.simplifyRoute(points, tolerance);
 }
 
 function encodePolyline(points) {
-  let output = "";
-  let prevLat = 0;
-  let prevLng = 0;
-
-  points.forEach(([lat, lng]) => {
-    const lat5 = Math.round(lat * 1e5);
-    const lng5 = Math.round(lng * 1e5);
-    output += encodeNumber(lat5 - prevLat) + encodeNumber(lng5 - prevLng);
-    prevLat = lat5;
-    prevLng = lng5;
-  });
-
-  return output;
+  return ForjaRules.encodePolyline(points);
 }
 
 function decodePolyline(encoded) {
-  const points = [];
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
+  return ForjaRules.decodePolyline(encoded);
+}
 
-  while (index < encoded.length) {
-    let result = 0;
-    let shift = 0;
-    let byte;
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-    lat += result & 1 ? ~(result >> 1) : result >> 1;
+// ---- Drawing a route's shape (Feed cards, share images) ----
+//
+// GPS points are [lat, lng] on a globe; to draw them flat, longitude is
+// squeezed by cos(latitude) (a degree of longitude gets shorter away from
+// the equator), then the whole shape is scaled to fit the box, centered,
+// with north up. Returns [x, y] screen points - empty if there's no line.
+function fitRoute(points, x, y, width, height, padding) {
+  if (points.length < 2) return [];
+  const meanLat = points.reduce((sum, [lat]) => sum + lat, 0) / points.length;
+  const squeeze = Math.cos((meanLat * Math.PI) / 180);
+  const flat = points.map(([lat, lng]) => [lng * squeeze, lat]);
+  const xs = flat.map((p) => p[0]);
+  const ys = flat.map((p) => p[1]);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const spanX = Math.max(...xs) - minX;
+  const spanY = Math.max(...ys) - minY;
+  if (spanX === 0 && spanY === 0) return [];
+  // A dead-straight route has no width (or height) - only the other side limits it.
+  const scale = Math.min(spanX ? (width - padding * 2) / spanX : Infinity, spanY ? (height - padding * 2) / spanY : Infinity);
+  const left = x + (width - spanX * scale) / 2;
+  const top = y + (height - spanY * scale) / 2;
+  return flat.map(([px, py]) => [left + (px - minX) * scale, top + (minY + spanY - py) * scale]);
+}
 
-    result = 0;
-    shift = 0;
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-    lng += result & 1 ? ~(result >> 1) : result >> 1;
+const SVG_NS = "http://www.w3.org/2000/svg";
 
-    points.push([lat / 1e5, lng / 1e5]);
-  }
-
-  return points;
+// A Feed walk/run post's route: just the line (no map tiles) on a dot grid,
+// with a dot where the shown part starts and ends. The route arrives
+// already trimmed by the server, so these dots are never someone's door.
+function routeShapeSvg(encoded) {
+  const placed = fitRoute(decodePolyline(encoded), 0, 0, 320, 200, 20);
+  if (placed.length < 2) return null;
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "feed-route");
+  svg.setAttribute("viewBox", "0 0 320 200");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Route shape");
+  const line = document.createElementNS(SVG_NS, "path");
+  line.setAttribute("class", "feed-route-line");
+  line.setAttribute("d", placed.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)} ${py.toFixed(1)}`).join(""));
+  svg.appendChild(line);
+  [[placed[0], "feed-route-start"], [placed[placed.length - 1], "feed-route-end"]].forEach(([[px, py], className]) => {
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("class", className);
+    dot.setAttribute("cx", px.toFixed(1));
+    dot.setAttribute("cy", py.toFixed(1));
+    dot.setAttribute("r", "5");
+    svg.appendChild(dot);
+  });
+  return svg;
 }
 
 // Formats milliseconds as "M:SS" (or "H:MM:SS" past an hour).
@@ -4022,6 +3979,12 @@ function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode
   document.getElementById("summary-elevation").textContent = String(displayElevation(elevationGainM || 0));
   document.getElementById("summary-elevation-label").textContent = elevationUnitLabel();
 
+  // Share needs something left once the first and last 200 m are cut.
+  shareRoute.points = ForjaRules.trimRouteEnds(route, ForjaRules.ROUTE_PRIVACY_M);
+  shareRoute.distanceKm = distanceKm;
+  shareRoute.durationMs = durationMs;
+  document.getElementById("tracking-summary-share-button").classList.toggle("hidden", shareRoute.points.length < 2);
+
   showScreen("tracking-summary-screen");
 
   // Leaflet throws if you re-initialize a map on a container that
@@ -4042,6 +4005,189 @@ function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode
 
 document.getElementById("tracking-summary-close-button").addEventListener("click", () => {
   showScreen("app-screen");
+});
+
+// ---- Share a route as an image ----
+//
+// The image is drawn on a 1080 x 1920 canvas (a phone story) and turned
+// into a PNG file AHEAD of the tap: iPhones only open the share sheet when
+// navigator.share runs right inside the tap, with nothing slow before it.
+// shareRoute.points is already trimmed (showTrackingSummary).
+const shareRoute = { points: [], distanceKm: 0, durationMs: 0, template: "sticker", file: null, drawId: 0 };
+const shareRouteCanvasEl = document.getElementById("share-route-canvas");
+const shareRouteButtonEl = document.getElementById("share-route-button");
+
+const SHARE_TEMPLATES = {
+  // See-through, white, with a soft shadow so it reads over any photo.
+  sticker: { background: null, text: "#ffffff", subtext: "#ffffffcc", line: "#ffffff", shadow: "#00000073" },
+  dark: { background: "#0b0b0d", text: "#ffffff", subtext: "#ffffffb3", line: "#22c55e", glow: "#22c55e2b" },
+  light: { background: "#f4f4f1", text: "#141416", subtext: "#14141699", line: "#16a34a" },
+};
+
+// The Forja lockup (ring + word) from the page's logo sprite, as an image
+// the canvas can draw, in the given word color. Made once per color.
+const shareLogoImages = {};
+function shareLogoImage(color) {
+  if (!shareLogoImages[color]) {
+    shareLogoImages[color] = new Promise((resolve) => {
+      const shapes = document.getElementById("forja-lockup").innerHTML.replaceAll("currentColor", color);
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 367 110" width="367" height="110">${shapes}</svg>`)}`;
+    });
+  }
+  return shareLogoImages[color];
+}
+
+// Same rule the server uses to call a Feed post a walk or a run.
+function shareIsRun() {
+  return shareRoute.durationMs > 0 && shareRoute.distanceKm / (shareRoute.durationMs / 3600000) >= ForjaRules.ACTIVITY.RUN_KMH;
+}
+
+function drawShareImage(ctx, style, logo) {
+  const W = 1080;
+  const H = 1920;
+  const font = (size, weight) => `${weight} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  const isRun = shareIsRun();
+  const distanceInUnits = data.units === "km" ? shareRoute.distanceKm : milesFromKm(shareRoute.distanceKm);
+  const unitWord = data.units === "km" ? "KILOMETERS" : "MILES";
+
+  ctx.clearRect(0, 0, W, H);
+  if (style.background) {
+    ctx.fillStyle = style.background;
+    ctx.fillRect(0, 0, W, H);
+  }
+  if (style.glow) {
+    const glow = ctx.createRadialGradient(W / 2, 1280, 50, W / 2, 1280, 700);
+    glow.addColorStop(0, style.glow);
+    glow.addColorStop(1, "#0b0b0d00");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.save();
+  if (style.shadow) {
+    ctx.shadowColor = style.shadow;
+    ctx.shadowBlur = 24;
+  }
+
+  // The numbers, big, at the top.
+  ctx.textAlign = "center";
+  ctx.fillStyle = style.text;
+  ctx.font = font(250, 800);
+  ctx.fillText(displayDistance(shareRoute.distanceKm), W / 2, 520);
+  ctx.fillStyle = style.subtext;
+  ctx.font = font(64, 700);
+  ctx.fillText(`${unitWord} ${isRun ? "RUN" : "WALKED"}`, W / 2, 610);
+  ctx.fillStyle = style.text;
+  ctx.font = font(96, 800);
+  ctx.fillText(distanceInUnits > 0 ? formatDuration(shareRoute.durationMs / distanceInUnits) : "--", W / 2 - 230, 790);
+  ctx.fillText(formatDuration(shareRoute.durationMs), W / 2 + 230, 790);
+  ctx.fillStyle = style.subtext;
+  ctx.font = font(48, 700);
+  ctx.fillText(`PACE /${distanceUnitLabel().toUpperCase()}`, W / 2 - 230, 855);
+  ctx.fillText("TIME", W / 2 + 230, 855);
+
+  // The route.
+  const placed = fitRoute(shareRoute.points, 140, 960, W - 280, 650, 20);
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.lineWidth = 18;
+  ctx.strokeStyle = style.line;
+  ctx.beginPath();
+  placed.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+  ctx.stroke();
+
+  // Forja, at the bottom.
+  if (logo) {
+    ctx.drawImage(logo, W / 2 - 150, 1700, 300, 90);
+  } else {
+    ctx.fillStyle = style.text;
+    ctx.font = font(64, 800);
+    ctx.fillText("Forja", W / 2, 1768);
+  }
+  ctx.restore();
+}
+
+function canvasToPng(canvas) {
+  return new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("no image"))), "image/png");
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+// Draws the preview and makes the file the Share button hands over. A newer
+// draw (another style tapped) wins over a slower older one.
+async function renderShareImage() {
+  const drawId = ++shareRoute.drawId;
+  const style = SHARE_TEMPLATES[shareRoute.template];
+  shareRoute.file = null;
+  shareRouteButtonEl.disabled = true;
+  const ctx = shareRouteCanvasEl.getContext("2d");
+  const logo = await shareLogoImage(style.text);
+  if (drawId !== shareRoute.drawId) return;
+  drawShareImage(ctx, style, logo);
+  let blob;
+  try {
+    blob = await canvasToPng(shareRouteCanvasEl);
+  } catch (error) {
+    // Some browsers won't export a canvas an SVG image was drawn on - then
+    // the word goes in as plain text instead.
+    drawShareImage(ctx, style, null);
+    blob = await canvasToPng(shareRouteCanvasEl).catch(() => null);
+  }
+  if (drawId !== shareRoute.drawId || !blob) return;
+  shareRoute.file = new File([blob], `forja-${shareIsRun() ? "run" : "walk"}.png`, { type: "image/png" });
+  shareRouteButtonEl.disabled = false;
+}
+
+function pickShareTemplate(template) {
+  shareRoute.template = template;
+  document.querySelectorAll("#share-route-templates button").forEach((button) => {
+    button.setAttribute("aria-checked", String(button.dataset.template === template));
+  });
+  document.getElementById("share-route-preview").dataset.template = template;
+  document.getElementById("share-route-note").classList.toggle("invisible", template !== "sticker");
+  renderShareImage();
+}
+
+document.getElementById("tracking-summary-share-button").addEventListener("click", () => {
+  document.getElementById("share-route-heading").textContent = shareIsRun() ? "Share run" : "Share walk";
+  showScreen("share-route-screen");
+  pickShareTemplate(shareRoute.template);
+});
+
+document.getElementById("share-route-templates").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-template]");
+  if (button) pickShareTemplate(button.dataset.template);
+});
+
+document.getElementById("share-route-back").addEventListener("click", () => {
+  showScreen("tracking-summary-screen");
+  if (summaryMap) summaryMap.invalidateSize();
+});
+
+shareRouteButtonEl.addEventListener("click", async () => {
+  const file = shareRoute.file;
+  if (!file) return;
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] });
+    } catch (error) {
+      // Closing the share sheet lands here too - nothing to do.
+    }
+    return;
+  }
+  // No share sheet (most computers): save the image instead.
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
 // The Today tab's small GPS button just takes you to the Record tab,

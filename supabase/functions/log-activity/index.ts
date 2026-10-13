@@ -38,12 +38,16 @@ Deno.serve(async (req) => {
   if (countError) return json({ ok: false, error: "server_error" }, 500);
   if ((count ?? 0) >= rules.ACTIVITY.MAX_PER_DAY) return json({ ok: false, error: "daily_limit" }, 429);
 
+  // Friends see the route's shape - without its first and last 200 m, so
+  // where it starts and ends (usually home) never shows. The full route
+  // stays on the phone.
   const { error: insertError } = await admin.from("feed_events").insert({
     user_id: user.id,
     day,
     kind: activity.kind,
     distance_m: activity.distanceM,
     duration_s: activity.durationS,
+    route: rules.feedRoute(points),
   });
   if (insertError) return json({ ok: false, error: "server_error" }, 500);
 

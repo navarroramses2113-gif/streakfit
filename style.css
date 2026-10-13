@@ -87,6 +87,7 @@ input[type="number"]::-webkit-inner-spin-button {
   --surface: #1c1c1f66;
   --surface-strong: #1c1c1f80;
   --surface-solid: #1c1c1f;
+  --route-dot: #ffffff14; /* the dot grid behind a Feed route */
   --popover-bg: #2c2c31; /* raised a step above cards, for tip bubbles */
   /* Hold-to-confirm buttons (walk Finish / Cancel): the fill that sweeps
      across while held - a lighter sheen on green, a red wash on Cancel. */
@@ -126,6 +127,7 @@ input[type="number"]::-webkit-inner-spin-button {
   --surface: #ffffff;
   --surface-strong: #ffffff;
   --surface-solid: #e5e5ea;
+  --route-dot: #0000001a;
   --popover-bg: #ffffff;
   --hold-fill: #ffffff52;
   --danger-tint: #d7001526;
@@ -666,6 +668,39 @@ body {
   color: var(--text-secondary);
 }
 
+/* A walk/run post's route: the line only, on a faint dot grid. */
+.feed-route {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-md);
+  background-color: var(--surface-solid);
+  background-image: radial-gradient(circle, var(--route-dot) 1.2px, transparent 1.6px);
+  background-size: 18px 18px;
+}
+
+.feed-route-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.feed-route-start,
+.feed-route-end {
+  stroke: var(--surface-solid);
+  stroke-width: 3;
+}
+
+.feed-route-start {
+  fill: var(--accent);
+}
+
+.feed-route-end {
+  fill: var(--text-primary);
+}
+
 .feed-card-footer {
   display: flex;
   align-items: center;
@@ -1185,6 +1220,63 @@ body {
   border-radius: var(--radius);
   margin-bottom: var(--space-md);
   background: var(--surface-solid);
+}
+
+/* Share: a route as a story image */
+.share-route-open,
+.share-route-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* (beats .tracking-cancel-button's muted gray, which comes later) */
+.tracking-buttons .share-route-open {
+  color: var(--text-primary);
+}
+
+.share-route-open svg,
+.share-route-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+#share-route-screen .large-title {
+  margin-bottom: var(--space-md);
+}
+
+.share-route-preview {
+  width: 240px;
+  aspect-ratio: 9 / 16;
+  margin: 0 auto var(--space-md);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px #00000059;
+}
+
+/* The Sticker image is see-through - the preview fakes a photo behind it. */
+.share-route-preview[data-template="sticker"] {
+  background: linear-gradient(160deg, #3d5a6c, #6b7f5e 50%, #c9925e);
+}
+
+.share-route-preview canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* (.plan-pace, which sets 4 columns, comes later - hence the double class) */
+.plan-pace.share-route-templates {
+  grid-template-columns: repeat(3, 1fr);
+  margin-bottom: var(--space-md);
+}
+
+.share-route-note {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--font-footnote);
+  color: var(--text-muted);
+  text-align: center;
 }
 
 

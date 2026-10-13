@@ -166,6 +166,142 @@
     return { ok: true, kind: kmh >= ACTIVITY.RUN_KMH ? "run" : "walk", distanceM: Math.round(km * 1000), durationS: Math.round(durationMs / 1000) };
   }
 
+  // ---------- Route shapes ----------
+  // Routes are [[lat, lng], ...]. Kept routes are stored small: first drop
+  // the points that barely change the shape (Douglas-Peucker), then pack
+  // what's left into one short string (Google's Encoded Polyline - each
+  // point is the small difference from the one before).
+  //
+  // Whenever a route is shown to anyone else (friends in the Feed, a shared
+  // image), the first and last ROUTE_PRIVACY_M meters are cut off first, so
+  // where it starts and ends - usually home - never shows.
+  const ROUTE_PRIVACY_M = 200;
+
+  function perpendicularDistance(point, lineStart, lineEnd) {
+    const [px, py] = point;
+    const [x1, y1] = lineStart;
+    const [x2, y2] = lineEnd;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    if (dx === 0 && dy === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+    // Project the point onto the line, clamped to the segment itself.
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+    return Math.sqrt((px - (x1 + t * dx)) ** 2 + (py - (y1 + t * dy)) ** 2);
+  }
+
+  // tolerance is in degrees (0.00004 is about 4 meters).
+  function simplifyRoute(points, tolerance) {
+    if (points.length <= 2) return points;
+    let maxDistance = 0;
+    let splitIndex = 0;
+    for (let i = 1; i < points.length - 1; i++) {
+      const distance = perpendicularDistance(points[i], points[0], points[points.length - 1]);
+      if (distance > maxDistance) {
+        maxDistance = distance;
+        splitIndex = i;
+      }
+    }
+    if (maxDistance > tolerance) {
+      const left = simplifyRoute(points.slice(0, splitIndex + 1), tolerance);
+      const right = simplifyRoute(points.slice(splitIndex), tolerance);
+      return left.slice(0, -1).concat(right); // the shared middle point once
+    }
+    return [points[0], points[points.length - 1]];
+  }
+
+  function encodeNumber(num) {
+    let value = num << 1;
+    if (num < 0) value = ~value;
+    let output = "";
+    while (value >= 0x20) {
+      output += String.fromCharCode((0x20 | (value & 0x1f)) + 63);
+      value >>= 5;
+    }
+    return output + String.fromCharCode(value + 63);
+  }
+
+  function encodePolyline(points) {
+    let output = "";
+    let prevLat = 0;
+    let prevLng = 0;
+    for (const [lat, lng] of points) {
+      const lat5 = Math.round(lat * 1e5);
+      const lng5 = Math.round(lng * 1e5);
+      output += encodeNumber(lat5 - prevLat) + encodeNumber(lng5 - prevLng);
+      prevLat = lat5;
+      prevLng = lng5;
+    }
+    return output;
+  }
+
+  function decodePolyline(encoded) {
+    const points = [];
+    let index = 0;
+    let lat = 0;
+    let lng = 0;
+    const next = () => {
+      let result = 0;
+      let shift = 0;
+      let byte;
+      do {
+        byte = encoded.charCodeAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < encoded.length);
+      return result & 1 ? ~(result >> 1) : result >> 1;
+    };
+    while (index < encoded.length) {
+      lat += next();
+      if (index >= encoded.length) break;
+      lng += next();
+      points.push([lat / 1e5, lng / 1e5]);
+    }
+    return points;
+  }
+
+  // The route without its first and last `meters` (cut at the exact spot,
+  // not the nearest GPS point). Empty when nothing would be left.
+  function trimRouteEnds(points, meters) {
+    const cut = meters / 1000;
+    const lengths = [];
+    let total = 0;
+    for (let i = 1; i < points.length; i++) {
+      const km = routeDistanceKm([points[i - 1], points[i]]);
+      lengths.push(km);
+      total += km;
+    }
+    if (points.length < 2 || total <= cut * 2) return [];
+    const at = (km) => {
+      let walked = 0;
+      for (let i = 0; i < lengths.length; i++) {
+        if (walked + lengths[i] >= km) {
+          const t = lengths[i] ? (km - walked) / lengths[i] : 0;
+          const [a, b] = [points[i], points[i + 1]];
+          return { index: i, point: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] };
+        }
+        walked += lengths[i];
+      }
+      return { index: lengths.length - 1, point: points[points.length - 1] };
+    };
+    const start = at(cut);
+    const end = at(total - cut);
+    return [start.point, ...points.slice(start.index + 1, end.index + 1), end.point];
+  }
+
+  // What a walk or run shows friends in the Feed: trimmed, simplified to
+  // at most ~400 points, packed. null when too little is left to draw.
+  function feedRoute(points) {
+    const kept = trimRouteEnds(points, ROUTE_PRIVACY_M);
+    if (kept.length < 2) return null;
+    let tolerance = 0.00006;
+    let simple = simplifyRoute(kept, tolerance);
+    while (simple.length > 400) {
+      tolerance *= 2;
+      simple = simplifyRoute(kept, tolerance);
+    }
+    return encodePolyline(simple);
+  }
+
   // ---------- Progressive overload ----------
   // Each player's daily targets grow in STEPS: every few completed days (set
   // by their pace) all three go up one step. How a day went adjusts single
@@ -579,6 +715,7 @@
   return {
     FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, ACTIVITY, PLAN_RULES, EXERCISE_KEYS,
     isValidDay, daysBetween, dayInRange, totalsFromSets, shortfalls, nextStats, feedPost, routeDistanceKm, checkActivity,
+    ROUTE_PRIVACY_M, simplifyRoute, encodePolyline, decodePolyline, trimRouteEnds, feedRoute,
     stepSize, startTargets, newPlan, planOn, completePlanDay,
     planShortfalls, setCountsFromSets, planFromMinimums, planFromRow, planToRow, nextLevelUp, addDays,
     CHALLENGE_RULES, isValidTimeZone, localDate, checkChallengeSettings, challengeEndDay, challengeDayNumber,
