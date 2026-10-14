@@ -90,7 +90,7 @@ const Challenges = (function () {
   const challengeIcon = (c) => TYPES[c.type].icon;
   const nameOf = (c) => ForjaRules.challengeName(c);
   const tile = (color, icon, extra = "") => `<span class="challenge-tile ${extra}" style="--c:${color}">${icon}</span>`;
-  const avatar = () => `<span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>`;
+  const avatar = (name) => avatarHtml(name); // no name: the plain person icon
   const backButton = (label, to) => `<button class="nav-back" data-ch-go="${to}">${ICON.back}${esc(label)}</button>`;
   const tipButton = (type) => `<button class="tip-btn challenge-tip-btn" data-ch-tip="${type}" aria-label="How it works" aria-expanded="false">i</button>`;
   const shortDate = (day) => {
@@ -347,7 +347,7 @@ const Challenges = (function () {
       else {
         rows = `<div class="leaderboard">${state.friends.map((f) => `
           <button class="leaderboard-row challenge-friend" role="checkbox" aria-checked="${d.friends.has(f.id)}" data-ch-friend="${esc(f.id)}">
-            ${avatar()}<span class="leaderboard-name">${esc(f.name)}</span><span class="challenge-check">${ICON.check}</span></button>`).join("")}
+            ${avatar(f.name)}<span class="leaderboard-name">${esc(f.name)}</span><span class="challenge-check">${ICON.check}</span></button>`).join("")}
         </div>`;
       }
       show(
@@ -410,7 +410,7 @@ const Challenges = (function () {
       const today = p.today > 0 ? `${ICON.up}${esc(scoreText(c, p.today))}${c.type === "dist" ? ` ${scoreUnit(c)}` : ""} today` : "Nothing yet today";
       return `
       <div class="challenge-standing ${p.you ? "is-you" : ""}">
-        <span class="leaderboard-rank ${place === 1 ? "is-first" : ""}">${place}</span>${avatar()}
+        <span class="leaderboard-rank ${place === 1 ? "is-first" : ""}">${place}</span>${avatar(p.name)}
         <span class="challenge-standing-who"><span class="leaderboard-name">${esc(p.name)}</span>${final ? "" : `<span class="challenge-standing-note ${p.today > 0 ? "is-up" : ""}">${today}</span>`}</span>
         <span class="challenge-standing-value">${esc(scoreText(c, p.score))}${scoreUnit(c) ? `<small>${scoreUnit(c)}</small>` : ""}</span>
         <span class="challenge-standing-bar"><i style="width:${Math.round((p.score / max) * 100)}%"></i></span>
@@ -426,7 +426,7 @@ const Challenges = (function () {
     const note = (p) => (p.outDay !== null ? `Out on day ${p.outDay}` : final ? finalNote : p.doneToday ? "Done today" : "Not yet today");
     return `<div class="challenge-standings">${c.players.map((p) => `
       <div class="challenge-standing no-rank ${p.you ? "is-you" : ""} ${p.outDay !== null ? "is-out" : ""}">
-        ${avatar()}
+        ${avatar(p.name)}
         <span class="challenge-standing-who"><span class="leaderboard-name">${esc(p.name)}</span><span class="challenge-standing-note">${note(p)}</span></span>
         ${final ? "" : icon(p)}
       </div>`).join("")}</div>`;

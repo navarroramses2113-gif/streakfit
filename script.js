@@ -2245,6 +2245,25 @@ TABS.record.button.addEventListener("click", () => showTab("record"));
 const PERSON_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>';
 const FLAME_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-1 4-6 6-6 12a6 6 0 0 0 12 0c0-3-2-4-2-7-1 2-2 2-2 0 0-2-1-4-2-5z"/></svg>';
 
+// Everyone gets a colored circle with their first letter, like WhatsApp.
+// The color comes from the username, so a person looks the same on every
+// screen and every phone. (Darker shades, so the white letter reads.)
+const AVATAR_COLORS = ["#dc2626", "#ea580c", "#d97706", "#16a34a", "#0d9488", "#0284c7", "#4f46e5", "#9333ea", "#db2777"];
+
+function avatarColor(name) {
+  let hash = 0;
+  for (const ch of String(name).toLowerCase()) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+// Only a letter or digit ever reaches the HTML; anything else (or no name)
+// gets the plain person icon.
+function avatarHtml(name, className = "leaderboard-avatar") {
+  const letter = (String(name || "").match(/[a-z0-9]/i) || [""])[0].toUpperCase();
+  if (!letter) return `<span class="${className}">${PERSON_ICON_SVG}</span>`;
+  return `<span class="${className} has-letter" style="--avatar: ${avatarColor(name)}" aria-hidden="true">${letter}</span>`;
+}
+
 // Real friends: usernames (so nobody's email is ever exposed), a
 // request/accept flow, and a leaderboard built from actual streak data.
 
@@ -2265,7 +2284,7 @@ function buildLeaderboardRow(name, streak, isYou, rank, userId) {
 
   row.innerHTML = `
     <span class="leaderboard-rank">#${rank}</span>
-    <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
+    ${avatarHtml(name)}
     <span class="leaderboard-name"></span>
     <span class="leaderboard-streak">${Number(streak) || 0} ${FLAME_ICON_SVG}</span>
     ${isYou ? "" : '<button class="row-options-button" aria-label="More options">&#8942;</button>'}
@@ -2284,7 +2303,7 @@ function buildFriendRequestRow(friendshipId, requesterName, requesterId) {
   row.className = "leaderboard-row";
 
   row.innerHTML = `
-    <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
+    ${avatarHtml(requesterName)}
     <span class="leaderboard-name"></span>
     <span class="friend-request-actions">
       <button class="accept-request-button">Accept</button>
@@ -2424,7 +2443,7 @@ function buildFriendSearchRow(userId, username, statusInfo) {
   row.className = "leaderboard-row";
 
   row.innerHTML = `
-    <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
+    ${avatarHtml(username)}
     <span class="leaderboard-name"></span>
   `;
   row.querySelector(".leaderboard-name").textContent = username;
@@ -2733,21 +2752,44 @@ async function loadFeed() {
   }
 
   showFeedMessage(null);
-  posts.forEach((post) => {
+  // Grouped by day (newest first; within a day, newest post first), with a
+  // heading where each day starts.
+  const byDay = [...posts].sort((a, b) => (a.day === b.day ? 0 : a.day < b.day ? 1 : -1));
+  let lastDay = null;
+  byDay.forEach((post) => {
+    if (post.day !== lastDay) {
+      feedListEl.appendChild(buildFeedDayHeading(post.day));
+      lastDay = post.day;
+    }
     const giverIds = kudosRows.filter((k) => k.event_id === post.id).map((k) => k.giver_id);
     feedListEl.appendChild(buildFeedCard(post, giverIds, usernameByUserId));
   });
 }
 
-// "Today · 7:42 PM", "Yesterday · 8:10 AM", or "Sat, Oct 3".
-function feedWhenText(post) {
-  const time = new Date(post.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (post.day === todayString()) return `Today · ${time}`;
-  if (post.day === dateToString(yesterday)) return `Yesterday · ${time}`;
-  const [year, month, day] = post.day.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+// A day's heading: "Today" / "Yesterday" / "Monday" this past week, else
+// "Sat, Oct 3" - plus the date in small grey text next to the first three.
+function feedDayHeading(day) {
+  const [year, month, date] = day.split("-").map(Number);
+  const when = new Date(year, month - 1, date);
+  const daysAgo = daysBetween(day, todayString());
+  const short = when.toLocaleDateString([], { month: "short", day: "numeric" });
+  if (daysAgo === 0) return { title: "Today", note: when.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) };
+  if (daysAgo === 1) return { title: "Yesterday", note: when.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) };
+  if (daysAgo > 1 && daysAgo < 7) return { title: when.toLocaleDateString([], { weekday: "long" }), note: short };
+  return { title: when.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }), note: "" };
+}
+
+function buildFeedDayHeading(day) {
+  const { title, note } = feedDayHeading(day);
+  const heading = document.createElement("h2");
+  heading.className = "feed-day";
+  heading.textContent = title;
+  if (note) {
+    const small = document.createElement("small");
+    small.textContent = note;
+    heading.appendChild(small);
+  }
+  return heading;
 }
 
 const isActivityPost = (post) => post.kind === "walk" || post.kind === "run";
@@ -2823,14 +2865,15 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
   card.className = "feed-card";
   if (isMine) card.classList.add("is-you");
 
+  const username = isMine ? myUsername : usernameByUserId[post.user_id];
   card.innerHTML = `
     <div class="feed-card-header">
-      <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
+      ${avatarHtml(username)}
       <div class="feed-card-who">
         <span class="feed-card-name"></span>
-        <span class="feed-card-when"></span>
       </div>
       ${isActivityPost(post) || isChallengePost(post) ? "" : `<span class="leaderboard-streak">${Number(post.streak) || 0} ${FLAME_ICON_SVG}</span>`}
+      <span class="feed-card-time"></span>
     </div>
     <div>
       <span class="feed-card-kind"></span>
@@ -2843,7 +2886,7 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
     </div>
   `;
   card.querySelector(".feed-card-name").textContent = isMine ? "You" : usernameByUserId[post.user_id] || "Unknown";
-  card.querySelector(".feed-card-when").textContent = feedWhenText(post);
+  card.querySelector(".feed-card-time").textContent = new Date(post.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   card.querySelector(".feed-card-headline").textContent = feedHeadline(post);
   const kind = FEED_KIND_LABELS[post.kind] ? post.kind : "day";
   const kindEl = card.querySelector(".feed-card-kind");
@@ -2953,6 +2996,7 @@ async function enterMeTab() {
   promptEl.classList.add("hidden");
   headerEl.classList.remove("hidden");
   document.getElementById("profile-header-username").textContent = `@${myUsername}`;
+  headerEl.querySelector(".profile-avatar").outerHTML = avatarHtml(myUsername, "profile-avatar");
 
   await loadFollowCounts();
 }
@@ -2988,7 +3032,7 @@ async function showFriendsList() {
       const row = document.createElement("div");
       row.className = "leaderboard-row";
       row.innerHTML = `
-        <span class="leaderboard-avatar">${PERSON_ICON_SVG}</span>
+        ${avatarHtml(profile.username)}
         <span class="leaderboard-name"></span>
         <button class="row-options-button" aria-label="More options">&#8942;</button>
       `;

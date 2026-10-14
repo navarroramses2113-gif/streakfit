@@ -88,6 +88,9 @@ input[type="number"]::-webkit-inner-spin-button {
   --surface-strong: #1c1c1f80;
   --surface-solid: #1c1c1f;
   --route-dot: #ffffff14; /* the dot grid behind a Feed route */
+  --route-bg: #26262a; /* a Feed route's box, a step lighter than its card */
+  --card-solid: #1c1c1f; /* Feed posts: solid, so each one stands apart */
+  --card-line: #ffffff14;
   --popover-bg: #2c2c31; /* raised a step above cards, for tip bubbles */
   /* Hold-to-confirm buttons (walk Finish / Cancel): the fill that sweeps
      across while held - a lighter sheen on green, a red wash on Cancel. */
@@ -132,6 +135,9 @@ input[type="number"]::-webkit-inner-spin-button {
   --surface-strong: #ffffff;
   --surface-solid: #e5e5ea;
   --route-dot: #0000001a;
+  --route-bg: #e5e5ea;
+  --card-solid: #ffffff;
+  --card-line: #3c3c4326;
   --popover-bg: #ffffff;
   --hold-fill: #ffffff52;
   --danger-tint: #d7001526;
@@ -544,6 +550,23 @@ body {
   height: 16px;
 }
 
+/* Everyone's colored circle with their first letter (see avatarHtml). */
+.leaderboard-avatar.has-letter,
+.profile-avatar.has-letter {
+  background: var(--avatar);
+  color: #ffffff;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.leaderboard-avatar.has-letter {
+  font-size: var(--font-footnote);
+}
+
+.profile-avatar.has-letter {
+  font-size: var(--font-title2);
+}
+
 .leaderboard-name {
   flex: 1;
   text-align: left;
@@ -566,11 +589,33 @@ body {
   height: 14px;
 }
 
-/* The Feed: one card per logged day, newest first. */
+/* The Feed: posts grouped under a heading per day, newest first. */
 .feed-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-md);
+}
+
+/* "Today  Wed, Oct 14" - where one day's posts start. */
+.feed-day {
+  margin: var(--space-sm) 0 calc(var(--space-xs) - var(--space-md));
+  font-size: var(--font-title3);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.feed-day:first-child {
+  margin-top: 0;
+}
+
+.feed-day small {
+  margin-left: var(--space-xs);
+  font-size: var(--font-subhead);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-secondary);
 }
 
 .feed-message {
@@ -587,14 +632,27 @@ body {
   flex-direction: column;
   gap: var(--space-sm);
   padding: var(--space-md);
-  background: var(--surface);
-  border: 1px solid transparent;
+  background: var(--card-solid);
+  border: 1px solid var(--card-line);
   border-radius: var(--radius);
   text-align: left;
 }
 
 .feed-card.is-you {
-  border-color: #c0855240;
+  border-color: #c0855266;
+}
+
+.feed-card .leaderboard-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: var(--font-subhead);
+}
+
+/* The post's time, on the right (the day is in the heading above). */
+.feed-card-time {
+  font-size: var(--font-footnote);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .feed-card-header {
@@ -619,10 +677,6 @@ body {
   white-space: nowrap;
 }
 
-.feed-card-when {
-  font-size: var(--font-caption);
-  color: var(--text-secondary);
-}
 
 /* "Full day" / "Walk" / "Run" - which kind of post this is, at a glance. */
 .feed-card-kind {
@@ -680,7 +734,7 @@ body {
   width: 100%;
   aspect-ratio: 16 / 10;
   border-radius: var(--radius-md);
-  background-color: var(--surface-solid);
+  background-color: var(--route-bg);
   background-image: radial-gradient(circle, var(--route-dot) 1.2px, transparent 1.6px);
   background-size: 18px 18px;
 }
@@ -695,7 +749,7 @@ body {
 
 .feed-route-start,
 .feed-route-end {
-  stroke: var(--surface-solid);
+  stroke: var(--route-bg);
   stroke-width: 3;
 }
 
