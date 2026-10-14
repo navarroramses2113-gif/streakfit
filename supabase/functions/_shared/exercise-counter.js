@@ -269,20 +269,31 @@
     );
   }
 
-  // Plank: a timer that only runs while the body is flat and straight.
-  // update(sample, timeMs), where sample is {bodyAngle, tilt} - the
-  // shoulder-hip-ankle angle (180 = perfectly straight) and how far the
-  // shoulder-to-ankle line leans from horizontal - or null if not visible.
-  // A hold only ends after the form has been broken for `graceMs`, so a
-  // flicker of bad tracking doesn't reset someone's time; `bestMs` is the
-  // longest unbroken hold, which is what counts for competition.
+  // Plank: a timer that only runs while you're really holding a plank.
+  // update(sample, timeMs), where sample is {bodyAngle, tilt, armTilt} -
+  // the shoulder-hip-ankle angle (180 = perfectly straight), how far the
+  // shoulder-to-ankle line leans from horizontal, and how steeply the upper
+  // arm points down from the shoulder (null when not measured) - or null if
+  // the body isn't visible.
+  //
+  // - Strict to start, forgiving to stay: the clock starts only on good
+  //   form, but once holding, a little more sag or tilt is allowed.
+  // - Arms must hold you up: in a plank (forearms or hands) the upper arm
+  //   points down from the shoulder; lying flat on the floor, it's level.
+  // - A wobble PAUSES the clock instead of resetting it: time with broken
+  //   form doesn't count, and the hold only ends after `graceMs` of it.
+  // `bestMs` is the longest hold, which is what counts for competition.
   function createPlankTimer(options) {
     const cfg = Object.assign(
       {
-        minBodyAngle: 160, // straighter than this counts as a plank
-        maxTilt: 30, // must be roughly horizontal
+        minBodyAngle: 160, // straighter than this starts the clock
+        maxTilt: 30, // must be roughly horizontal to start
+        keepSlack: 10, // once holding, angle and tilt may each be this much worse
+        minArmTilt: 40, // upper arm at least this steep (degrees) to start
+        keepArmTilt: 30, // ...and to keep going
         startHoldMs: 1000, // form must be good this long before the clock starts
-        graceMs: 1000, // form can be broken this long before the hold ends
+        graceMs: 3000, // broken form this long ends the hold (shorter = a pause)
+        maxFrameGapMs: 500, // never credit more than this between two frames
         minRecordedMs: 3000, // holds shorter than this aren't recorded
         smoothing: 0.3,
       },
@@ -292,25 +303,47 @@
     let state = "waiting"; // waiting -> holding -> waiting
     let smoothedAngle = null;
     let goodSince = null;
-    let holdStart = null;
+    let heldMs = 0; // good-form time in the current hold
     let lastGoodAt = null;
+    let lastFrameAt = null;
+    let lastFrameGood = false;
     let bestMs = 0;
     const holds = [];
 
-    function snapshot(now, reason) {
-      const current = state === "holding" ? lastGoodAt - holdStart : 0;
-      return { state, holdMs: current, bestMs: Math.max(bestMs, current >= cfg.minRecordedMs ? current : 0), reason: reason || null, bodyAngle: smoothedAngle, holds };
+    function snapshot(reason) {
+      const current = state === "holding" ? heldMs : 0;
+      return {
+        state,
+        holdMs: current,
+        bestMs: Math.max(bestMs, current >= cfg.minRecordedMs ? current : 0),
+        paused: state === "holding" && !lastFrameGood,
+        reason: reason || null,
+        bodyAngle: smoothedAngle,
+        holds,
+      };
     }
 
     function endHold() {
-      const length = lastGoodAt - holdStart;
-      if (length >= cfg.minRecordedMs) {
-        holds.push(length);
-        bestMs = Math.max(bestMs, length);
+      if (heldMs >= cfg.minRecordedMs) {
+        holds.push(heldMs);
+        bestMs = Math.max(bestMs, heldMs);
       }
       state = "waiting";
-      holdStart = null;
+      heldMs = 0;
       goodSince = null;
+      lastFrameGood = false;
+    }
+
+    // One frame while holding: good form adds the time since the last good
+    // frame; broken form adds nothing, and ends the hold after graceMs.
+    function holdFrame(good, timeMs) {
+      if (good) {
+        if (lastFrameGood) heldMs += Math.min(timeMs - lastFrameAt, cfg.maxFrameGapMs);
+        lastGoodAt = timeMs;
+      }
+      lastFrameGood = good;
+      lastFrameAt = timeMs;
+      if (!good && timeMs - lastGoodAt > cfg.graceMs) endHold();
     }
 
     return {
@@ -318,56 +351,55 @@
 
       update(sample, timeMs) {
         if (sample === null || sample === undefined) {
-          if (state === "holding" && timeMs - lastGoodAt > cfg.graceMs) {
-            endHold();
-            return snapshot(timeMs, "lost");
-          }
-          if (state === "waiting") goodSince = null;
-          return snapshot(timeMs, "lost");
+          if (state === "holding") holdFrame(false, timeMs);
+          else goodSince = null;
+          return snapshot("lost");
         }
 
         smoothedAngle = smoothedAngle === null ? sample.bodyAngle : cfg.smoothing * sample.bodyAngle + (1 - cfg.smoothing) * smoothedAngle;
-        const flat = sample.tilt <= cfg.maxTilt;
-        const straight = smoothedAngle >= cfg.minBodyAngle;
-        const good = flat && straight;
-        const reason = good ? null : !flat ? "not_horizontal" : "hips_sagging_or_piking";
+        const holding = state === "holding";
+        const slack = holding ? cfg.keepSlack : 0;
+        const flat = sample.tilt <= cfg.maxTilt + slack;
+        const straight = smoothedAngle >= cfg.minBodyAngle - slack;
+        const armTilt = sample.armTilt ?? null;
+        const supported = armTilt === null || armTilt >= (holding ? cfg.keepArmTilt : cfg.minArmTilt);
+        const good = flat && straight && supported;
+        const reason = good ? null : !supported ? "not_supported" : !flat ? "not_horizontal" : "hips_sagging_or_piking";
 
         if (state === "waiting") {
           if (good) {
             if (goodSince === null) goodSince = timeMs;
             if (timeMs - goodSince >= cfg.startHoldMs) {
               state = "holding";
-              holdStart = goodSince;
+              heldMs = timeMs - goodSince;
               lastGoodAt = timeMs;
+              lastFrameAt = timeMs;
+              lastFrameGood = true;
             }
           } else {
             goodSince = null;
           }
-          return snapshot(timeMs, reason);
+          return snapshot(reason);
         }
 
-        // holding
-        if (good) {
-          lastGoodAt = timeMs;
-        } else if (timeMs - lastGoodAt > cfg.graceMs) {
-          endHold();
-          return snapshot(timeMs, reason);
-        }
-        return snapshot(timeMs, reason);
+        holdFrame(good, timeMs);
+        return snapshot(reason);
       },
 
       // Call when the set is over so a hold still in progress gets recorded.
-      finish(timeMs) {
+      finish() {
         if (state === "holding") endHold();
-        return snapshot(timeMs, null);
+        return snapshot(null);
       },
 
       reset() {
         state = "waiting";
         smoothedAngle = null;
         goodSince = null;
-        holdStart = null;
+        heldMs = 0;
         lastGoodAt = null;
+        lastFrameAt = null;
+        lastFrameGood = false;
         bestMs = 0;
         holds.length = 0;
       },
@@ -493,8 +525,11 @@
       title: "Plank",
       countLabel: "Plank hold (seconds)",
       graphLabel: "Body line angle - 180 is perfectly straight (last 8 seconds)",
-      tip: "Put the phone on the floor about 6 feet away and hold a plank <b>side-on</b>, with your whole body from head to feet in frame. The clock starts after one second of good form and keeps running while you stay flat and straight.",
-      needs: ["shoulder", "hip", "ankle"],
+      tip: "Put the phone on the floor about 6 feet away and hold a plank <b>side-on</b>, on your forearms or hands, with your whole body from head to feet in frame. The clock starts after one second of good form. A wobble just pauses it.",
+      needs: ["shoulder", "hip", "ankle", "elbow"],
+      // Recordings from before 2026-10-14 (trace v1) had no elbow; the
+      // server still replays them, just without the arm check.
+      needsV1: ["shoulder", "hip", "ankle"],
       minVisibility: 0.4,
       draw: ["elbow", "shoulder", "hip", "ankle"],
       sliders: [
@@ -506,7 +541,15 @@
       measure(pt) {
         const shoulder = pt("shoulder"), hip = pt("hip"), ankle = pt("ankle");
         const bodyAngle = jointAngle(shoulder, hip, ankle);
-        return { sample: bodyAngle === null ? null : { bodyAngle, tilt: tiltFromHorizontal(shoulder, ankle) } };
+        // How steeply the upper arm points DOWN from the shoulder (the
+        // picture's y grows downward): ~70-90 holding a plank, ~0 lying
+        // flat. An elbow above the shoulder isn't holding anything up.
+        let armTilt = null;
+        if (pt.has("elbow")) {
+          const elbow = pt("elbow");
+          armTilt = elbow.y > shoulder.y ? tiltFromHorizontal(shoulder, elbow) : 0;
+        }
+        return { sample: bodyAngle === null ? null : { bodyAngle, tilt: tiltFromHorizontal(shoulder, ankle), armTilt } };
       },
       graphLines: (v) => [v[0]],
     },
@@ -537,6 +580,7 @@
   // the lie up with.
 
   const COORD_SCALE = 10000; // positions are stored as whole numbers of 1/10000 of the frame
+  const TRACE_VERSION = 2; // 2 (2026-10-14): planks also record the elbow
   // How far outside the picture (in frame widths/heights) a joint may be
   // and still be treated as seen. Well inside what recountTrace accepts.
   const OFF_FRAME_LIMIT = 0.5;
@@ -552,9 +596,12 @@
   // order, or null when the body isn't visible. It quantizes them, records
   // the frame, and runs it through the counter - the same steps replay()
   // takes on the server.
-  function createSetSession(exerciseKey, videoWidth, videoHeight) {
+  // `version` is the trace format: 2 (current) records every joint in
+  // `needs`; the server also replays version 1, recorded with `needsV1`.
+  function createSetSession(exerciseKey, videoWidth, videoHeight, version = TRACE_VERSION) {
     const ex = EXERCISES[exerciseKey];
     if (!ex) throw new Error("unknown exercise");
+    const needs = version === 1 && ex.needsV1 ? ex.needsV1 : ex.needs;
     const engine = ex.create(ex.sliders.map((s) => s.value));
     const frames = [];
     let lastT = 0;
@@ -563,9 +610,10 @@
       lastT = t;
       if (!ints) return { r: engine.update(null, t), m: null };
       const pt = (joint) => {
-        const i = ex.needs.indexOf(joint);
+        const i = needs.indexOf(joint);
         return { x: (ints[2 * i] / COORD_SCALE) * videoWidth, y: (ints[2 * i + 1] / COORD_SCALE) * videoHeight };
       };
+      pt.has = (joint) => needs.includes(joint);
       const m = ex.measure(pt);
       return { r: ex.kind === "plank" ? engine.update(m.sample, t) : engine.update(m.angle, t, m.extra), m };
     }
@@ -597,7 +645,7 @@
         return ex.kind === "plank" ? Math.round(engine.finish(lastT).bestMs / 1000) : engine.reps.length;
       },
       durationMs: () => lastT,
-      trace: () => ({ v: 1, exercise: exerciseKey, w: videoWidth, h: videoHeight, frames }),
+      trace: () => ({ v: version, exercise: exerciseKey, w: videoWidth, h: videoHeight, frames }),
     };
   }
 
@@ -608,14 +656,15 @@
     const fail = (why) => {
       throw new Error("bad trace: " + why);
     };
-    if (!trace || trace.v !== 1) fail("version");
+    if (!trace || (trace.v !== 1 && trace.v !== 2)) fail("version");
     const ex = EXERCISES[trace.exercise];
     if (!ex) fail("exercise");
     if (!Number.isFinite(trace.w) || !Number.isFinite(trace.h) || trace.w < 100 || trace.h < 100 || trace.w > 4000 || trace.h > 4000) fail("size");
     if (!Array.isArray(trace.frames) || trace.frames.length === 0 || trace.frames.length > MAX_TRACE_FRAMES) fail("frame count");
 
-    const width = 2 + 2 * ex.needs.length;
-    const session = createSetSession(trace.exercise, trace.w, trace.h);
+    const needs = trace.v === 1 && ex.needsV1 ? ex.needsV1 : ex.needs;
+    const width = 2 + 2 * needs.length;
+    const session = createSetSession(trace.exercise, trace.w, trace.h, trace.v);
     // Why a set came out lower than the person expected, as plain counts -
     // never positions: how many dips each check turned down, how much of
     // the set the body was out of sight, and whether the start position

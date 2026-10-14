@@ -350,15 +350,19 @@ const ForjaCamera = (function () {
     if (exercise.kind === "plank") {
       drawBody(landmarks, side, r.state === "holding");
       $("camera-count").textContent = (r.holdMs / 1000).toFixed(1);
-      if (r.state === "holding") {
-        $("camera-state").textContent = r.reason ? "Holding - fix your form!" : "Holding - keep it straight";
-      } else {
-        $("camera-state").textContent =
-          r.reason === "not_horizontal"
+      // A wobble pauses the clock (it doesn't reset): say so, and what to fix.
+      const fix =
+        r.reason === "not_supported"
+          ? "Up on your forearms or hands"
+          : r.reason === "not_horizontal"
             ? "Get flat - body should be horizontal"
             : r.reason === "hips_sagging_or_piking"
               ? "Straighten your body - hips level with shoulders and ankles"
               : "Get into plank position";
+      if (r.state === "holding") {
+        $("camera-state").textContent = r.paused ? "Paused - " + fix.charAt(0).toLowerCase() + fix.slice(1) : "Holding - keep it straight";
+      } else {
+        $("camera-state").textContent = fix;
       }
       setFeedback(r.bestMs > 0 ? "Best hold: " + (r.bestMs / 1000).toFixed(1) + "s" : "", r.bestMs > 0 ? "good" : "");
       return;
