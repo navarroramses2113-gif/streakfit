@@ -1238,14 +1238,17 @@ function render() {
 
   const loggedToday = data.lastLoggedDate === todayString();
 
+  // The line under the ring only shows while the day saves (and "Day
+  // complete!" when the pet coach isn't there to say it).
   if (loggedToday) {
     statusMessageEl.textContent = "Day complete! See you tomorrow.";
   } else if (savingDay) {
     statusMessageEl.textContent = "Minimums hit! Saving your day...";
   } else {
-    statusMessageEl.textContent = "Hit every minimum and your day logs itself.";
+    statusMessageEl.textContent = "";
   }
   statusMessageEl.classList.toggle("is-done", loggedToday);
+  statusMessageEl.classList.toggle("hidden", !loggedToday && !savingDay);
   retryLogButtonEl.classList.toggle("hidden", loggedToday || savingDay || !saveDayFailed);
 
   updateRings(loggedToday);

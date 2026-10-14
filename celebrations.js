@@ -756,7 +756,7 @@ const Celebrations = (function () {
     if (!says) return;
     placeCoach(done, animate);
     // On a finished day the line under the ring replaces "Day complete!".
-    statusMessageEl.classList.toggle("hidden", done);
+    if (done) statusMessageEl.classList.add("hidden");
     const key = says.moment + "|" + says.lines[0];
     if (key === coachKey) {
       coachLines = says.lines; // same thing to say; just keep the lines fresh
