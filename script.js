@@ -1269,13 +1269,12 @@ function daysBetween(dateStr1, dateStr2) {
   return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
 }
 
-// Rest days left this week (Monday to Sunday). The saved count is for the
-// week of the last workout; a new week starts with all of them. (The saved
-// numbers are left alone: a missed Sunday still uses last week's.)
+// Rest days left this week (Monday to Sunday), counting days already
+// missed since the last workout - what logging today would leave. (The
+// saved numbers are left alone: a missed Sunday still uses last week's.)
 function renderGraceStatus() {
   const restDaysCountEl = document.getElementById("rest-days-count");
-  const thisWeek = ForjaRules.weekOf(todayString());
-  const used = data.weekStartDate && ForjaRules.weekOf(data.weekStartDate) === thisWeek ? data.restDaysUsed : 0;
+  const used = ForjaRules.nextStats(streakStats(), todayString()).restDaysUsed;
   restDaysCountEl.textContent = ForjaRules.REST_DAYS_PER_WEEK - used;
 }
 
@@ -1386,9 +1385,14 @@ function setReward(exercise, value) {
 
 // The days a rest day kept the streak going (nothing stores them; see
 // ForjaRules.restDays). The current streak's own numbers settle the
-// latest stretch.
+// latest stretch, and days missed since then show as rest days right away
+// if the streak can still be saved today.
 function restDaySet() {
-  return new Set(ForjaRules.restDays(data.history, { streak: data.streak, lastLoggedDate: data.lastLoggedDate }));
+  return new Set(ForjaRules.restDays(data.history, { ...streakStats(), today: todayString() }));
+}
+
+function streakStats() {
+  return { streak: data.streak, bestStreak: data.bestStreak, lastLoggedDate: data.lastLoggedDate, restDaysUsed: data.restDaysUsed, weekStartDate: data.weekStartDate };
 }
 
 // Builds the "last 12 weeks" grid of small squares, one per day, colored

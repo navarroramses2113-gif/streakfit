@@ -119,13 +119,15 @@
   // Which days were rest days: missed days the streak survived. Nothing
   // stores them - a gap only becomes rest days when the next day is logged
   // and fits the week's allowance - so this replays nextStats over every
-  // logged day, oldest first. Days after the last logged one aren't rest
-  // days (yet).
+  // logged day, oldest first.
   //
-  // `current` ({streak, lastLoggedDate}, the server's own numbers) settles
-  // the current streak for sure: every missed day inside it was a rest day,
-  // whatever the replay thinks (the server may have counted differently,
-  // e.g. under the old rolling rest-day weeks, or after history was lost).
+  // `current` ({streak, lastLoggedDate, restDaysUsed, weekStartDate}, the
+  // server's own numbers) settles the current streak for sure: every missed
+  // day inside it was a rest day, whatever the replay thinks (the server may
+  // have counted differently, e.g. under the old rolling rest-day weeks, or
+  // after history was lost). With `current.today`, the days missed since the
+  // last workout (up to yesterday) count as rest days right away, as long as
+  // logging today would still save the streak.
   // Returns "YYYY-MM-DD" strings, oldest first.
   function restDays(history, current) {
     const days = [...new Set(history.filter(isValidDay))].sort();
@@ -154,6 +156,9 @@
       rested = rested.filter((day) => !(day > from && day < last));
       for (let i = start; i < end; i++) rested.push(...missedBetween(days[i], days[i + 1]));
       rested.sort();
+    }
+    if (last && current.streak >= 1 && isValidDay(current.today) && nextStats(current, current.today).streak > 1) {
+      rested.push(...missedBetween(last, current.today));
     }
     return rested;
   }
