@@ -3106,6 +3106,21 @@ const authSubtitleEl = document.getElementById("auth-subtitle");
 const authForgotPasswordEl = document.getElementById("auth-forgot-password");
 const logOutButtonEl = document.getElementById("log-out-button");
 
+// The eye button in a password box shows or hides what's typed. Listens on
+// the whole page so it also works in sign-up, which onboarding.js redraws.
+// Pressing it doesn't take focus from the box, so the keyboard stays up.
+document.addEventListener("mousedown", (event) => {
+  if (event.target.closest(".password-eye")) event.preventDefault();
+});
+document.addEventListener("click", (event) => {
+  const eye = event.target.closest(".password-eye");
+  if (!eye) return;
+  const field = eye.closest(".password-field");
+  const showing = field.classList.toggle("showing");
+  field.querySelector("input").type = showing ? "text" : "password";
+  eye.setAttribute("aria-label", showing ? "Hide password" : "Show password");
+});
+
 // The form has two modes that share the same email/password fields.
 let authMode = "login";
 

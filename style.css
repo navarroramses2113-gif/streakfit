@@ -1513,6 +1513,51 @@ body {
   border-color: var(--accent);
 }
 
+/* Password box with an eye button on the right to show what's typed. */
+.password-field {
+  position: relative;
+}
+
+.auth-fields .password-field input {
+  padding-right: 48px;
+}
+
+.password-eye {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.password-eye svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.password-eye .eye-off,
+.password-field.showing .eye-on {
+  display: none;
+}
+
+.password-field.showing .eye-off {
+  display: block;
+}
+
 .auth-submit-button {
   width: 100%;
   min-height: 48px;

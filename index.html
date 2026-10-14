@@ -16,7 +16,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="stylesheet" href="style.css?v=28">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. -->
@@ -90,7 +90,10 @@
 
     <div class="auth-fields">
       <input type="email" id="auth-email" placeholder="Email" autocomplete="email">
-      <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password">
+      <div class="password-field">
+        <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password">
+        <button type="button" class="password-eye" aria-label="Show password"><svg class="eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-6.5 0-10-7-10-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg></button>
+      </div>
     </div>
 
     <button id="auth-forgot-password" class="link-button auth-forgot-password">Forgot password?</button>
@@ -138,7 +141,10 @@
     <p class="screen-subtitle">Set a new password</p>
 
     <div class="auth-fields">
-      <input type="password" id="new-password" placeholder="New password" autocomplete="new-password">
+      <div class="password-field">
+        <input type="password" id="new-password" placeholder="New password" autocomplete="new-password">
+        <button type="button" class="password-eye" aria-label="Show password"><svg class="eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-6.5 0-10-7-10-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg></button>
+      </div>
     </div>
 
     <p id="reset-password-error" class="error"></p>
@@ -823,7 +829,7 @@
   <script src="supabase/functions/_shared/game-rules.js?v=8"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=9"></script>
   <script src="camera-verify.js?v=10"></script>
-  <script src="onboarding.js?v=8"></script>
+  <script src="onboarding.js?v=9"></script>
   <script src="script.js?v=28"></script>
   <script src="challenges.js?v=4"></script>
   <script src="celebrations.js?v=4"></script>
