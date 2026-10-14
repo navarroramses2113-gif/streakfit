@@ -121,6 +121,7 @@ const Challenges = (function () {
       if (reply && reply.ok) {
         state.list = reply.challenges;
         state.trophies = reply.trophies;
+        (reply.challenges || []).forEach((c) => rememberAvatarColors((c.players || []).map((p) => ({ username: p.name, avatar_color: p.color }))));
         state.error = false;
       } else {
         state.error = true;
@@ -139,8 +140,9 @@ const Challenges = (function () {
     if (error) return null;
     const ids = (rows || []).map((f) => (f.requester_id === currentUserId ? f.addressee_id : f.requester_id));
     if (ids.length === 0) return [];
-    const { data: profiles, error: profileError } = await supabaseClient.from("profiles").select("user_id, username").in("user_id", ids);
+    const { data: profiles, error: profileError } = await supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", ids);
     if (profileError) return null;
+    rememberAvatarColors(profiles);
     return (profiles || []).map((p) => ({ id: p.user_id, name: p.username })).sort((a, b) => a.name.localeCompare(b.name));
   }
 

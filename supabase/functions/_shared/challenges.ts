@@ -53,11 +53,18 @@ async function selectAll(build: (from: number, to: number) => Promise<{ data: Ro
 
 async function usernames(admin: Db, userIds: string[]) {
   const names = new Map<string, string>();
-  const ids = [...new Set(userIds.filter(Boolean))];
-  if (ids.length === 0) return names;
-  const rows = await selectAll((from, to) => admin.from("profiles").select("user_id, username").in("user_id", ids).range(from, to));
-  for (const row of rows) names.set(row.user_id, row.username);
+  for (const [id, profile] of await profilesOf(admin, userIds)) names.set(id, profile.name);
   return names;
+}
+
+// Name and profile color (see avatar-color-2026-10-14.sql) per user id.
+async function profilesOf(admin: Db, userIds: string[]) {
+  const profiles = new Map<string, { name: string; color: string | null }>();
+  const ids = [...new Set(userIds.filter(Boolean))];
+  if (ids.length === 0) return profiles;
+  const rows = await selectAll((from, to) => admin.from("profiles").select("user_id, username, avatar_color").in("user_id", ids).range(from, to));
+  for (const row of rows) profiles.set(row.user_id, { name: row.username, color: row.avatar_color ?? null });
+  return profiles;
 }
 
 // ---------- the server's records, placed on challenge days ----------
@@ -443,7 +450,7 @@ async function listChallenges(deps: Deps, userId: string, timeZone: unknown): Pr
   const ids = shown.map((row) => row.id);
   const players = await selectAll((from, to) => admin.from("challenge_players").select("*").in("challenge_id", ids).range(from, to));
   const saved = await savedDays(admin, ids);
-  const names = await usernames(admin, [...players.map((p) => p.user_id), ...shown.map((row) => row.creator_id)]);
+  const profiles = await profilesOf(admin, [...players.map((p) => p.user_id), ...shown.map((row) => row.creator_id)]);
   const liveIds = [...new Set(players.filter((p) => p.status === "joined").map((p) => p.user_id))];
   const records = await loadRecords(admin, liveIds, now - 2 * DAY_MS);
   const liveByPlayer = new Map<string, Map<string, Row>>();
@@ -465,7 +472,8 @@ async function listChallenges(deps: Deps, userId: string, timeZone: unknown): Pr
           : liveStanding(c, player, saved.get(`${row.id}/${player.user_id}`) ?? new Map(), liveByPlayer.get(key)!, now);
       return {
         userId: player.user_id,
-        name: names.get(player.user_id) || "Unknown",
+        name: profiles.get(player.user_id)?.name || "Unknown",
+        color: profiles.get(player.user_id)?.color ?? null,
         you: player.user_id === userId,
         score: standing.score,
         today: standing.todayValue,
@@ -489,7 +497,7 @@ async function listChallenges(deps: Deps, userId: string, timeZone: unknown): Pr
       name: rules.challengeName(c),
       status: row.status,
       myStatus: me.status,
-      from: names.get(row.creator_id) || null,
+      from: profiles.get(row.creator_id)?.name || null,
       fromYou: row.creator_id === userId,
       startDay: c.startDay,
       dayNumber,

@@ -693,9 +693,13 @@
       </div>
 
       <div id="profile-header" class="profile-header hidden">
-        <div class="profile-avatar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
-        </div>
+        <!-- Tap your circle to pick its color (see openColorSheet). -->
+        <button id="profile-avatar-button" class="profile-avatar-button" aria-label="Change your color">
+          <span class="profile-avatar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+          </span>
+          <span class="profile-avatar-badge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></span>
+        </button>
         <div class="profile-header-info">
           <p id="profile-header-username" class="profile-username"></p>
           <div class="profile-follow-stats">
@@ -822,6 +826,22 @@
       </button>
     </nav>
   </main>
+
+  <!-- "Your color": slides up from the Me tab's circle. A color saves the
+       moment it's tapped. -->
+  <div id="color-sheet" class="challenge-scrim hidden">
+    <div class="challenge-sheet color-sheet" role="dialog" aria-modal="true" aria-labelledby="color-sheet-title">
+      <span class="challenge-grabber"></span>
+      <div class="color-sheet-top">
+        <h2 id="color-sheet-title">Your color</h2>
+        <button id="color-sheet-done" class="color-sheet-done">Done</button>
+      </div>
+      <span id="color-sheet-preview"></span>
+      <p id="color-sheet-handle" class="color-sheet-handle"></p>
+      <div id="color-sheet-swatches" class="color-swatches" role="radiogroup" aria-label="Your color"></div>
+      <p id="color-sheet-status" class="color-sheet-status"></p>
+    </div>
+  </div>
 
   <!-- Supabase's client library - lets our JavaScript talk to our
        database and handle user accounts/login. -->

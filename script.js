@@ -471,12 +471,13 @@ document.getElementById("edit-profile-button").addEventListener("click", async (
   // who already has a saved username.
   const { data: profile } = await supabaseClient
     .from("profiles")
-    .select("username")
+    .select("username, avatar_color")
     .eq("user_id", currentUserId)
     .maybeSingle();
 
   if (profile) {
     myUsername = profile.username;
+    rememberAvatarColors([profile]);
   }
   document.getElementById("profile-username").value = myUsername || "";
 
@@ -2246,14 +2247,33 @@ const PERSON_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentCol
 const FLAME_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-1 4-6 6-6 12a6 6 0 0 0 12 0c0-3-2-4-2-7-1 2-2 2-2 0 0-2-1-4-2-5z"/></svg>';
 
 // Everyone gets a colored circle with their first letter, like WhatsApp.
-// The color comes from the username, so a person looks the same on every
-// screen and every phone. (Darker shades, so the white letter reads.)
-const AVATAR_COLORS = ["#dc2626", "#ea580c", "#d97706", "#16a34a", "#0d9488", "#0284c7", "#4f46e5", "#9333ea", "#db2777"];
+// Each account has its own color (profiles.avatar_color: random to start,
+// changeable from the Me tab). These are the 12 allowed, each dark enough
+// for a white letter.
+const AVATAR_COLORS = {
+  red: "#dc2626", orange: "#ea580c", amber: "#d97706", lime: "#65a30d",
+  green: "#16a34a", teal: "#0d9488", cyan: "#0891b2", blue: "#2563eb",
+  indigo: "#4f46e5", violet: "#7c3aed", pink: "#db2777", graphite: "#52525b",
+};
 
+// username -> color name, from every profiles row the app has loaded, so
+// any screen showing a name can draw that person's circle.
+const avatarColorByName = new Map();
+
+function rememberAvatarColors(rows) {
+  (rows || []).forEach((row) => {
+    if (row && row.username && AVATAR_COLORS[row.avatar_color]) avatarColorByName.set(row.username, row.avatar_color);
+  });
+}
+
+// Someone's saved color - or, before it's loaded, one picked from their name.
 function avatarColor(name) {
+  const saved = avatarColorByName.get(name);
+  if (saved) return AVATAR_COLORS[saved];
+  const shades = Object.values(AVATAR_COLORS);
   let hash = 0;
   for (const ch of String(name).toLowerCase()) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+  return shades[hash % shades.length];
 }
 
 // Only a letter or digit ever reaches the HTML; anything else (or no name)
@@ -2335,17 +2355,18 @@ async function enterCompetitionTab() {
     return;
   }
 
-  if (!myUsername) {
+  if (!myUsername || !avatarColorByName.has(myUsername)) {
     const viewerId = currentUserId;
     const { data: profile } = await supabaseClient
       .from("profiles")
-      .select("username")
+      .select("username, avatar_color")
       .eq("user_id", viewerId)
       .maybeSingle();
     if (viewerId !== currentUserId) return; // switched accounts meanwhile
 
     if (profile) {
       myUsername = profile.username;
+      rememberAvatarColors([profile]);
     }
   }
 
@@ -2469,10 +2490,11 @@ async function runFriendSearch(query) {
 
   const { data: matches } = await supabaseClient
     .from("profiles")
-    .select("user_id, username")
+    .select("user_id, username, avatar_color")
     .ilike("username", `${query}%`)
     .neq("user_id", currentUserId)
     .limit(8);
+  rememberAvatarColors(matches);
 
   resultsEl.innerHTML = "";
   resultsEl.classList.remove("hidden");
@@ -2553,7 +2575,8 @@ async function loadFriendRequests() {
   }
 
   const requesterIds = requests.map((r) => r.requester_id);
-  const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username").in("user_id", requesterIds);
+  const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", requesterIds);
+  rememberAvatarColors(profiles);
 
   const usernameByUserId = {};
   (profiles || []).forEach((p) => {
@@ -2597,9 +2620,10 @@ async function loadLeaderboard() {
     // (They used to be read out of each friend's user_progress, which the
     // friend could edit - and which also exposed their GPS routes.)
     const [{ data: profiles }, { data: statsRows }] = await Promise.all([
-      supabaseClient.from("profiles").select("user_id, username").in("user_id", friendIds),
+      supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", friendIds),
       supabaseClient.from("player_stats").select("user_id, streak").in("user_id", friendIds),
     ]);
+    rememberAvatarColors(profiles);
 
     const usernameByUserId = {};
     (profiles || []).forEach((p) => {
@@ -2733,7 +2757,8 @@ async function loadFeed() {
   const peopleIds = [...new Set([...posts.map((p) => p.user_id), ...kudosRows.map((k) => k.giver_id)])];
   const usernameByUserId = {};
   if (peopleIds.length > 0) {
-    const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username").in("user_id", peopleIds);
+    const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", peopleIds);
+    rememberAvatarColors(profiles);
     (profiles || []).forEach((p) => {
       usernameByUserId[p.user_id] = p.username;
     });
@@ -2977,14 +3002,15 @@ async function enterMeTab() {
   }
 
   const viewerId = currentUserId;
-  if (!myUsername) {
+  if (!myUsername || !avatarColorByName.has(myUsername)) {
     const { data: profile } = await supabaseClient
       .from("profiles")
-      .select("username")
+      .select("username, avatar_color")
       .eq("user_id", viewerId)
       .maybeSingle();
     if (viewerId !== currentUserId) return; // switched accounts meanwhile
     if (profile) myUsername = profile.username;
+    rememberAvatarColors([profile]);
   }
 
   if (!myUsername) {
@@ -2996,10 +3022,81 @@ async function enterMeTab() {
   promptEl.classList.add("hidden");
   headerEl.classList.remove("hidden");
   document.getElementById("profile-header-username").textContent = `@${myUsername}`;
-  headerEl.querySelector(".profile-avatar").outerHTML = avatarHtml(myUsername, "profile-avatar");
+  drawMyAvatar();
 
   await loadFollowCounts();
 }
+
+// ---------- "Your color" (tap your circle on the Me tab) ----------
+const colorSheetEl = document.getElementById("color-sheet");
+const colorSheetStatusEl = document.getElementById("color-sheet-status");
+const CHECK_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+let colorPickNumber = 0; // only the newest tap's save may report back
+
+function drawMyAvatar() {
+  document.querySelector("#profile-avatar-button .profile-avatar").outerHTML = avatarHtml(myUsername, "profile-avatar");
+}
+
+function drawColorSheet() {
+  const current = avatarColorByName.get(myUsername);
+  document.getElementById("color-sheet-preview").innerHTML = avatarHtml(myUsername, "profile-avatar");
+  document.getElementById("color-sheet-handle").textContent = `@${myUsername}`;
+  document.getElementById("color-sheet-swatches").innerHTML = Object.entries(AVATAR_COLORS)
+    .map(([key, shade]) => `<button class="color-swatch" role="radio" aria-checked="${key === current}" aria-label="${key}" data-color="${key}" style="--avatar: ${shade}">${CHECK_ICON_SVG}</button>`)
+    .join("");
+}
+
+function setColorStatus(text, isError = false) {
+  colorSheetStatusEl.textContent = text;
+  colorSheetStatusEl.classList.toggle("is-error", isError);
+}
+
+function openColorSheet() {
+  if (!currentUserId || !myUsername) return;
+  setColorStatus("");
+  drawColorSheet();
+  colorSheetEl.classList.remove("hidden");
+}
+
+function closeColorSheet() {
+  colorSheetEl.classList.add("hidden");
+}
+
+// The new color shows at once everywhere on this screen; if saving it
+// fails, the old one comes back.
+async function pickAvatarColor(key) {
+  const name = myUsername;
+  const before = avatarColorByName.get(name);
+  if (!AVATAR_COLORS[key] || key === before) return;
+  const thisPick = ++colorPickNumber;
+  const viewerId = currentUserId;
+  avatarColorByName.set(name, key);
+  drawColorSheet();
+  drawMyAvatar();
+  setColorStatus("");
+  const { error } = await supabaseClient.from("profiles").update({ avatar_color: key }).eq("user_id", viewerId);
+  if (thisPick !== colorPickNumber || viewerId !== currentUserId) return;
+  if (error) {
+    if (before) avatarColorByName.set(name, before);
+    else avatarColorByName.delete(name);
+    drawColorSheet();
+    drawMyAvatar();
+    setColorStatus("Couldn't save your color. Check your connection.", true);
+    return;
+  }
+  setColorStatus("Saved");
+}
+
+document.getElementById("profile-avatar-button").addEventListener("click", openColorSheet);
+document.getElementById("color-sheet-done").addEventListener("click", closeColorSheet);
+colorSheetEl.addEventListener("click", (event) => {
+  if (event.target === colorSheetEl) return closeColorSheet(); // tapped outside the sheet
+  const swatch = event.target.closest(".color-swatch");
+  if (swatch) pickAvatarColor(swatch.dataset.color);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !colorSheetEl.classList.contains("hidden")) closeColorSheet();
+});
 
 async function loadFollowCounts() {
   const { data: friendships } = await supabaseClient
@@ -3027,7 +3124,8 @@ async function showFriendsList() {
     empty.textContent = "Nobody here yet.";
     listEl.appendChild(empty);
   } else {
-    const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username").in("user_id", friendIds);
+    const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", friendIds);
+    rememberAvatarColors(profiles);
     (profiles || []).forEach((profile) => {
       const row = document.createElement("div");
       row.className = "leaderboard-row";

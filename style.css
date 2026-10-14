@@ -567,6 +567,155 @@ body {
   font-size: var(--font-title2);
 }
 
+/* The Me tab's circle is a button: a small pencil badge says it can be
+   changed. */
+.profile-avatar-button {
+  position: relative;
+  flex-shrink: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.profile-avatar-button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.profile-avatar-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: var(--text-primary);
+  background: var(--popover-bg);
+  box-shadow: 0 0 0 2px var(--page-bg);
+}
+
+.profile-avatar-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* "Your color" sheet: a big preview, then the 12 colors. */
+.color-sheet {
+  gap: var(--space-sm);
+}
+
+.color-sheet-top {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.color-sheet-top h2 {
+  margin: 0;
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.color-sheet-done {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  min-height: 44px;
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--accent-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+#color-sheet-preview .profile-avatar {
+  width: 96px;
+  height: 96px;
+  margin-top: var(--space-xs);
+  font-size: 40px; /* hero letter, like the streak number */
+  transition: background 0.2s ease;
+}
+
+.color-sheet-handle {
+  margin: 0;
+  font-size: var(--font-subhead);
+  color: var(--text-secondary);
+}
+
+.color-swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  justify-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: var(--space-xs);
+}
+
+.color-swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: #ffffff;
+  background: var(--avatar);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* The picked one gets a ring and a check. */
+.color-swatch::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 2.5px solid transparent;
+  border-radius: 50%;
+  transition: border-color 0.15s ease;
+}
+
+.color-swatch[aria-checked="true"]::after {
+  border-color: var(--text-primary);
+}
+
+.color-swatch svg {
+  width: 20px;
+  height: 20px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.color-swatch[aria-checked="true"] svg {
+  opacity: 1;
+}
+
+.color-swatch:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 6px;
+}
+
+.color-sheet-status {
+  min-height: 18px;
+  margin: 0;
+  font-size: var(--font-footnote);
+  color: var(--text-secondary);
+}
+
+.color-sheet-status.is-error {
+  color: var(--danger);
+}
+
 .leaderboard-name {
   flex: 1;
   text-align: left;
