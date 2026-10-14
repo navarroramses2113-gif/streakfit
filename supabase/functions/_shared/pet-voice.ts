@@ -39,6 +39,26 @@ export function reminder(userId: string, day: string, streak: number) {
 
 export const friendRequest = (name: string) => ({ title: "Forja", body: `${name} wants in. Let them?` });
 
+// A friend tapped "Nudge". Encouraging, never guilt: the friend is cheering
+// you on. `streak` is the streak they'd keep by working out today (0 = none).
+const NUDGE_STREAK_LINES = [
+  (n: number) => `Your ${n}-day streak is waiting. Show them what you've got!`,
+  (n: number) => `Day ${n + 1} is one workout away. They're watching.`,
+  () => "They believe in you. I mostly do too.",
+  () => "A friend's in your corner. Go make them proud.",
+];
+const NUDGE_FRESH_LINES = [
+  () => "Today's still open. A quick workout and you're on the board.",
+  () => "Someone's rooting for you. Day 1 starts now.",
+  () => "They want a workout buddy. Don't leave them hanging.",
+];
+
+export function nudge(name: string, receiverId: string, day: string, streak: number) {
+  const seed = receiverId + day + name;
+  const line = streak > 0 ? pick(NUDGE_STREAK_LINES, seed)(streak) : pick(NUDGE_FRESH_LINES, seed)();
+  return { title: `${name} nudged you 👊`, body: line };
+}
+
 // Challenge texts get the challenge already worded: "a Rep Race",
 // "the Rep Race", "The Rep Race" ("Last One Standing" has no article).
 export const challengeInvite = (name: string, aChallenge: string) => ({

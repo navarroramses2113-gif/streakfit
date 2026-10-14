@@ -2297,7 +2297,9 @@ const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
 // crafted username can never inject HTML/scripts into someone else's page.
 // Number(...) on the streak is a second guard behind the database rule that
 // streaks must be numbers: whatever arrives, only a number reaches the HTML.
-function buildLeaderboardRow(name, streak, isYou, rank, userId) {
+// `doneToday`: they've trained today. A friend who hasn't gets a Nudge
+// button (once a day; `nudged` = already sent today).
+function buildLeaderboardRow({ name, streak, isYou, userId, doneToday, nudged }, rank) {
   const row = document.createElement("div");
   row.className = "leaderboard-row";
   if (isYou) row.classList.add("is-you");
@@ -2305,17 +2307,79 @@ function buildLeaderboardRow(name, streak, isYou, rank, userId) {
   row.innerHTML = `
     <span class="leaderboard-rank">#${rank}</span>
     ${avatarHtml(name)}
-    <span class="leaderboard-name"></span>
+    <span class="leaderboard-who">
+      <span class="leaderboard-name"></span>
+      <span class="leaderboard-today ${doneToday ? "is-done" : ""}">${doneToday ? "Done today" : "Not yet today"}</span>
+    </span>
+    ${isYou || doneToday ? "" : `<button class="nudge-button"></button>`}
     <span class="leaderboard-streak">${Number(streak) || 0} ${FLAME_ICON_SVG}</span>
-    ${isYou ? "" : '<button class="row-options-button" aria-label="More options">&#8942;</button>'}
+    ${isYou ? '<span class="row-options-spacer" aria-hidden="true"></span>' : '<button class="row-options-button" aria-label="More options">&#8942;</button>'}
   `;
   row.querySelector(".leaderboard-name").textContent = name;
 
   if (!isYou) {
     row.querySelector(".row-options-button").addEventListener("click", () => openUserActions(userId, name, "app-screen", null));
   }
+  const nudgeButton = row.querySelector(".nudge-button");
+  if (nudgeButton) {
+    drawNudgeButton(nudgeButton, row, name, nudged);
+    nudgeButton.addEventListener("click", () => sendNudge(nudgeButton, row, userId, name));
+  }
 
   return row;
+}
+
+// ---------- friend nudges ----------
+const NUDGE_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11V7.5a1.5 1.5 0 0 1 3 0V11M10 10V6.5a1.5 1.5 0 0 1 3 0V10M13 10V7.5a1.5 1.5 0 0 1 3 0V11M16 10.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a6 6 0 0 1-6-6v-2.5a1.5 1.5 0 0 1 3 0"/></svg>';
+const NUDGED_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+// A round 👊 button (a check once sent); the line under the name says
+// which. The name only reaches the label through setAttribute, never HTML.
+function drawNudgeButton(button, row, name, nudged) {
+  button.disabled = nudged;
+  button.innerHTML = nudged ? NUDGED_ICON_SVG : NUDGE_ICON_SVG;
+  button.setAttribute("aria-label", nudged ? `Nudged ${name}` : `Nudge ${name}`);
+  row.querySelector(".leaderboard-today").textContent = nudged ? "Nudged 👊" : "Not yet today";
+}
+
+// A short message at the top of the screen (same look as challenges').
+function showToast(text) {
+  document.querySelectorAll(".challenge-toast").forEach((el) => el.remove());
+  const el = document.createElement("div");
+  el.className = "challenge-toast";
+  el.setAttribute("role", "status");
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2300);
+}
+
+async function sendNudge(button, row, friendId, name) {
+  button.disabled = true;
+  const viewerId = currentUserId;
+  const reply = await callServerFunction("nudge", { friendId, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
+  if (viewerId !== currentUserId) return;
+  if (reply.ok || reply.error === "already_nudged") {
+    drawNudgeButton(button, row, name, true);
+    button.classList.add("pop");
+    if (reply.ok) showToast(`👊 Nudge sent to ${name}`);
+    return;
+  }
+  if (reply.error === "already_done") {
+    // They trained in the meantime (or it's already tomorrow where they are).
+    button.remove();
+    const today = row.querySelector(".leaderboard-today");
+    today.textContent = "Done today";
+    today.classList.add("is-done");
+    showToast(`${name} already trained today 💪`);
+    return;
+  }
+  if (reply.error === "no_notifications") {
+    button.remove();
+    showToast(`${name} has notifications off`);
+    return;
+  }
+  button.disabled = false;
+  showToast(reply.error === "not_friends" ? "You can only nudge friends" : "Couldn't send the nudge. Try again.");
 }
 
 function buildFriendRequestRow(friendshipId, requesterName, requesterId) {
@@ -2613,15 +2677,21 @@ async function loadLeaderboard() {
 
   const friendIds = (friendships || []).map((f) => (f.requester_id === currentUserId ? f.addressee_id : f.requester_id));
 
-  const combined = [{ name: myUsername, streak: data.streak, isYou: true, userId: currentUserId }];
+  const today = todayString();
+  const combined = [{ name: myUsername, streak: data.streak, isYou: true, userId: currentUserId, doneToday: data.lastLoggedDate === today, nudged: false }];
 
   if (friendIds.length > 0) {
     // Streaks come from player_stats, which only the server can write.
     // (They used to be read out of each friend's user_progress, which the
     // friend could edit - and which also exposed their GPS routes.)
-    const [{ data: profiles }, { data: statsRows }] = await Promise.all([
+    // Nudges: the ones you sent since your midnight (the server keeps the
+    // real once-a-day count, by their date).
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    const [{ data: profiles }, { data: statsRows }, { data: nudgeRows }] = await Promise.all([
       supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", friendIds),
-      supabaseClient.from("player_stats").select("user_id, streak").in("user_id", friendIds),
+      supabaseClient.from("player_stats").select("user_id, streak, last_logged_date").in("user_id", friendIds),
+      supabaseClient.from("nudges").select("receiver_id").eq("sender_id", currentUserId).gte("created_at", midnight.toISOString()),
     ]);
     rememberAvatarColors(profiles);
 
@@ -2629,18 +2699,23 @@ async function loadLeaderboard() {
     (profiles || []).forEach((p) => {
       usernameByUserId[p.user_id] = p.username;
     });
-    const streakByUserId = {};
+    const statsByUserId = {};
     (statsRows || []).forEach((row) => {
-      streakByUserId[row.user_id] = row.streak;
+      statsByUserId[row.user_id] = row;
     });
+    const nudgedIds = new Set((nudgeRows || []).map((n) => n.receiver_id));
 
     // Everyone who's a friend appears, even with no logged day yet (0).
+    // "Done today" by your date; a friend ahead of you in time counts too.
     friendIds.forEach((id) => {
+      const stats = statsByUserId[id];
       combined.push({
         name: usernameByUserId[id] || "Unknown",
-        streak: streakByUserId[id] || 0,
+        streak: (stats && stats.streak) || 0,
         isYou: false,
         userId: id,
+        doneToday: !!(stats && stats.last_logged_date && stats.last_logged_date >= today),
+        nudged: nudgedIds.has(id),
       });
     });
   }
@@ -2649,7 +2724,7 @@ async function loadLeaderboard() {
 
   leaderboardEl.innerHTML = "";
   combined.forEach((person, index) => {
-    leaderboardEl.appendChild(buildLeaderboardRow(person.name, person.streak, person.isYou, index + 1, person.userId));
+    leaderboardEl.appendChild(buildLeaderboardRow(person, index + 1));
   });
 }
 

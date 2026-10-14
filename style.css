@@ -738,6 +738,94 @@ body {
   height: 14px;
 }
 
+/* Name with "Done today" / "Not yet today" under it. */
+.leaderboard-who {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px; /* as tall as the Nudge button, so every row matches */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: left;
+}
+
+.leaderboard-who .leaderboard-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-today {
+  overflow: hidden;
+  font-size: var(--font-caption);
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-today.is-done {
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+/* "Nudge": a round 👊 button, warm like Kudos (a check once sent), with a
+   44pt touch area - round so the name keeps its room. */
+.nudge-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--orange-light);
+  background: #c0855226;
+  border: 1px solid var(--orange);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+:root[data-theme="light"] .nudge-button {
+  color: var(--orange-dark);
+}
+
+.nudge-button::before {
+  content: "";
+  position: absolute;
+  inset: -5px; /* 34 inside the 1px border + 10 = 44 */
+}
+
+.nudge-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.nudge-button:disabled {
+  color: var(--text-secondary);
+  background: none;
+  border-color: var(--border);
+  cursor: default;
+}
+
+.nudge-button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.nudge-button.pop {
+  animation: nudge-pop 0.35s ease;
+}
+
+@keyframes nudge-pop {
+  40% { transform: scale(1.12) rotate(-8deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nudge-button.pop {
+    animation: none;
+  }
+}
+
 /* The Feed: posts grouped under a heading per day, newest first. */
 .feed-list {
   display: flex;
@@ -3221,6 +3309,13 @@ a.account-menu-item {
   width: 44px;
   height: 44px;
   margin: -9px -9px -9px 0;
+}
+
+/* Your own leaderboard row has no ⋮; this takes its place so every
+   streak number lines up in one column. */
+.row-options-spacer {
+  flex-shrink: 0;
+  width: 35px; /* the ⋮ button's 44 minus its -9 right margin */
 }
 
 .gear-button {
