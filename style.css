@@ -1330,7 +1330,7 @@ body {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-sm); /* same as the cards above, so their edges line up */
   margin-bottom: var(--space-sm);
   background: var(--surface);
   border-radius: var(--radius);
@@ -1596,12 +1596,14 @@ body {
   }
 }
 
+/* One rhythm in every card: the same 10pt inside on all four sides; name
+   and minimum together, 10pt to the count, 6pt to Verify. */
 .exercise-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: var(--space-sm) 4px;
+  gap: 0;
+  padding: var(--space-sm);
   background: var(--surface);
   border: 1px solid transparent;
   border-radius: var(--radius);
@@ -1633,10 +1635,15 @@ body {
   font-weight: 400;
 }
 
+.exercise-tile .min-tag {
+  margin-top: 2px;
+}
+
 .exercise-tile input {
   width: 100%;
   min-height: 44px;
-  margin-top: 4px;
+  margin-top: var(--space-sm);
+  margin-bottom: var(--space-xs); /* Verify sits below with margin-top: auto */
   padding: 8px;
   font-size: var(--font-body);
   font-weight: 700;
@@ -2271,7 +2278,7 @@ body {
   }
 
   .exercise-tile {
-    padding: var(--space-xs) 2px;
+    padding: var(--space-xs);
   }
 
   .exercise-icon svg {
@@ -3112,8 +3119,10 @@ a.account-menu-item {
   right: 12px;
 }
 
-/* room for the corner ⓘ so it never touches the numbers */
+/* room for the corner ⓘ so it never touches the numbers - on both sides,
+   so the three numbers stay centered in the card */
 #plan-today-card {
+  padding-left: 34px;
   padding-right: 34px;
 }
 
