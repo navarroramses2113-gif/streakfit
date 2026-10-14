@@ -1297,7 +1297,7 @@ body {
   font-family: inherit;
   font-size: var(--font-body);
   font-weight: 700;
-  color: var(--text-muted);
+  color: var(--text-secondary); /* muted read as disabled (under 4.5:1) */
   background: none;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

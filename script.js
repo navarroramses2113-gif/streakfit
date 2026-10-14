@@ -3552,8 +3552,11 @@ function displayElevation(meters) {
 // fake "gain" from that noise alone.
 const ELEVATION_NOISE_THRESHOLD_M = 1;
 
+// No +/- buttons: you pinch to zoom, like Apple Maps. The OpenStreetMap
+// credit stays (their license needs it), without Leaflet's own link.
 function createMap(containerId) {
-  const map = L.map(containerId);
+  const map = L.map(containerId, { zoomControl: false });
+  map.attributionControl.setPrefix(false);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors",
     maxZoom: 19,
