@@ -3057,7 +3057,9 @@ a.account-menu-item {
   flex-shrink: 0;
   width: 51px;
   height: 31px;
+  min-height: 0; /* .settings-row input's 44px would stretch it */
   margin: 0;
+  padding: 0;
   border: none;
   border-radius: 999px;
   background: radial-gradient(circle at 15.5px 50%, white 0 13.5px, transparent 14px), var(--control-bg);
