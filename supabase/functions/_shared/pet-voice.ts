@@ -56,7 +56,7 @@ const NUDGE_FRESH_LINES = [
 export function nudge(name: string, receiverId: string, day: string, streak: number) {
   const seed = receiverId + day + name;
   const line = streak > 0 ? pick(NUDGE_STREAK_LINES, seed)(streak) : pick(NUDGE_FRESH_LINES, seed)();
-  return { title: `${name} nudged you 👊`, body: line };
+  return { title: `${name} nudged you`, body: line };
 }
 
 // Challenge texts get the challenge already worded: "a Rep Race",

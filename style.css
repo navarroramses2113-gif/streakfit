@@ -727,15 +727,15 @@ body {
 .leaderboard-streak {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   font-size: var(--font-subhead);
   font-weight: 800;
   color: var(--orange-light);
 }
 
 .leaderboard-streak svg {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
 }
 
 /* Name with "Done today" / "Not yet today" under it. */
@@ -768,42 +768,48 @@ body {
   color: var(--accent-text);
 }
 
-/* "Nudge": a round 👊 button, warm like Kudos (a check once sent), with a
-   44pt touch area - round so the name keeps its room. */
+/* "Nudge": the Kudos pill a size smaller, words only so names keep their
+   room; warm once sent, like given Kudos. 30pt tall, 44pt touch area. */
 .nudge-button {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  color: var(--orange-light);
-  background: #c0855226;
-  border: 1px solid var(--orange);
-  border-radius: 50%;
+  min-height: 30px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: var(--font-footnote);
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
   cursor: pointer;
-}
-
-:root[data-theme="light"] .nudge-button {
-  color: var(--orange-dark);
 }
 
 .nudge-button::before {
   content: "";
   position: absolute;
-  inset: -5px; /* 34 inside the 1px border + 10 = 44 */
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
 }
 
-.nudge-button svg {
-  width: 18px;
-  height: 18px;
+.nudge-button.is-sent {
+  color: var(--orange-light);
+  background: #c0855226;
+  border-color: var(--orange);
+  cursor: default;
 }
 
-.nudge-button:disabled {
-  color: var(--text-secondary);
-  background: none;
-  border-color: var(--border);
+:root[data-theme="light"] .nudge-button.is-sent {
+  color: var(--orange-dark);
+}
+
+.nudge-button:disabled:not(.is-sent) {
+  opacity: 0.5;
   cursor: default;
 }
 
@@ -813,11 +819,11 @@ body {
 }
 
 .nudge-button.pop {
-  animation: nudge-pop 0.35s ease;
+  animation: nudge-pop 0.3s ease;
 }
 
 @keyframes nudge-pop {
-  40% { transform: scale(1.12) rotate(-8deg); }
+  40% { transform: scale(1.1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -5268,6 +5274,50 @@ a.account-menu-item {
 
 .pet-bubble .warn {
   color: var(--warning);
+}
+
+/* "Ramsesn nudged you": their faces and name on a line of its own. */
+.pet-nudge-from {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.pet-nudge-faces {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.pet-nudge-avatar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--avatar, var(--control-bg));
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pet-nudge-avatar svg {
+  width: 13px;
+  height: 13px;
+}
+
+.pet-nudge-avatar + .pet-nudge-avatar {
+  margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--popover-bg);
+}
+
+.pet-bubble b.pet-nudge-name {
+  color: var(--orange-light);
+}
+
+:root[data-theme="light"] .pet-bubble b.pet-nudge-name {
+  color: var(--orange-dark);
 }
 
 .pet-bubble.is-new {

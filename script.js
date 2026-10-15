@@ -1825,6 +1825,7 @@ async function showApp(userId) {
   maybeCompleteDay();
   updateFriendRequestBadge();
   updateFeedBadge();
+  loadReceivedNudges();
 
   if (signingUp) {
     // The sign-up flow carries on (reminders, friends) from here.
@@ -1910,11 +1911,38 @@ async function updateFeedBadge() {
   badgeEl.classList.toggle("hidden", !(newest > seen));
 }
 
-// Coming back to the app: friends may have posted or sent a request since.
+// Friends who nudged you today: the pet on Today says so until you start
+// training. "Today" is the date nudges are saved under (your own).
+async function loadReceivedNudges() {
+  const viewerId = currentUserId;
+  const day = todayString();
+  if (!viewerId || typeof Celebrations === "undefined") return;
+  const { data: rows, error } = await supabaseClient
+    .from("nudges")
+    .select("sender_id")
+    .eq("receiver_id", viewerId)
+    .eq("day", day)
+    .order("created_at", { ascending: true });
+  if (error || viewerId !== currentUserId) return;
+  const ids = (rows || []).map((row) => row.sender_id);
+  let names = [];
+  if (ids.length) {
+    const { data: profiles, error: profileError } = await supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", ids);
+    if (profileError || viewerId !== currentUserId) return;
+    rememberAvatarColors(profiles);
+    const nameById = new Map((profiles || []).map((p) => [p.user_id, p.username]));
+    names = ids.map((id) => nameById.get(id)).filter(Boolean);
+  }
+  Celebrations.setNudgers(names, viewerId, day);
+}
+
+// Coming back to the app: friends may have posted, sent a request or
+// nudged you since.
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !currentUserId) return;
   updateFeedBadge();
   updateFriendRequestBadge();
+  loadReceivedNudges();
 });
 
 // Lets someone use the full app without an account yet. Their data is
@@ -2244,7 +2272,11 @@ TABS.record.button.addEventListener("click", () => showTab("record"));
 // Reusable icon markup - defined once, inserted wherever needed via
 // template literals, instead of repeating the same SVG code every time.
 const PERSON_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>';
-const FLAME_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-1 4-6 6-6 12a6 6 0 0 0 12 0c0-3-2-4-2-7-1 2-2 2-2 0 0-2-1-4-2-5z"/></svg>';
+// The streak's mark: Today's ring, small (a streak = days the ring closed).
+// Three slices from 12 o'clock, a gap after each (r 15: 94.25 around).
+const STREAK_RING_SVG = `<svg viewBox="0 0 40 40" fill="none" stroke-width="6" stroke-linecap="round" aria-hidden="true"><g transform="rotate(-90 20 20)">${["pushups", "planks", "squats"]
+  .map((key, i) => `<circle cx="20" cy="20" r="15" stroke="var(--ring-${key})" stroke-dasharray="22.4 71.85" stroke-dashoffset="${(-i * 31.42 - 4.5).toFixed(2)}"/>`)
+  .join("")}</g></svg>`;
 
 // Everyone gets a colored circle with their first letter, like WhatsApp.
 // Each account has its own color (profiles.avatar_color: random to start,
@@ -2312,7 +2344,7 @@ function buildLeaderboardRow({ name, streak, isYou, userId, doneToday, nudged },
       <span class="leaderboard-today ${doneToday ? "is-done" : ""}">${doneToday ? "Done today" : "Not yet today"}</span>
     </span>
     ${isYou || doneToday ? "" : `<button class="nudge-button"></button>`}
-    <span class="leaderboard-streak">${Number(streak) || 0} ${FLAME_ICON_SVG}</span>
+    <span class="leaderboard-streak">${Number(streak) || 0} ${STREAK_RING_SVG}</span>
     ${isYou ? '<span class="row-options-spacer" aria-hidden="true"></span>' : '<button class="row-options-button" aria-label="More options">&#8942;</button>'}
   `;
   row.querySelector(".leaderboard-name").textContent = name;
@@ -2322,7 +2354,7 @@ function buildLeaderboardRow({ name, streak, isYou, userId, doneToday, nudged },
   }
   const nudgeButton = row.querySelector(".nudge-button");
   if (nudgeButton) {
-    drawNudgeButton(nudgeButton, row, name, nudged);
+    drawNudgeButton(nudgeButton, name, nudged);
     nudgeButton.addEventListener("click", () => sendNudge(nudgeButton, row, userId, name));
   }
 
@@ -2330,16 +2362,14 @@ function buildLeaderboardRow({ name, streak, isYou, userId, doneToday, nudged },
 }
 
 // ---------- friend nudges ----------
-const NUDGE_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11V7.5a1.5 1.5 0 0 1 3 0V11M10 10V6.5a1.5 1.5 0 0 1 3 0V10M13 10V7.5a1.5 1.5 0 0 1 3 0V11M16 10.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a6 6 0 0 1-6-6v-2.5a1.5 1.5 0 0 1 3 0"/></svg>';
-const NUDGED_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-
-// A round 👊 button (a check once sent); the line under the name says
-// which. The name only reaches the label through setAttribute, never HTML.
-function drawNudgeButton(button, row, name, nudged) {
+// A "Nudge" pill in Kudos' look, warm once sent. Words only (like a
+// "Follow" pill) so names keep their room. The name only reaches the label
+// through setAttribute, never HTML.
+function drawNudgeButton(button, name, nudged) {
   button.disabled = nudged;
-  button.innerHTML = nudged ? NUDGED_ICON_SVG : NUDGE_ICON_SVG;
+  button.classList.toggle("is-sent", nudged);
+  button.textContent = nudged ? "Nudged" : "Nudge";
   button.setAttribute("aria-label", nudged ? `Nudged ${name}` : `Nudge ${name}`);
-  row.querySelector(".leaderboard-today").textContent = nudged ? "Nudged 👊" : "Not yet today";
 }
 
 // A short message at the top of the screen (same look as challenges').
@@ -2359,9 +2389,9 @@ async function sendNudge(button, row, friendId, name) {
   const reply = await callServerFunction("nudge", { friendId, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
   if (viewerId !== currentUserId) return;
   if (reply.ok || reply.error === "already_nudged") {
-    drawNudgeButton(button, row, name, true);
+    drawNudgeButton(button, name, true);
     button.classList.add("pop");
-    if (reply.ok) showToast(`👊 Nudge sent to ${name}`);
+    if (reply.ok) showToast(`Nudge sent to ${name}`);
     return;
   }
   if (reply.error === "already_done") {
@@ -2370,12 +2400,7 @@ async function sendNudge(button, row, friendId, name) {
     const today = row.querySelector(".leaderboard-today");
     today.textContent = "Done today";
     today.classList.add("is-done");
-    showToast(`${name} already trained today 💪`);
-    return;
-  }
-  if (reply.error === "no_notifications") {
-    button.remove();
-    showToast(`${name} has notifications off`);
+    showToast(`${name} already trained today`);
     return;
   }
   button.disabled = false;
@@ -2972,7 +2997,7 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
       <div class="feed-card-who">
         <span class="feed-card-name"></span>
       </div>
-      ${isActivityPost(post) || isChallengePost(post) ? "" : `<span class="leaderboard-streak">${Number(post.streak) || 0} ${FLAME_ICON_SVG}</span>`}
+      ${isActivityPost(post) || isChallengePost(post) ? "" : `<span class="leaderboard-streak">${Number(post.streak) || 0} ${STREAK_RING_SVG}</span>`}
       <span class="feed-card-time"></span>
     </div>
     <div>

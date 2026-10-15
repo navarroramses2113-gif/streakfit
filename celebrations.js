@@ -606,7 +606,7 @@ const Celebrations = (function () {
   // plan's next level-up. Once the day is done the pet lives in the closed
   // ring and talks from under it. It hops in when Today opens, moves to fit
   // the moment, and tapping it gets another line.
-  const MOVES = { fresh: "wave", newbie: "wave", partway: "nod", close: "bounce", risk: "shake" };
+  const MOVES = { fresh: "wave", newbie: "wave", nudged: "wave", partway: "nod", close: "bounce", risk: "shake" };
   const FACES = { close: "wow", risk: "worried" };
   let coachMoment = null; // the moment the pet last talked about
   let coachLines = []; // what it can say about it (tap = the next one)
@@ -673,8 +673,41 @@ const Celebrations = (function () {
     return [first, weekLine(streak, true), "That's it for today. Go brag to someone."];
   }
 
+  // Friends who nudged you today (usernames, oldest first), for whose
+  // account and which day - script.js loads them when the app opens or
+  // comes back on screen.
+  let nudgedBy = { names: [], userId: null, day: null };
+
+  function setNudgers(names, userId, day) {
+    const next = { names: names.slice(), userId, day };
+    if (JSON.stringify(next) === JSON.stringify(nudgedBy)) return;
+    nudgedBy = next;
+    if (typeof data !== "undefined" && data) render();
+  }
+
+  const escapeText = (text) => String(text).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+
+  // "Ramsesn nudged you" with their faces, then what it's about.
+  function nudgeLine(names) {
+    const name = (n) => `<b class="pet-nudge-name">${escapeText(n)}</b>`;
+    const who = names.length === 1 ? name(names[0]) : names.length === 2 ? `${name(names[0])} and ${name(names[1])}` : `${name(names[0])} and ${names.length - 1} others`;
+    const faces = names.slice(0, 3).map((n) => avatarHtml(n, "pet-nudge-avatar")).join("");
+    const streak = liveStreak();
+    const why = streak > 0 ? `Your <b>${streak}-day streak</b> is waiting. Show them!` : "One workout today and you're on the board.";
+    return `<span class="pet-nudge-from"><span class="pet-nudge-faces">${faces}</span><span>${who} nudged you</span></span>${why}`;
+  }
+
   // { moment, lines } for the day as it stands, or null while it's saving.
+  // Nudged and nothing done yet: the pet says who nudged you first.
   function coachSays(done, progress) {
+    const says = coachSaysPlain(done, progress);
+    const started = progress.pushups + progress.planks + progress.squats + progress.walkRun > 0;
+    const nudged = nudgedBy.names.length > 0 && nudgedBy.userId === currentUserId && nudgedBy.day === todayString();
+    if (!says || done || started || !nudged) return says;
+    return { moment: "nudged", lines: [nudgeLine(nudgedBy.names), ...says.lines] };
+  }
+
+  function coachSaysPlain(done, progress) {
     if (done) return { moment: "done", lines: doneLines() };
     const left = leftToDo(progress);
     if (left.length === 0) return null; // every target met - the day is being saved
@@ -1002,7 +1035,7 @@ const Celebrations = (function () {
     coachRender(loggedToday && !dayPending, progress, false);
   }
 
-  return { setSaved, dayComplete, renderToday, ringShown, heldValue, enterToday: coachIntro };
+  return { setSaved, dayComplete, renderToday, ringShown, heldValue, setNudgers, enterToday: coachIntro };
 })();
 
 // script.js may already have drawn Today before this file loaded (the app

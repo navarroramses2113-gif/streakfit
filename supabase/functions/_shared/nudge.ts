@@ -3,8 +3,9 @@
 // POST { friendId, timeZone } -> { ok: true } or { ok: false, error }.
 //
 // A nudge only goes out when: you're friends, nobody blocked anybody, the
-// friend hasn't trained yet today in THEIR time zone, they can get push
-// notifications, and you haven't nudged them already today.
+// friend hasn't trained yet today in THEIR time zone, and you haven't
+// nudged them already today. It's saved either way; the pet on their Today
+// says who nudged them, and those with notifications on also get a push.
 import "./game-rules.js";
 import * as pet from "./pet-voice.ts";
 
@@ -54,14 +55,14 @@ export async function nudge({ admin, push, now }: Deps, senderId: string, body: 
     .maybeSingle();
   if (stats?.last_logged_date && stats.last_logged_date >= day) return no("already_done");
 
-  const { data: subscriptions, error: subsError } = await admin.from("push_subscriptions").select("endpoint").eq("user_id", friendId);
-  if (subsError) return no("server_error", 500);
-  if (!subscriptions || subscriptions.length === 0) return no("no_notifications");
-
   // The primary key (sender, receiver, day) is the once-a-day rule: a
   // second insert fails, even if two taps race each other.
   const { error: insertError } = await admin.from("nudges").insert({ sender_id: senderId, receiver_id: friendId, day });
   if (insertError) return insertError.code === "23505" ? no("already_nudged") : no("server_error", 500);
+
+  // No notifications set up: the nudge waits in the app instead.
+  const { data: subscriptions } = await admin.from("push_subscriptions").select("endpoint").eq("user_id", friendId).limit(1);
+  if (!subscriptions || subscriptions.length === 0) return ok();
 
   const { data: profile } = await admin.from("profiles").select("username").eq("user_id", senderId).maybeSingle();
   // The streak they'd keep by working out today (0 if it's already gone).
