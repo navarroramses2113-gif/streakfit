@@ -1952,6 +1952,7 @@ async function showApp(userId) {
   updateFeedBadge();
   refreshNotifAskMode();
   loadReceivedNudges();
+  refreshMyColor();
 
   if (signingUp) {
     // The sign-up flow carries on (reminders, friends) from here.
@@ -2070,6 +2071,7 @@ document.addEventListener("visibilitychange", () => {
   updateFriendRequestBadge();
   refreshNotifAskMode();
   loadReceivedNudges();
+  refreshMyColor();
 });
 
 // Lets someone use the full app without an account yet. Their data is
@@ -2416,13 +2418,36 @@ const AVATAR_COLORS = {
 };
 
 // username -> color name, from every profiles row the app has loaded, so
-// any screen showing a name can draw that person's circle.
-const avatarColorByName = new Map();
+// any screen showing a name can draw that person's circle. Kept on the
+// phone too, so circles open in the right color instead of a guess from
+// the name until the server answers.
+const AVATAR_COLORS_KEY = "forja-avatar-colors";
+const avatarColorByName = new Map(readSavedAvatarColors());
+
+function readSavedAvatarColors() {
+  try {
+    return Object.entries(JSON.parse(localStorage.getItem(AVATAR_COLORS_KEY) || "{}")).filter(([, color]) => AVATAR_COLORS[color]);
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveAvatarColors() {
+  try {
+    localStorage.setItem(AVATAR_COLORS_KEY, JSON.stringify(Object.fromEntries(avatarColorByName)));
+  } catch (e) {
+    // storage blocked - colors just load a moment later next time
+  }
+}
 
 function rememberAvatarColors(rows) {
+  let changed = false;
   (rows || []).forEach((row) => {
-    if (row && row.username && AVATAR_COLORS[row.avatar_color]) avatarColorByName.set(row.username, row.avatar_color);
+    if (!row || !row.username || !AVATAR_COLORS[row.avatar_color] || avatarColorByName.get(row.username) === row.avatar_color) return;
+    avatarColorByName.set(row.username, row.avatar_color);
+    changed = true;
   });
+  if (changed) saveAvatarColors();
 }
 
 // Someone's saved color - or, before it's loaded, one picked from their name.
@@ -3229,16 +3254,17 @@ async function enterMeTab() {
   }
 
   const viewerId = currentUserId;
-  if (!myUsername || !avatarColorByName.has(myUsername)) {
-    const { data: profile } = await supabaseClient
-      .from("profiles")
-      .select("username, avatar_color")
-      .eq("user_id", viewerId)
-      .maybeSingle();
-    if (viewerId !== currentUserId) return; // switched accounts meanwhile
-    if (profile) myUsername = profile.username;
-    rememberAvatarColors([profile]);
-  }
+  // Draw what this phone already knows, then always ask the server: the
+  // color may have been changed on another device.
+  if (myUsername) showMyHeader();
+  const { data: profile } = await supabaseClient
+    .from("profiles")
+    .select("username, avatar_color")
+    .eq("user_id", viewerId)
+    .maybeSingle();
+  if (viewerId !== currentUserId) return; // switched accounts meanwhile
+  if (profile) myUsername = profile.username;
+  rememberAvatarColors([profile]);
 
   if (!myUsername) {
     headerEl.classList.add("hidden");
@@ -3246,12 +3272,28 @@ async function enterMeTab() {
     return;
   }
 
-  promptEl.classList.add("hidden");
-  headerEl.classList.remove("hidden");
+  showMyHeader();
+  await loadFollowCounts();
+}
+
+// Your own color, fresh from the server (it may have been changed on
+// another device): on opening the app and coming back to it.
+async function refreshMyColor() {
+  const viewerId = currentUserId;
+  if (!viewerId) return;
+  const { data: profile } = await supabaseClient.from("profiles").select("username, avatar_color").eq("user_id", viewerId).maybeSingle();
+  if (viewerId !== currentUserId || !profile) return;
+  const before = avatarColorByName.get(profile.username);
+  myUsername = profile.username;
+  rememberAvatarColors([profile]);
+  if (avatarColorByName.get(profile.username) !== before && !TABS.me.panel.classList.contains("hidden")) drawMyAvatar();
+}
+
+function showMyHeader() {
+  document.getElementById("profile-header-prompt").classList.add("hidden");
+  document.getElementById("profile-header").classList.remove("hidden");
   document.getElementById("profile-header-username").textContent = `@${myUsername}`;
   drawMyAvatar();
-
-  await loadFollowCounts();
 }
 
 // ---------- "Your color" (tap your circle on the Me tab) ----------
@@ -3311,6 +3353,7 @@ async function pickAvatarColor(key) {
     setColorStatus("Couldn't save your color. Check your connection.", true);
     return;
   }
+  saveAvatarColors();
   setColorStatus("Saved");
 }
 
