@@ -25,6 +25,32 @@ const linkParams = new URLSearchParams(window.location.hash.slice(1));
 let inPasswordRecovery = linkParams.get("type") === "recovery";
 let resetLinkFailed = linkParams.has("error") && !inPasswordRecovery;
 
+// An invite link (?i=<code>) and where a visitor came from (?src=tiktok,
+// for the numbers). Both are kept on this phone until they're used: the
+// person may sign up later, or log in to an account they already have.
+// They're taken out of the address so a reload or a screenshot of the
+// address bar doesn't carry them on.
+const INVITE_KEY = "forja-invite";
+const SOURCE_KEY = "forja-signup-source";
+(function readInviteLink() {
+  const params = new URLSearchParams(window.location.search);
+  const code = (params.get("i") || "").trim().toLowerCase();
+  const source = (params.get("src") || "").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+  try {
+    if (/^[a-f0-9]{10}$/.test(code)) localStorage.setItem(INVITE_KEY, JSON.stringify({ code, at: Date.now() }));
+    // The first place someone came from is the one that counts.
+    if (!localStorage.getItem(SOURCE_KEY) && (source || code)) localStorage.setItem(SOURCE_KEY, source || "invite");
+  } catch (e) {
+    // storage blocked - the link just won't be remembered
+  }
+  if (params.has("i") || params.has("src")) {
+    params.delete("i");
+    params.delete("src");
+    const rest = params.toString();
+    history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
+  }
+})();
+
 // `supabase` (lowercase, no "Client") is the global the CDN script tag
 // creates. We name OUR instance `supabaseClient` so the two don't clash.
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -453,6 +479,7 @@ document.getElementById("open-settings-button").addEventListener("click", () => 
     renderSettingsInputs();
     document.getElementById("settings-status").textContent = "";
     refreshRemindersToggle();
+    refreshLeaguesSetting();
   }
 });
 
@@ -1939,6 +1966,7 @@ async function showApp(userId) {
   if (result.isNewAccount) {
     await claimGuestSets();
     username = await claimPendingUsername();
+    recordSignupSource();
   }
   // The streak and today's verified totals belong to the server - pull
   // them in before the first draw so nothing shows a stale local copy.
@@ -1953,6 +1981,9 @@ async function showApp(userId) {
   refreshNotifAskMode();
   loadReceivedNudges();
   refreshMyColor();
+  syncTimeZone();
+  acceptPendingInvite();
+  loadWeekRecap();
 
   if (signingUp) {
     // The sign-up flow carries on (reminders, friends) from here.
@@ -2072,6 +2103,7 @@ document.addEventListener("visibilitychange", () => {
   refreshNotifAskMode();
   loadReceivedNudges();
   refreshMyColor();
+  loadWeekRecap();
 });
 
 // Lets someone use the full app without an account yet. Their data is
@@ -2559,6 +2591,536 @@ async function sendNudge(button, row, friendId, name) {
   showToast(reply.error === "not_friends" ? "You can only nudge friends" : "Couldn't send the nudge. Try again.");
 }
 
+// ---------- invite links ----------
+// Your link is <this site>/?i=<code>. Only you can read your code
+// (invite_codes); the `invite` function turns a code into a friendship.
+// Whoever opens a link sees who sent it on the welcome screen, and once
+// they're signed in (new account or not) they're friends.
+let inviteCode = { userId: null, code: null };
+let inviteFrom = null; // { name } of whoever's link brought this visitor
+
+function pendingInvite() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(INVITE_KEY) || "null");
+    // A month is plenty of time to sign up; older links are let go.
+    if (saved && /^[a-f0-9]{10}$/.test(saved.code) && Date.now() - saved.at < 30 * 86400000) return saved.code;
+  } catch (e) {
+    // unreadable - treat as none
+  }
+  return null;
+}
+
+function dropPendingInvite() {
+  try {
+    localStorage.removeItem(INVITE_KEY);
+  } catch (e) {
+    // storage blocked - nothing to drop
+  }
+}
+
+// Who sent the link, for the welcome screen (no account needed).
+async function peekInvite() {
+  const code = pendingInvite();
+  if (!code) return;
+  const reply = await callServerFunction("invite", { action: "peek", code });
+  if (!reply.ok) {
+    if (reply.error === "unknown_code") dropPendingInvite();
+    return;
+  }
+  rememberAvatarColors([{ username: reply.name, avatar_color: reply.color }]);
+  inviteFrom = { name: reply.name };
+  if (Onboarding.isActive()) Onboarding.refresh();
+}
+
+// Signed in with a link waiting: become friends with whoever sent it. Kept
+// for later when there's no username yet or the network failed.
+let acceptingInvite = false;
+async function acceptPendingInvite() {
+  const code = pendingInvite();
+  const viewerId = currentUserId;
+  if (!code || !viewerId || acceptingInvite) return;
+  acceptingInvite = true;
+  const reply = await callServerFunction("invite", { action: "accept", code });
+  acceptingInvite = false;
+  if (viewerId !== currentUserId) return;
+  if (!reply.ok && ["no_username", "network", "server_error"].includes(reply.error)) return;
+  dropPendingInvite();
+  if (reply.ok && !reply.already) showToast(`You and ${reply.name} are friends now`);
+}
+
+// A brand new account remembers where it came from (a video's ?src=, an
+// invite, or "direct"), for the numbers.
+function recordSignupSource() {
+  let source = null;
+  try {
+    source = localStorage.getItem(SOURCE_KEY);
+    localStorage.removeItem(SOURCE_KEY);
+  } catch (e) {
+    // storage blocked
+  }
+  data.signupSource = source || "direct";
+  if (inviteFrom) data.invitedBy = inviteFrom.name;
+  saveData(data);
+}
+
+const inviteLinkFor = (code) => `${window.location.origin}${window.location.pathname.replace(/index\.html$/, "")}?i=${code}`;
+const cachedInviteLink = () => (inviteCode.userId === currentUserId && inviteCode.code ? inviteLinkFor(inviteCode.code) : null);
+
+// Fetched ahead (Me tab, sign-up's invite step): the share sheet must open
+// right inside the tap on iPhone, with nothing slow before it.
+async function loadInviteLink() {
+  const viewerId = currentUserId;
+  if (!viewerId) return null;
+  if (cachedInviteLink()) return cachedInviteLink();
+  const { data: row } = await supabaseClient.from("invite_codes").select("code").eq("user_id", viewerId).maybeSingle();
+  if (viewerId !== currentUserId || !row) return null;
+  inviteCode = { userId: viewerId, code: row.code };
+  return inviteLinkFor(row.code);
+}
+
+function inviteText() {
+  return data && data.streak > 1
+    ? `I'm on a ${data.streak}-day streak on Forja. Every rep is checked by the camera. Think you can keep up?`
+    : "Join me on Forja. Every rep is checked by the camera, so every streak is real.";
+}
+
+// True once the link went somewhere (shared or copied).
+async function shareInviteLink() {
+  const url = cachedInviteLink() || (await loadInviteLink());
+  if (!url) {
+    showToast("Couldn't get your link. Try again.");
+    return false;
+  }
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "Forja", text: inviteText(), url });
+      return true;
+    } catch (error) {
+      if (error && error.name === "AbortError") return false; // closed the sheet
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(`${inviteText()} ${url}`);
+    showToast("Invite link copied");
+    return true;
+  } catch (error) {
+    showToast("Couldn't share your link. Try again.");
+    return false;
+  }
+}
+
+document.getElementById("invite-share-button").addEventListener("click", shareInviteLink);
+peekInvite();
+
+// ---------- your time zone (names your league's area) ----------
+// Sent only when it changes; "updated" needs a profile row to land in.
+const TIME_ZONE_SENT_KEY = "forja-time-zone-sent";
+async function syncTimeZone() {
+  const viewerId = currentUserId;
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (!viewerId || !zone || zone.length > 64) return;
+  let sent = {};
+  try {
+    sent = JSON.parse(localStorage.getItem(TIME_ZONE_SENT_KEY) || "{}");
+  } catch (e) {
+    sent = {};
+  }
+  if (sent[viewerId] === zone) return;
+  const { data: rows, error } = await supabaseClient.from("profiles").update({ time_zone: zone }).eq("user_id", viewerId).select("user_id");
+  if (error || !rows || rows.length === 0 || viewerId !== currentUserId) return;
+  sent[viewerId] = zone;
+  try {
+    localStorage.setItem(TIME_ZONE_SENT_KEY, JSON.stringify(sent));
+  } catch (e) {
+    // storage blocked - it's just sent again next time
+  }
+}
+
+// ---------- Settings: Show Me in Leagues ----------
+const showInLeaguesEl = document.getElementById("show-in-leagues");
+async function refreshLeaguesSetting() {
+  const viewerId = currentUserId;
+  let known = false;
+  if (viewerId) {
+    const { data: profile } = await supabaseClient.from("profiles").select("show_in_leagues").eq("user_id", viewerId).maybeSingle();
+    known = viewerId === currentUserId && !!profile && typeof profile.show_in_leagues === "boolean";
+    if (known) showInLeaguesEl.checked = profile.show_in_leagues;
+  }
+  document.getElementById("leagues-setting").classList.toggle("hidden", !known);
+  document.getElementById("leagues-setting-note").classList.toggle("hidden", !known);
+}
+
+showInLeaguesEl.addEventListener("change", async () => {
+  const want = showInLeaguesEl.checked;
+  const { error } = await supabaseClient.from("profiles").update({ show_in_leagues: want }).eq("user_id", currentUserId);
+  if (error) {
+    showInLeaguesEl.checked = !want;
+    showToast("Couldn't save. Try again.");
+    return;
+  }
+  showSettingSaved();
+});
+
+// ---------- this week's league ----------
+// Everyone who trained this week, friends or not, ranked by points the
+// server counts from verified work (league_standings in the database):
+// a closed ring = 100, a walk or run = 1 a minute (up to 60 a day). One
+// Forja League while it's small; an area gets its own at 10+ people.
+// Monday to Wednesday, last week's result shows above it.
+const LEAGUE_SHOWN_ROWS = 15;
+const MEDALS = ["Gold", "Silver", "Bronze"];
+const MEDAL_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="15" r="6"/><path d="M8.5 10 6 3h4l2 4 2-4h4l-2.5 7"/></svg>';
+const TROPHY_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>';
+let leagueLoadNumber = 0;
+
+const thisWeekStart = () => ForjaRules.weekOf(todayString());
+const lastWeekStart = () => ForjaRules.addDays(thisWeekStart(), -7);
+const daysIntoWeek = () => ForjaRules.daysBetween(thisWeekStart(), todayString()); // 0 = Monday
+
+// null when it can't be read (offline, or the database part isn't there yet).
+async function leagueStandings(weekStart) {
+  const { data: rows, error } = await supabaseClient.rpc("league_standings", { week_start: weekStart });
+  if (error || !Array.isArray(rows)) return null;
+  rememberAvatarColors(rows);
+  return rows;
+}
+
+function leagueTimeLeft() {
+  const now = new Date();
+  const nextMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - daysIntoWeek()));
+  const hours = Math.max(0, Math.floor((nextMonday - now) / 3600000));
+  return hours >= 24 ? `${Math.floor(hours / 24)}d ${hours % 24}h left` : `${hours}h left`;
+}
+
+async function loadLeague() {
+  const sectionEl = document.getElementById("league-section");
+  const viewerId = currentUserId;
+  const loadNumber = ++leagueLoadNumber;
+  if (!viewerId) {
+    sectionEl.classList.add("hidden");
+    return;
+  }
+  const [rows, lastRows] = await Promise.all([leagueStandings(thisWeekStart()), daysIntoWeek() < 3 ? leagueStandings(lastWeekStart()) : null]);
+  if (loadNumber !== leagueLoadNumber || viewerId !== currentUserId) return;
+  if (!rows) {
+    sectionEl.classList.add("hidden");
+    return;
+  }
+  sectionEl.classList.remove("hidden");
+  drawLeagueResult(lastRows);
+  drawLeagueCard(rows);
+  drawLeagueList(rows);
+}
+
+function drawLeagueResult(rows) {
+  const el = document.getElementById("league-result");
+  const me = rows && rows.find((r) => r.is_you);
+  if (!me || me.points <= 0) {
+    el.classList.add("hidden");
+    return;
+  }
+  const medal = me.place <= 3 ? MEDALS[me.place - 1] : null;
+  const winner = rows.find((r) => r.place === 1 && !r.is_you);
+  el.className = `league-result${medal ? ` is-${medal.toLowerCase()}` : ""}`;
+  el.innerHTML = `${medal ? MEDAL_ICON_SVG : TROPHY_ICON_SVG}<p><b class="league-result-title"></b><span class="league-result-sub"></span></p>`;
+  el.querySelector(".league-result-title").textContent = medal ? `${medal}! #${me.place} in last week's league` : `#${me.place} of ${rows.length} in last week's league`;
+  el.querySelector(".league-result-sub").textContent =
+    `${me.points} points, ${me.days} ${me.days === 1 ? "day" : "days"}.` + (winner && me.place !== 1 ? ` ${winner.username} took first with ${winner.points}.` : "");
+}
+
+function drawLeagueCard(rows) {
+  const me = rows.find((r) => r.is_you);
+  const name = rows.length ? rows[0].league : "Forja League";
+  let sub;
+  if (!me) sub = "You're hidden from leagues. Change it in Settings.";
+  else if (me.points === 0) sub = rows.length > 1 ? `${rows.length - 1} ${rows.length === 2 ? "person has" : "people have"} points. Train today to join them.` : "Train today to start the board.";
+  else sub = `${rows.length} ${rows.length === 1 ? "person" : "people"} this week`;
+  const el = document.getElementById("league-card");
+  el.innerHTML = `<span class="league-badge">${TROPHY_ICON_SVG}</span><div class="league-card-text"><p class="league-card-name"></p><p class="league-card-sub"></p></div><span class="league-time-left"></span>`;
+  el.querySelector(".league-card-name").textContent = name;
+  el.querySelector(".league-card-sub").textContent = sub;
+  el.querySelector(".league-time-left").textContent = leagueTimeLeft();
+}
+
+// Names arrive from other people, so they only ever go in as text.
+function buildLeagueRow(row) {
+  const el = document.createElement("div");
+  el.className = "leaderboard-row league-row";
+  if (row.is_you) el.classList.add("is-you");
+  const medal = row.place <= 3 && row.points > 0 ? ` is-medal-${row.place}` : "";
+  el.innerHTML = `
+    <span class="leaderboard-rank${medal}">${Number(row.place) || ""}</span>
+    ${avatarHtml(row.username)}
+    <span class="leaderboard-who">
+      <span class="leaderboard-name"></span>
+      <span class="leaderboard-today ${row.is_friend ? "is-friend" : ""}"></span>
+    </span>
+    <span class="league-points">${Number(row.points) || 0}<small>pts</small></span>
+    ${row.is_you ? '<span class="row-options-spacer" aria-hidden="true"></span>' : '<button class="row-options-button" aria-label="More options">&#8942;</button>'}
+  `;
+  el.querySelector(".leaderboard-name").textContent = row.username;
+  const days = `${Number(row.days) || 0} ${row.days === 1 ? "day" : "days"}`;
+  el.querySelector(".leaderboard-today").textContent = `${row.is_you ? "You" : row.is_friend ? "Friend" : row.region} · ${days}`;
+  if (!row.is_you) el.querySelector(".row-options-button").addEventListener("click", () => openUserActions(row.user_id, row.username, "app-screen", null));
+  return el;
+}
+
+function drawLeagueList(rows) {
+  const listEl = document.getElementById("league-list");
+  listEl.innerHTML = "";
+  const shown = rows.slice(0, LEAGUE_SHOWN_ROWS);
+  shown.forEach((row) => listEl.appendChild(buildLeagueRow(row)));
+  const me = rows.find((r) => r.is_you);
+  if (me && !shown.includes(me)) {
+    const gap = document.createElement("p");
+    gap.className = "league-gap";
+    gap.textContent = `${rows.indexOf(me) - shown.length} more`;
+    listEl.appendChild(gap);
+    listEl.appendChild(buildLeagueRow(me));
+  }
+}
+
+// ---------- your week (Monday to Wednesday on Today) ----------
+// Last week in one card - days, totals, best set, league place - from the
+// server's own records, with Share My Week (a story image like the route
+// share). Hide puts it away until next Monday.
+const RECAP_HIDDEN_KEY = "forja-recap-hidden";
+const recapShare = { file: null };
+let recapLoadNumber = 0;
+const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
+const CHECK_SMALL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const MOON_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+
+function recapHidden(viewerId, week) {
+  try {
+    return JSON.parse(localStorage.getItem(RECAP_HIDDEN_KEY) || "{}")[viewerId] === week;
+  } catch (e) {
+    return false;
+  }
+}
+
+function hideRecap() {
+  const recap = recapShare.recap;
+  document.getElementById("week-recap").classList.add("hidden");
+  if (!recap) return;
+  try {
+    const hidden = JSON.parse(localStorage.getItem(RECAP_HIDDEN_KEY) || "{}");
+    hidden[recap.userId] = recap.week;
+    localStorage.setItem(RECAP_HIDDEN_KEY, JSON.stringify(hidden));
+  } catch (e) {
+    // storage blocked - it comes back on the next open
+  }
+}
+
+const dayLabel = (day) => new Date(`${day}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const plankWords = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+const distanceWords = (km) => `${(data.units === "km" ? km : milesFromKm(km)).toFixed(1)} ${distanceUnitLabel()}`;
+
+async function loadWeekRecap() {
+  const el = document.getElementById("week-recap");
+  const viewerId = currentUserId;
+  const loadNumber = ++recapLoadNumber;
+  const week = lastWeekStart();
+  if (!viewerId || daysIntoWeek() >= 3 || recapHidden(viewerId, week)) {
+    el.classList.add("hidden");
+    return;
+  }
+  const end = ForjaRules.addDays(week, 6);
+  const [postsReply, setsReply, league] = await Promise.all([
+    supabaseClient.from("feed_events").select("kind, day, pushups, plank_seconds, squats, distance_m").eq("user_id", viewerId).gte("day", week).lte("day", end),
+    supabaseClient.from("verified_sets").select("exercise, value, day").eq("user_id", viewerId).gte("day", week).lte("day", end),
+    leagueStandings(week),
+  ]);
+  if (loadNumber !== recapLoadNumber || viewerId !== currentUserId) return;
+  const posts = postsReply.data || [];
+  if (postsReply.error) return;
+  const dayPosts = posts.filter((p) => p.kind === "day");
+  const moves = posts.filter((p) => p.kind === "walk" || p.kind === "run");
+  const trained = new Set(dayPosts.map((p) => p.day));
+  if (trained.size === 0 && moves.length === 0) {
+    el.classList.add("hidden");
+    return;
+  }
+  const rested = restDaySet();
+  const sum = (list, key) => list.reduce((total, p) => total + (Number(p[key]) || 0), 0);
+  // The best single set, push-ups first (the one most people compare).
+  const sets = setsReply.data || [];
+  const best = ["pushup", "squat", "plank"]
+    .map((exercise) => sets.filter((s) => s.exercise === exercise).sort((a, b) => b.value - a.value)[0])
+    .find(Boolean);
+  const me = league && league.find((r) => r.is_you && r.points > 0);
+  const recap = {
+    userId: viewerId,
+    week,
+    end,
+    days: Array.from({ length: 7 }, (_, i) => {
+      const day = ForjaRules.addDays(week, i);
+      return trained.has(day) ? "on" : rested.has(day) ? "rest" : "";
+    }),
+    trainedCount: trained.size,
+    restCount: Array.from({ length: 7 }, (_, i) => ForjaRules.addDays(week, i)).filter((day) => !trained.has(day) && rested.has(day)).length,
+    pushups: sum(dayPosts, "pushups"),
+    squats: sum(dayPosts, "squats"),
+    plank: sum(dayPosts, "plank_seconds"),
+    km: sum(moves, "distance_m") / 1000,
+    best,
+    place: me ? me.place : 0,
+    of: league ? league.length : 0,
+  };
+  recapShare.recap = recap;
+  drawWeekRecap(recap);
+  renderRecapImage(recap);
+}
+
+function bestSetWords(best) {
+  if (!best) return "";
+  const what = best.exercise === "plank" ? `${plankWords(best.value)} plank` : `${best.value} ${best.exercise === "pushup" ? "push-ups" : "squats"}`;
+  const weekday = new Date(`${best.day}T12:00:00`).toLocaleDateString("en-US", { weekday: "short" });
+  return `${what} (${weekday})`;
+}
+
+function drawWeekRecap(recap) {
+  const el = document.getElementById("week-recap");
+  const days = `${recap.trainedCount} ${recap.trainedCount === 1 ? "day" : "days"}`;
+  const rest = recap.restCount ? ` · ${recap.restCount} rest ${recap.restCount === 1 ? "day" : "days"}` : "";
+  const highlights = [recap.best ? `Best set: <b>${bestSetWords(recap.best)}</b>` : "", recap.place ? `<b>#${recap.place}</b> in your league` : ""].filter(Boolean).join(" · ");
+  el.innerHTML = `
+    <div class="week-recap-top"><h2 id="week-recap-title">Your Week</h2><span>${dayLabel(recap.week)} – ${dayLabel(recap.end)}</span></div>
+    <ol class="week-recap-days" aria-label="Days trained last week">
+      ${recap.days.map((state, i) => `<li><span class="week-recap-dot ${state ? `is-${state}` : ""}" aria-label="${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][i]}: ${state === "on" ? "trained" : state === "rest" ? "rest day" : "missed"}">${state === "on" ? CHECK_SMALL_SVG : state === "rest" ? MOON_SVG : ""}</span><span aria-hidden="true">${DAY_LETTERS[i]}</span></li>`).join("")}
+    </ol>
+    <p class="week-recap-count"><b>${days}</b> trained${rest} · streak <b>${Number(data.streak) || 0}</b></p>
+    <div class="week-recap-stats">
+      <div><b>${recap.pushups}</b><span><i style="--dot: var(--ring-pushups)"></i>push-ups</span></div>
+      <div><b>${recap.squats}</b><span><i style="--dot: var(--ring-squats)"></i>squats</span></div>
+      <div><b>${plankWords(recap.plank)}</b><span><i style="--dot: var(--ring-planks)"></i>plank</span></div>
+      <div><b>${(data.units === "km" ? recap.km : milesFromKm(recap.km)).toFixed(1)}</b><span><i style="--dot: var(--ring-walkrun)"></i>${distanceUnitLabel()} walked</span></div>
+    </div>
+    ${highlights ? `<p class="week-recap-best">${highlights}</p>` : ""}
+    <div class="week-recap-actions">
+      <button class="week-recap-hide" data-recap="hide">Hide</button>
+      <button class="week-recap-share" data-recap="share" disabled>${SHARE_ICON_SVG}Share My Week</button>
+    </div>`;
+  el.classList.remove("hidden");
+}
+
+// The story image (1080 x 1920, dark), made ahead of the tap like the
+// route share.
+function drawRecapImage(ctx, recap, logo) {
+  const W = 1080;
+  const font = (size, weight) => `${weight} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  const background = ctx.createLinearGradient(0, 0, 0, 1920);
+  background.addColorStop(0, "#0f1f15");
+  background.addColorStop(0.55, "#0b0b0d");
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, W, 1920);
+  if (logo) ctx.drawImage(logo, 90, 130, 300, 90);
+  else {
+    ctx.fillStyle = "#ffffff";
+    ctx.font = font(64, 800);
+    ctx.fillText("Forja", 90, 200);
+  }
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#9a9a96";
+  ctx.font = font(44, 700);
+  ctx.fillText(`MY WEEK · ${dayLabel(recap.week).toUpperCase()} – ${dayLabel(recap.end).toUpperCase()}`, 90, 330);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = font(150, 900);
+  ctx.fillText(`${recap.trainedCount} ${recap.trainedCount === 1 ? "day." : "days."}`, 84, 500);
+  ctx.font = font(84, 800);
+  ctx.fillText("Every rep verified.", 90, 610);
+  // The 7 days.
+  recap.days.forEach((state, i) => {
+    const x = 90 + 60 + i * 135;
+    ctx.beginPath();
+    ctx.arc(x, 760, 54, 0, Math.PI * 2);
+    ctx.fillStyle = state === "on" ? "#22c55e" : state === "rest" ? "#247644" : "#27272a";
+    ctx.fill();
+    ctx.fillStyle = "#8e8e93";
+    ctx.font = font(40, 700);
+    ctx.textAlign = "center";
+    ctx.fillText(DAY_LETTERS[i], x, 870);
+  });
+  // The numbers.
+  const lines = [
+    ["Push-ups", String(recap.pushups)],
+    ["Squats", String(recap.squats)],
+    ["Plank", plankWords(recap.plank)],
+    ["Walked", distanceWords(recap.km)],
+    ["Streak", `${Number(data.streak) || 0} days`],
+  ];
+  if (recap.place) lines.push(["League", `#${recap.place} of ${recap.of}`]);
+  lines.forEach(([label, value], i) => {
+    const y = 1010 + i * 120;
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#9a9a96";
+    ctx.font = font(52, 600);
+    ctx.fillText(label, 90, y);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = font(68, 800);
+    ctx.fillText(value, W - 90, y);
+    ctx.fillStyle = "#ffffff14";
+    ctx.fillRect(90, y + 36, W - 180, 3);
+  });
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#8e8e93";
+  ctx.font = font(46, 600);
+  ctx.fillText("Can you keep up?", W / 2, 1780);
+  const link = cachedInviteLink();
+  if (link) {
+    ctx.fillStyle = "#22c55e";
+    ctx.font = font(42, 700);
+    ctx.fillText(link.replace(/^https?:\/\//, ""), W / 2, 1840);
+  }
+}
+
+async function renderRecapImage(recap) {
+  recapShare.file = null;
+  await loadInviteLink(); // the link goes on the image
+  if (recapShare.recap !== recap) return;
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1920;
+  const ctx = canvas.getContext("2d");
+  const logo = await shareLogoImage("#ffffff");
+  drawRecapImage(ctx, recap, logo);
+  let blob = await canvasToPng(canvas).catch(() => null);
+  if (!blob) {
+    drawRecapImage(ctx, recap, null);
+    blob = await canvasToPng(canvas).catch(() => null);
+  }
+  if (recapShare.recap !== recap || !blob) return;
+  recapShare.file = new File([blob], "forja-my-week.png", { type: "image/png" });
+  const button = document.querySelector("#week-recap [data-recap=share]");
+  if (button) button.disabled = false;
+}
+
+async function shareImageFile(file) {
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] });
+    } catch (error) {
+      // Closing the share sheet lands here too - nothing to do.
+    }
+    return;
+  }
+  // No share sheet (most computers): save the image instead.
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+document.getElementById("week-recap").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-recap]");
+  if (!button) return;
+  if (button.dataset.recap === "hide") hideRecap();
+  else if (recapShare.file) shareImageFile(recapShare.file);
+});
+
 function buildFriendRequestRow(friendshipId, requesterName, requesterId) {
   const row = document.createElement("div");
   row.className = "leaderboard-row";
@@ -2619,6 +3181,8 @@ async function enterCompetitionTab() {
   friendsSectionEl.classList.remove("hidden");
   loadFriendRequests();
   loadLeaderboard();
+  loadLeague();
+  acceptPendingInvite(); // a username was just picked here, maybe
   if (typeof Challenges !== "undefined") Challenges.refresh();
 }
 
@@ -3247,9 +3811,11 @@ async function enterMeTab() {
   const promptEl = document.getElementById("profile-header-prompt");
   if (typeof Challenges !== "undefined") Challenges.showTrophies();
 
+  const inviteRowEl = document.getElementById("invite-row");
   if (!currentUserId) {
     headerEl.classList.add("hidden");
     promptEl.classList.add("hidden");
+    inviteRowEl.classList.add("hidden");
     return;
   }
 
@@ -3269,10 +3835,12 @@ async function enterMeTab() {
   if (!myUsername) {
     headerEl.classList.add("hidden");
     promptEl.classList.remove("hidden");
+    inviteRowEl.classList.add("hidden");
     return;
   }
 
   showMyHeader();
+  acceptPendingInvite(); // a username was just picked, maybe
   await loadFollowCounts();
 }
 
@@ -3292,6 +3860,8 @@ async function refreshMyColor() {
 function showMyHeader() {
   document.getElementById("profile-header-prompt").classList.add("hidden");
   document.getElementById("profile-header").classList.remove("hidden");
+  document.getElementById("invite-row").classList.remove("hidden");
+  loadInviteLink(); // ready before Share Link is tapped
   document.getElementById("profile-header-username").textContent = `@${myUsername}`;
   drawMyAvatar();
 }

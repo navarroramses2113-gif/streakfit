@@ -75,3 +75,19 @@ export const challengeOver = (TheChallenge: string, place: string) => ({
   title: "Forja",
   body: `${TheChallenge} is over. You came ${place}. We'll talk about it.`,
 });
+
+// Someone signed up (or came in) through your invite link.
+export const inviteJoined = (name: string) => ({ title: "Forja", body: `${name} joined from your link. You're friends now. Show them how it's done.` });
+
+// Monday morning: last week in one line. Zeros are left out; `distance` is
+// already worded in their units ("" = none); `place` and `of` are the league finish (0 = none).
+export function weeklyRecap(days: number, totals: { pushups: number; squats: number; plankSeconds: number; distance: string }, place: number, of: number) {
+  const parts: string[] = [];
+  if (totals.pushups > 0) parts.push(plural(totals.pushups, "push-up"));
+  if (totals.squats > 0) parts.push(plural(totals.squats, "squat"));
+  if (totals.plankSeconds > 0) parts.push(`${Math.floor(totals.plankSeconds / 60)}:${String(totals.plankSeconds % 60).padStart(2, "0")} of plank`);
+  if (totals.distance) parts.push(`${totals.distance} walked`);
+  const mood = days >= 6 ? "Monster week." : days >= 4 ? "Strong week." : days >= 2 ? "Solid start." : "A start is a start.";
+  const league = place > 0 && of > 1 ? ` #${place} of ${of} in your league.` : "";
+  return { title: `Your week: ${plural(days, "day")}`, body: `${mood} ${parts.join(", ") || "Every day counted"}.${league}` };
+}

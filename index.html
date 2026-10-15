@@ -4,6 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Forja</title>
+  <!-- What a shared link shows (iMessage, WhatsApp, Instagram DMs, X).
+       TODO when the domain is set: og:image and og:url become full
+       addresses (https://<domain>/og-image.png) - some apps ignore a
+       relative image. -->
+  <meta name="description" content="Workouts your camera verifies. Every rep counted, every streak real. Build a daily streak with friends.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Forja">
+  <meta property="og:title" content="Forja: workouts your camera verifies">
+  <meta property="og:description" content="Every rep counted, every streak real. Join me and build a daily streak.">
+  <meta property="og:image" content="og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Forja pet inside its ring: workouts your camera verifies">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <!-- Applies a saved Light theme before first paint, so it doesn't flash
@@ -16,7 +30,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=30">
+  <link rel="stylesheet" href="style.css?v=31">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. -->
@@ -331,6 +345,12 @@
         </select>
       </div>
 
+      <div id="leagues-setting" class="settings-row settings-checkbox-row hidden">
+        <label for="show-in-leagues">Show Me in Leagues</label>
+        <input type="checkbox" id="show-in-leagues" role="switch">
+      </div>
+      <p id="leagues-setting-note" class="settings-note hidden">Others in your weekly league see your username, color and points.</p>
+
       <p id="settings-status" class="error"></p>
     </div>
 
@@ -542,6 +562,9 @@
   <main id="app-screen" class="card hidden">
     <div id="tab-today" class="tab-panel">
       <h1 class="large-title">Today</h1>
+      <!-- Monday to Wednesday: last week in one card, with Share My Week
+           (weekly recap, script.js). -->
+      <section id="week-recap" class="week-recap hidden" aria-labelledby="week-recap-title"></section>
       <!-- The pet, where a daily quote used to be: it says what today
            still needs. When the day is done it jumps into the ring and
            talks from under it instead (celebrations.js). -->
@@ -660,7 +683,17 @@
           <div id="friend-requests-list" class="leaderboard"></div>
         </div>
 
-        <p class="section-heading">Leaderboard</p>
+        <!-- This week's league: everyone who trained, friends or not
+             (league_standings in the database). -->
+        <div id="league-section" class="hidden">
+          <p class="section-heading">This Week's League</p>
+          <div id="league-result" class="league-result hidden"></div>
+          <div id="league-card" class="league-card"></div>
+          <div id="league-list" class="leaderboard"></div>
+          <p class="league-how">Close your ring: 100 points. Walk or run: 1 point a minute, up to 60 a day. A new league starts every Monday.</p>
+        </div>
+
+        <p class="section-heading">Friends</p>
         <div id="leaderboard" class="leaderboard"></div>
 
         <!-- Friend challenges (challenges.js). For now a preview on sample
@@ -708,6 +741,18 @@
         </div>
       </div>
       <p id="profile-header-prompt" class="preview-note hidden">Set a username in Edit Profile to create your public profile.</p>
+
+      <!-- Your invite link: whoever joins from it is your friend at once. -->
+      <div id="invite-row" class="invite-row hidden">
+        <div class="invite-row-text">
+          <p class="invite-row-title">Invite Friends</p>
+          <p class="invite-row-sub">They join as your friend</p>
+        </div>
+        <button id="invite-share-button" class="invite-share-button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>
+          Share Link
+        </button>
+      </div>
 
       <div id="trophies-section" class="hidden">
         <p class="section-heading">Trophies</p>
@@ -846,8 +891,8 @@
   <script src="supabase/functions/_shared/game-rules.js?v=8"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=10"></script>
   <script src="camera-verify.js?v=11"></script>
-  <script src="onboarding.js?v=9"></script>
-  <script src="script.js?v=31"></script>
+  <script src="onboarding.js?v=10"></script>
+  <script src="script.js?v=32"></script>
   <script src="challenges.js?v=6"></script>
   <script src="celebrations.js?v=7"></script>
 </body>

@@ -226,6 +226,14 @@ const Onboarding = (function () {
   const continueButton = (ready) => cta("Continue", "next", !ready);
   const errorLine = () => (state.error ? `<p class="error${state.errorIsInfo ? " success" : ""}" role="alert">${esc(state.error)}</p>` : "");
 
+  // Came from someone's invite link (script.js peekInvite): say who, and
+  // that you'll be friends. The name only goes in as text.
+  function invitedBanner() {
+    if (typeof inviteFrom === "undefined" || !inviteFrom) return "";
+    const name = String(inviteFrom.name).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+    return `<div class="ob-invited">${avatarHtml(inviteFrom.name, "ob-invited-avatar")}<p><b>${name}</b> invited you<span>You'll be friends as soon as you sign up</span></p></div>`;
+  }
+
   // ---------- the screens ----------
   // body: the middle; footer: the buttons; centered: a celebration-style
   // screen; noBack: no going back from here.
@@ -233,7 +241,7 @@ const Onboarding = (function () {
     welcome: {
       centered: true,
       noBack: true,
-      body: () => `<svg class="ob-logo-ring" viewBox="0 0 84 84" aria-hidden="true"><use href="#forja-ring"></use></svg><svg class="ob-logo-word" viewBox="0 0 233 92.1" role="img" aria-label="Forja"><use href="#forja-word"></use></svg><p class="ob-lead">Show up every day. The camera counts your reps, so every streak is real.</p>`,
+      body: () => `<svg class="ob-logo-ring" viewBox="0 0 84 84" aria-hidden="true"><use href="#forja-ring"></use></svg><svg class="ob-logo-word" viewBox="0 0 233 92.1" role="img" aria-label="Forja"><use href="#forja-word"></use></svg><p class="ob-lead">Show up every day. The camera counts your reps, so every streak is real.</p>${invitedBanner()}`,
       footer: () => cta("Get Started", "next") + quiet("I already have an account", "login"),
     },
     goal: {
@@ -416,7 +424,7 @@ const Onboarding = (function () {
     friends: {
       centered: true,
       noBack: true,
-      body: () => `${mascot("happy")}<h1 class="ob-title">Forja is better with friends</h1><p class="ob-lead">Compete on the leaderboard and give each other kudos in the Feed.</p>`,
+      body: () => `${mascot("happy")}<h1 class="ob-title">Forja is better with friends</h1><p class="ob-lead">Send your link: whoever joins from it is your friend right away.</p>`,
       footer: () => cta("Invite Friends", "invite") + quiet("Not now", "finish"),
     },
   };
@@ -466,6 +474,8 @@ const Onboarding = (function () {
     current = id;
     state.error = "";
     state.errorIsInfo = false;
+    // The invite link is fetched ahead: the share sheet must open right in the tap.
+    if (id === "friends" && typeof loadInviteLink === "function") loadInviteLink();
     render();
   }
 
@@ -608,23 +618,9 @@ const Onboarding = (function () {
     go(nextScreen());
   }
 
+  // Your own invite link (script.js): whoever joins from it is your friend.
   async function invite() {
-    const text = myUsername ? `Add me on Forja! My username is ${myUsername}` : "Join me on Forja - a daily workout streak, verified by the camera.";
-    const url = location.origin + location.pathname;
-    if (navigator.share) {
-      try {
-        await navigator.share({ text, url });
-      } catch (e) {
-        return; // share sheet closed - stay here
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(`${text} ${url}`);
-      } catch (e) {
-        // nothing to copy to
-      }
-    }
-    finish();
+    if (await shareInviteLink()) finish(); // share sheet closed: stay here
   }
 
   function goToLogin() {
@@ -715,6 +711,10 @@ const Onboarding = (function () {
 
   return {
     isActive: () => active,
+    // Redraws the current screen (the welcome screen once it knows who invited you).
+    refresh() {
+      if (active) render();
+    },
     // The pet, for Today's celebrations (celebrations.js).
     mascot,
 
