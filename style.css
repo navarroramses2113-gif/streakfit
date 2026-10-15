@@ -5276,6 +5276,144 @@ a.account-menu-item {
   color: var(--warning);
 }
 
+/* The pet asking to turn on notifications: two small pills in its bubble
+   (34pt tall, 44pt touch area). */
+.pet-ask-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: 10px;
+}
+
+.pet-bubble.is-below .pet-ask-actions {
+  justify-content: center;
+}
+
+.pet-ask-button {
+  position: relative;
+  min-height: 34px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: var(--font-subhead);
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pet-ask-button::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.pet-ask-button.is-go {
+  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pet-ask-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pet-ask-button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* iPhone Safari: the Add to Home Screen steps, in a sheet. */
+.notif-sheet h2 {
+  margin: 6px 0 0;
+  font-size: var(--font-title3);
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+.notif-sheet-pet svg {
+  display: block;
+  width: 72px;
+  height: 81px;
+}
+
+.notif-sheet-sub {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-subhead);
+  line-height: 1.35;
+  color: var(--text-secondary);
+  text-wrap: balance;
+}
+
+.notif-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: 100%;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.notif-steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  font-size: var(--font-subhead);
+  line-height: 1.3;
+  background: var(--surface-solid);
+  border-radius: var(--radius-md);
+}
+
+.notif-steps small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--font-footnote);
+  color: var(--text-secondary);
+}
+
+.notif-step-n {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  font-size: var(--font-footnote);
+  font-weight: 800;
+  color: var(--accent-text);
+  background: #22c55e1f;
+  border-radius: 50%;
+}
+
+.notif-step-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: 0 2px;
+  vertical-align: middle;
+  color: #0a84ff;
+  background: var(--control-bg);
+  border-radius: 7px;
+}
+
+.notif-step-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.notif-sheet .auth-submit-button {
+  width: 100%;
+}
+
 /* "Ramsesn nudged you": their faces and name on a line of its own. */
 .pet-nudge-from {
   display: flex;

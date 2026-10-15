@@ -544,7 +544,9 @@ const Challenges = (function () {
     document.body.appendChild(scrim);
     scrim.querySelector("[data-ch-act=accept]").focus();
   }
-  const closeInvite = () => document.querySelectorAll(".challenge-scrim").forEach((el) => el.remove());
+  // Only invite sheets: the Me tab's color sheet uses the same look and
+  // lives in the page for good.
+  const closeInvite = () => document.querySelectorAll('.challenge-scrim[data-ch-act="close-sheet"]').forEach((el) => el.remove());
 
   async function respond(id, accept, button) {
     if (button.disabled) return;

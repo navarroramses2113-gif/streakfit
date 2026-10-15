@@ -997,7 +997,132 @@ enableRemindersEl.addEventListener("change", async () => {
     reminderHourRowEl.classList.add("hidden");
     remindersStatusEl.textContent = "Reminders turned off.";
   }
+  refreshNotifAskMode();
 });
+
+// ---------- asking for notifications again ----------
+// Most people never got asked: sign-up skips the question when the phone
+// can't do notifications yet (on iPhone a Safari tab never can, only the
+// Home Screen app). So Forja asks again at good moments - the ring just
+// closed, or a friend nudged you. Where one tap is enough the pet asks in
+// its bubble (celebrations.js); in iPhone Safari a sheet shows how to add
+// Forja to the Home Screen. At most every 3 days, and never again after 3
+// "no"s or once reminders are on. Kept per account on this phone.
+const NOTIF_ASK_KEY = "forja-notif-ask";
+const NOTIF_ASK_EVERY_DAYS = 3;
+const NOTIF_ASK_MAX_NO = 3;
+let notifAskMode = null; // "app" (one tap), "safari" (Home Screen steps) or null (don't ask)
+
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isHomeScreenApp = () => navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+
+function readNotifAsk() {
+  try {
+    return JSON.parse(localStorage.getItem(NOTIF_ASK_KEY) || "{}")[currentUserId] || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function writeNotifAsk(changes) {
+  try {
+    const all = JSON.parse(localStorage.getItem(NOTIF_ASK_KEY) || "{}");
+    all[currentUserId] = { ...(all[currentUserId] || {}), ...changes };
+    localStorage.setItem(NOTIF_ASK_KEY, JSON.stringify(all));
+  } catch (e) {
+    // storage blocked - it may just ask again
+  }
+}
+
+// What this phone can do right now; checked when the app opens, comes back
+// on screen, or the Settings switch changes.
+async function refreshNotifAskMode() {
+  const viewerId = currentUserId;
+  notifAskMode = null;
+  if (!viewerId) return;
+  const pushReady = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  if (isIOS() && !isHomeScreenApp()) {
+    notifAskMode = "safari";
+    return;
+  }
+  // No notifications in this browser at all, or turned down for good
+  // (only the phone's Settings can undo that).
+  if (!pushReady || Notification.permission === "denied") return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (viewerId === currentUserId) notifAskMode = subscription ? null : "app";
+  } catch (e) {
+    // can't tell - don't ask
+  }
+}
+
+// "app" or "safari" when it's a good time to ask, otherwise null.
+function notifAskNow() {
+  if (!notifAskMode || !currentUserId || Onboarding.isActive()) return null;
+  const asked = readNotifAsk();
+  if (asked.done || (asked.no || 0) >= NOTIF_ASK_MAX_NO) return null;
+  if (asked.last && ForjaRules.addDays(asked.last, NOTIF_ASK_EVERY_DAYS) > todayString()) return null;
+  return notifAskMode;
+}
+
+const notifAskShown = () => writeNotifAsk({ last: todayString() });
+const notifAskDeclined = () => writeNotifAsk({ last: todayString(), no: (readNotifAsk().no || 0) + 1 });
+
+// The pet's "Yes" button. Starts inside the tap, which iPhone needs to show
+// its own prompt. True once reminders are on.
+async function turnOnRemindersFromAsk() {
+  let on = false;
+  try {
+    on = await enableReminderNotifications();
+  } catch (e) {
+    on = false;
+  }
+  const refused = "Notification" in window && Notification.permission === "denied";
+  if (on || refused) {
+    notifAskMode = null;
+    writeNotifAsk({ done: true });
+  }
+  if (!on) showToast(refused ? "No problem. You can turn them on later in Settings." : "Couldn't turn on reminders. Try again in Settings.");
+  return on;
+}
+
+const SHARE_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
+const ADD_SQUARE_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
+
+// iPhone Safari: how to get Forja onto the Home Screen. Only over Today.
+// "Got It" isn't a no (they may be about to do it); Not Now or a tap
+// outside is.
+function openHomeScreenSheet(moment) {
+  const todayShown = !document.getElementById("app-screen").classList.contains("hidden") && !TABS.today.panel.classList.contains("hidden");
+  if (!todayShown || document.getElementById("notif-sheet") || !notifAskNow()) return;
+  notifAskShown();
+  const scrim = document.createElement("div");
+  scrim.id = "notif-sheet";
+  scrim.className = "challenge-scrim";
+  scrim.innerHTML = `
+    <div class="challenge-sheet notif-sheet" role="dialog" aria-modal="true" aria-labelledby="notif-sheet-title">
+      <span class="challenge-grabber"></span>
+      <span class="notif-sheet-pet">${Onboarding.mascot("happy")}</span>
+      <h2 id="notif-sheet-title">${moment === "done" ? "Keep your streak going tomorrow" : "Never miss a nudge"}</h2>
+      <p class="notif-sheet-sub">iPhone only sends reminders to apps on your Home Screen. Takes 20 seconds:</p>
+      <ol class="notif-steps">
+        <li><span class="notif-step-n">1</span><span>Tap <span class="notif-step-icon">${SHARE_ICON_SVG}</span> Share in Safari<small>Don't see it? Tap ••• first.</small></span></li>
+        <li><span class="notif-step-n">2</span><span>Tap <span class="notif-step-icon">${ADD_SQUARE_ICON_SVG}</span> Add to Home Screen</span></li>
+        <li><span class="notif-step-n">3</span><span>Open Forja from your Home Screen<small>Log in once more, then turn on reminders.</small></span></li>
+      </ol>
+      <button class="auth-submit-button" data-notif-sheet="ok">Got It</button>
+      <button class="challenge-text-button is-muted" data-notif-sheet="later">Not Now</button>
+    </div>`;
+  scrim.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-notif-sheet]");
+    if (event.target !== scrim && !button) return;
+    if (!button || button.dataset.notifSheet === "later") notifAskDeclined();
+    scrim.remove();
+  });
+  document.body.appendChild(scrim);
+  scrim.querySelector("[data-notif-sheet=ok]").focus();
+}
 
 reminderHourEl.addEventListener("change", () => {
   data.reminderHour = Number(reminderHourEl.value);
@@ -1825,6 +1950,7 @@ async function showApp(userId) {
   maybeCompleteDay();
   updateFriendRequestBadge();
   updateFeedBadge();
+  refreshNotifAskMode();
   loadReceivedNudges();
 
   if (signingUp) {
@@ -1942,6 +2068,7 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !currentUserId) return;
   updateFeedBadge();
   updateFriendRequestBadge();
+  refreshNotifAskMode();
   loadReceivedNudges();
 });
 

@@ -590,8 +590,10 @@ const Celebrations = (function () {
       streakCountEl.classList.add("pulse");
       setTimeout(() => streakCountEl.classList.remove("pulse"), 250);
       await wait(landed ? 260 : 0);
+      const milestoneDay = streak > 0 && streak % 7 === 0 && !isToday(MILESTONE_KEY);
+      askNotifications("done", milestoneDay);
       coachRender(true, todayProgress(), true);
-      if (streak > 0 && streak % 7 === 0 && !isToday(MILESTONE_KEY)) {
+      if (milestoneDay) {
         await wait(1300);
         await milestone(streak);
       }
@@ -681,30 +683,88 @@ const Celebrations = (function () {
   function setNudgers(names, userId, day) {
     const next = { names: names.slice(), userId, day };
     if (JSON.stringify(next) === JSON.stringify(nudgedBy)) return;
+    const newNudge = names.some((n) => !nudgedBy.names.includes(n));
     nudgedBy = next;
-    if (typeof data !== "undefined" && data) render();
+    if (typeof data === "undefined" || !data) return;
+    const p = todayProgress();
+    if (newNudge && data.lastLoggedDate !== todayString() && p.pushups + p.planks + p.squats + p.walkRun === 0) askNotifications("nudged");
+    render();
   }
+
+  // Asking for notifications (script.js decides whether and how): "app" =
+  // the pet asks here with a one-tap button; "safari" = a sheet with the
+  // Home Screen steps, once the pet has said its line.
+  let notifAsk = null; // { moment: "done" | "nudged", day, state: "ask" | "busy" | "on" }
+
+  // noSheet: a 7-day milestone is about to play; the sheet waits for
+  // another day rather than cover it.
+  function askNotifications(moment, noSheet) {
+    const mode = typeof notifAskNow === "function" ? notifAskNow() : null;
+    if (mode === "safari" && !noSheet) setTimeout(() => openHomeScreenSheet(moment), moment === "done" ? 1600 : 2600);
+    if (mode !== "app") return;
+    notifAsk = { moment, day: todayString(), state: "ask" };
+    notifAskShown();
+  }
+
+  const hourText = (h) => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
+
+  function askLine() {
+    const hour = hourText(data.reminderHour);
+    if (notifAsk.state === "on") return `Done. I'll ping you at <b>${hour}</b> on days you haven't trained.`;
+    const busy = notifAsk.state === "busy";
+    const ask = notifAsk.moment === "done" ? `Day <b>${data.streak}</b> done. Want me to remind you tomorrow?` : "Turn on notifications to see nudges right away.";
+    const yes = busy ? "Turning On..." : notifAsk.moment === "done" ? `Yes, ${hour}` : "Turn On";
+    return `${ask}<span class="pet-ask-actions"><button type="button" class="pet-ask-button is-go" data-notif-ask="yes"${busy ? " disabled" : ""}>${yes}</button><button type="button" class="pet-ask-button" data-notif-ask="no"${busy ? " disabled" : ""}>No Thanks</button></span>`;
+  }
+
+  // The bubble's buttons. "Yes" asks the phone right inside the tap.
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-notif-ask]");
+    if (!button || !notifAsk || notifAsk.state !== "ask") return;
+    const asking = notifAsk;
+    if (button.dataset.notifAsk === "no") {
+      notifAskDeclined();
+      notifAsk = null;
+      render();
+      return;
+    }
+    const turningOn = turnOnRemindersFromAsk();
+    asking.state = "busy";
+    render();
+    turningOn.then((on) => {
+      if (notifAsk !== asking) return;
+      if (on) asking.state = "on";
+      else notifAsk = null;
+      render();
+    });
+  });
 
   const escapeText = (text) => String(text).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
-  // "Ramsesn nudged you" with their faces, then what it's about.
-  function nudgeLine(names) {
+  // "Ramsesn nudged you" with their faces, then what it's about (left out
+  // while the pet asks about notifications, to keep the bubble short).
+  function nudgeLine(names, withWhy = true) {
     const name = (n) => `<b class="pet-nudge-name">${escapeText(n)}</b>`;
     const who = names.length === 1 ? name(names[0]) : names.length === 2 ? `${name(names[0])} and ${name(names[1])}` : `${name(names[0])} and ${names.length - 1} others`;
     const faces = names.slice(0, 3).map((n) => avatarHtml(n, "pet-nudge-avatar")).join("");
     const streak = liveStreak();
     const why = streak > 0 ? `Your <b>${streak}-day streak</b> is waiting. Show them!` : "One workout today and you're on the board.";
-    return `<span class="pet-nudge-from"><span class="pet-nudge-faces">${faces}</span><span>${who} nudged you</span></span>${why}`;
+    return `<span class="pet-nudge-from"><span class="pet-nudge-faces">${faces}</span><span>${who} nudged you</span></span>${withWhy ? why : ""}`;
   }
 
   // { moment, lines } for the day as it stands, or null while it's saving.
   // Nudged and nothing done yet: the pet says who nudged you first.
+  // Asked to turn on notifications: that line comes first.
   function coachSays(done, progress) {
     const says = coachSaysPlain(done, progress);
+    if (!says) return says;
+    const asking = notifAsk && notifAsk.day === todayString() ? notifAsk.moment : null;
+    if (done) return asking === "done" ? { moment: "done", lines: [askLine(), ...says.lines] } : says;
     const started = progress.pushups + progress.planks + progress.squats + progress.walkRun > 0;
     const nudged = nudgedBy.names.length > 0 && nudgedBy.userId === currentUserId && nudgedBy.day === todayString();
-    if (!says || done || started || !nudged) return says;
-    return { moment: "nudged", lines: [nudgeLine(nudgedBy.names), ...says.lines] };
+    if (started || !nudged) return says;
+    const first = asking === "nudged" ? nudgeLine(nudgedBy.names, false) + askLine() : nudgeLine(nudgedBy.names);
+    return { moment: "nudged", lines: [first, ...says.lines] };
   }
 
   function coachSaysPlain(done, progress) {
