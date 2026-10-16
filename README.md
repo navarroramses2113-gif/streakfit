@@ -4,7 +4,7 @@ A daily accountability app for building a workout habit without the friction
 of the gym. Log a quick set of bodyweight exercises — push-ups, planks,
 squats — each day to keep your streak alive.
 
-**Live app:** https://bejewelled-custard-f5b73c.netlify.app/
+**Live app:** https://getforja.app/
 
 ## Features
 
