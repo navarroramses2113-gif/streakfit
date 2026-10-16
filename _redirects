@@ -15,15 +15,21 @@
 /supabase/functions/challenge/*            /404.html  404!
 /supabase/functions/challenge-tick/*       /404.html  404!
 /supabase/functions/delete-account/*       /404.html  404!
+/supabase/functions/invite/*               /404.html  404!
 /supabase/functions/log-activity/*         /404.html  404!
 /supabase/functions/log-day/*              /404.html  404!
 /supabase/functions/notify-friend-request/* /404.html  404!
+/supabase/functions/nudge/*                /404.html  404!
 /supabase/functions/plan/*                 /404.html  404!
 /supabase/functions/send-reminders/*       /404.html  404!
 /supabase/functions/submit-set/*           /404.html  404!
+/supabase/functions/weekly-recap/*         /404.html  404!
 
 /supabase/functions/_shared/challenges.ts  /404.html  404!
 /supabase/functions/_shared/http.ts        /404.html  404!
+/supabase/functions/_shared/invite.ts      /404.html  404!
+/supabase/functions/_shared/nudge.ts       /404.html  404!
 /supabase/functions/_shared/pet-voice.ts   /404.html  404!
 /supabase/functions/_shared/plan.ts        /404.html  404!
 /supabase/functions/_shared/push.ts        /404.html  404!
+/supabase/functions/_shared/weekly.ts      /404.html  404!
