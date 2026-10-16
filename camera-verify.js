@@ -562,6 +562,8 @@ const ForjaCamera = (function () {
     $("reward-name").textContent = exercise.title;
     $("camera-result-label").textContent = exercise.kind === "plank" ? "plank hold" : exercise.title.toLowerCase();
     $("camera-result").classList.toggle("is-zero", result === 0);
+    // Sized by the final number so it doesn't shrink mid count-up.
+    $("camera-result").classList.toggle("is-long", fmt(result).length >= 4);
     $("camera-result").textContent = fmt(0);
     $("reward-today").innerHTML = "";
     $("reward-badges").innerHTML = "";
