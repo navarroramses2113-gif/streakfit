@@ -1378,7 +1378,7 @@ async function claimPendingUsername() {
 function render() {
   // Keeps the targets right if the app stays open past midnight.
   applyPlanTargets();
-  streakCountEl.textContent = data.streak;
+  streakCountEl.textContent = currentStreak();
   bestStreakCountEl.textContent = data.bestStreak;
 
   const progress = todayProgress();
@@ -1549,6 +1549,12 @@ function restDaySet() {
 
 function streakStats() {
   return { streak: data.streak, bestStreak: data.bestStreak, lastLoggedDate: data.lastLoggedDate, restDaysUsed: data.restDaysUsed, weekStartDate: data.weekStartDate };
+}
+
+// The streak as it stands today: 0 once it ran out of rest days, even
+// before the next workout updates the saved number.
+function currentStreak() {
+  return ForjaRules.shownStreak(streakStats(), todayString());
 }
 
 // Builds the "last 12 weeks" grid of small squares, one per day, colored
@@ -2679,8 +2685,9 @@ async function loadInviteLink() {
 }
 
 function inviteText() {
-  return data && data.streak > 1
-    ? `I'm on a ${data.streak}-day streak on Forja. Every rep is checked by the camera. Think you can keep up?`
+  const streak = data ? currentStreak() : 0;
+  return streak > 1
+    ? `I'm on a ${streak}-day streak on Forja. Every rep is checked by the camera. Think you can keep up?`
     : "Join me on Forja. Every rep is checked by the camera, so every streak is real.";
 }
 
@@ -2989,7 +2996,7 @@ function drawWeekRecap(recap) {
     <ol class="week-recap-days" aria-label="Days trained last week">
       ${recap.days.map((state, i) => `<li><span class="week-recap-dot ${state ? `is-${state}` : ""}" aria-label="${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][i]}: ${state === "on" ? "trained" : state === "rest" ? "rest day" : "missed"}">${state === "on" ? CHECK_SMALL_SVG : state === "rest" ? MOON_SVG : ""}</span><span aria-hidden="true">${DAY_LETTERS[i]}</span></li>`).join("")}
     </ol>
-    <p class="week-recap-count"><b>${days}</b> trained${rest} · streak <b>${Number(data.streak) || 0}</b></p>
+    <p class="week-recap-count"><b>${days}</b> trained${rest} · streak <b>${currentStreak()}</b></p>
     <div class="week-recap-stats">
       <div><b>${recap.pushups}</b><span><i style="--dot: var(--ring-pushups)"></i>push-ups</span></div>
       <div><b>${recap.squats}</b><span><i style="--dot: var(--ring-squats)"></i>squats</span></div>
@@ -3047,7 +3054,7 @@ function drawRecapImage(ctx, recap, logo) {
     ["Squats", String(recap.squats)],
     ["Plank", plankWords(recap.plank)],
     ["Walked", distanceWords(recap.km)],
-    ["Streak", `${Number(data.streak) || 0} days`],
+    ["Streak", `${currentStreak()} days`],
   ];
   if (recap.place) lines.push(["League", `#${recap.place} of ${recap.of}`]);
   lines.forEach(([label, value], i) => {
@@ -3419,7 +3426,7 @@ async function loadLeaderboard() {
   const friendIds = (friendships || []).map((f) => (f.requester_id === currentUserId ? f.addressee_id : f.requester_id));
 
   const today = todayString();
-  const combined = [{ name: myUsername, streak: data.streak, isYou: true, userId: currentUserId, doneToday: data.lastLoggedDate === today, nudged: false }];
+  const combined = [{ name: myUsername, streak: currentStreak(), isYou: true, userId: currentUserId, doneToday: data.lastLoggedDate === today, nudged: false }];
 
   if (friendIds.length > 0) {
     // Streaks come from player_stats, which only the server can write.
@@ -3430,16 +3437,26 @@ async function loadLeaderboard() {
     const midnight = new Date();
     midnight.setHours(0, 0, 0, 0);
     const [{ data: profiles }, { data: statsRows }, { data: nudgeRows }] = await Promise.all([
-      supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", friendIds),
-      supabaseClient.from("player_stats").select("user_id, streak, last_logged_date").in("user_id", friendIds),
+      supabaseClient.from("profiles").select("user_id, username, avatar_color, time_zone").in("user_id", friendIds),
+      supabaseClient.from("player_stats").select("user_id, streak, last_logged_date, rest_days_used, week_start_date").in("user_id", friendIds),
       supabaseClient.from("nudges").select("receiver_id").eq("sender_id", currentUserId).gte("created_at", midnight.toISOString()),
     ]);
     rememberAvatarColors(profiles);
 
     const usernameByUserId = {};
+    const zoneByUserId = {};
     (profiles || []).forEach((p) => {
       usernameByUserId[p.user_id] = p.username;
+      zoneByUserId[p.user_id] = p.time_zone;
     });
+    // A friend's streak is over once their own day passes with no rest day
+    // left, so it's judged by their date (yours if they never saved a zone).
+    const friendStreak = (id, stats) => {
+      if (!stats) return 0;
+      const zone = zoneByUserId[id];
+      const theirToday = ForjaRules.isValidTimeZone(zone) ? ForjaRules.localDate(zone, Date.now()) : today;
+      return ForjaRules.shownStreak({ streak: stats.streak, lastLoggedDate: stats.last_logged_date, restDaysUsed: stats.rest_days_used, weekStartDate: stats.week_start_date }, theirToday);
+    };
     const statsByUserId = {};
     (statsRows || []).forEach((row) => {
       statsByUserId[row.user_id] = row;
@@ -3452,7 +3469,7 @@ async function loadLeaderboard() {
       const stats = statsByUserId[id];
       combined.push({
         name: usernameByUserId[id] || "Unknown",
-        streak: (stats && stats.streak) || 0,
+        streak: friendStreak(id, stats),
         isYou: false,
         userId: id,
         doneToday: !!(stats && stats.last_logged_date && stats.last_logged_date >= today),

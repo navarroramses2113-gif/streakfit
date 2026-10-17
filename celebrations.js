@@ -627,8 +627,7 @@ const Celebrations = (function () {
   }
   // The streak today's workout would carry on (0 = it's already gone).
   function liveStreak() {
-    const stats = statsNow();
-    return stats.lastLoggedDate && ForjaRules.nextStats(stats, todayString()).streak > 1 ? stats.streak : 0;
+    return ForjaRules.shownStreak(statsNow(), todayString());
   }
   // True when skipping today would end it (no rest day left to cover it).
   function streakEndsTonight() {

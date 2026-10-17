@@ -116,6 +116,15 @@
     };
   }
 
+  // The streak to show on `today`: the saved one while a workout today
+  // would still carry it on, 0 once it's over. The saved number only
+  // changes when a day is logged, so a streak that ran out of rest days
+  // would otherwise keep showing until the next workout.
+  function shownStreak(stats, today) {
+    if (!stats.lastLoggedDate || !(stats.streak > 0)) return 0;
+    return nextStats(stats, today).streak > 1 ? stats.streak : 0;
+  }
+
   // Which days were rest days: missed days the streak survived. Nothing
   // stores them - a gap only becomes rest days when the next day is logged
   // and fits the week's allowance - so this replays nextStats over every
@@ -777,7 +786,7 @@
 
   return {
     FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, ACTIVITY, PLAN_RULES, EXERCISE_KEYS,
-    isValidDay, daysBetween, weekOf, dayInRange, totalsFromSets, shortfalls, nextStats, restDays, feedPost, routeDistanceKm, checkActivity,
+    isValidDay, daysBetween, weekOf, dayInRange, totalsFromSets, shortfalls, nextStats, shownStreak, restDays, feedPost, routeDistanceKm, checkActivity,
     ROUTE_PRIVACY_M, simplifyRoute, encodePolyline, decodePolyline, trimRouteEnds, feedRoute,
     stepSize, startTargets, newPlan, planOn, completePlanDay,
     planShortfalls, setCountsFromSets, planFromMinimums, planFromRow, planToRow, nextLevelUp, addDays,
