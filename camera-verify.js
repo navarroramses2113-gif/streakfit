@@ -162,6 +162,7 @@ const ForjaCamera = (function () {
   let session = null;
   let sessionSize = { w: 0, h: 0 }; // the video's shape the recording is measured in
   let lastResult = null; // the counter's latest result this set (what's counted so far)
+  let seenThisSet = false; // the pose model has found a body at some point this set
   let setStartMs = 0;
   let lastProcessedMs = -Infinity;
   let onSave = null;
@@ -315,9 +316,20 @@ const ForjaCamera = (function () {
   // What to fix, in words: the missing body parts, and how. A body lying
   // flat (push-ups, plank) rarely fits a phone standing upright - the feet
   // are what usually falls off the edge.
+  const isLying = () => exerciseKey === "pushup" || exerciseKey === "plank";
   function lyingInUprightFrame() {
     const video = $("camera-video");
-    return (exerciseKey === "pushup" || exerciseKey === "plank") && video.videoHeight > video.videoWidth;
+    return isLying() && video.videoHeight > video.videoWidth;
+  }
+
+  // No body found at all. The pose model finds a person by their face
+  // first, then follows the body from frame to frame - so someone already
+  // side-on with their head down (a push-up, a plank) can stay invisible
+  // even fully in frame, until they look at the camera once (2026-10-17:
+  // legs in view, no lines, the camera reopened twice).
+  function noBodyHint() {
+    if (!isLying()) return exercise.lost;
+    return seenThisSet ? "Lost you - look at the camera for a second" : "Look at the camera for a second so it finds you, then get down";
   }
   function missingHint(missing) {
     const parts = [...new Set(missing.map((joint) => PART_NAMES[joint]))];
@@ -438,6 +450,7 @@ const ForjaCamera = (function () {
   // replays the recording with.
   function handleFrame(output, t) {
     const landmarks = output.landmarks && output.landmarks[0];
+    if (landmarks) seenThisSet = true;
     const side = landmarks ? pickSide(landmarks) : null;
 
     if (!side) {
@@ -454,7 +467,7 @@ const ForjaCamera = (function () {
       } else {
         const overlay = $("camera-overlay");
         overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
-        $("camera-state").textContent = lyingInUprightFrame() ? "Can't see you - turn the phone sideways, whole body in frame" : exercise.lost;
+        $("camera-state").textContent = noBodyHint();
       }
       $("camera-live").textContent = "";
       return;
@@ -579,6 +592,7 @@ const ForjaCamera = (function () {
     session = ForjaCounter.createSetSession(exerciseKey, video.videoWidth, video.videoHeight);
     sessionSize = { w: video.videoWidth, h: video.videoHeight };
     lastResult = null;
+    seenThisSet = false;
     lastBackupAt = -Infinity;
     backupDue = false;
     currentSideName = null;
