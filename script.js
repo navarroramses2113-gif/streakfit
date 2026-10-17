@@ -1445,7 +1445,60 @@ document.querySelectorAll(".verify-button").forEach((button) => {
 // so far is looked up on the way in, so the finished set can be compared.
 function openSetCamera(exercise, options = {}) {
   loadBestSet(exercise);
-  ForjaCamera.open(exercise, saveCameraSet, { ...options, reward: setReward });
+  ForjaCamera.open(exercise, saveCameraSet, { ...options, reward: setReward, backup: { user: currentUserId || "guest", day: todayString() } });
+}
+
+// A set the app closed on before it was saved (crash, iOS reclaiming
+// memory, a reload) comes back on the review screen the next time the app
+// opens, for the same account on the same day. If it was already on its
+// way to the server when the app closed, the server may have it: a set of
+// that exercise and number saved since then means it did.
+let recoveringSet = false;
+
+async function recoverUnsavedSet() {
+  if (recoveringSet || cameraIsOpen() || Onboarding.isActive() || !data) return;
+  const kept = ForjaCamera.unsavedSet();
+  if (!kept) {
+    ForjaCamera.dropUnsavedSet(); // nothing in it would count
+    return;
+  }
+  if (kept.tag.day !== todayString()) {
+    ForjaCamera.dropUnsavedSet(); // sets only count on their own day
+    return;
+  }
+  const who = currentUserId || "guest";
+  if (kept.tag.user !== who) return; // someone else's - kept for when they're back
+  recoveringSet = true;
+  try {
+    if (kept.sentAt && currentUserId) {
+      const { data: rows, error } = await supabaseClient
+        .from("verified_sets")
+        .select("value")
+        .eq("user_id", currentUserId)
+        .eq("day", kept.tag.day)
+        .eq("exercise", kept.exercise)
+        .gte("created_at", new Date(kept.sentAt - 60000).toISOString());
+      if (error || who !== (currentUserId || "guest")) return; // try again next time
+      if (rows.some((row) => row.value === kept.value)) {
+        ForjaCamera.dropUnsavedSet();
+        return;
+      }
+    }
+    if (cameraIsOpen() || Onboarding.isActive()) return;
+    loadBestSet(kept.exercise);
+    ForjaCamera.recover(saveCameraSet, {
+      reward: (exercise, value) => {
+        const reward = setReward(exercise, value);
+        if (reward) {
+          reward.line = `The app closed mid-set, but <b>I kept your ${value}${exercise === "plank" ? "s" : ""}</b>. Save it?`;
+          reward.face = "happy";
+        }
+        return reward;
+      },
+    });
+  } finally {
+    recoveringSet = false;
+  }
 }
 
 const SET_KEY = { pushup: "pushups", plank: "planks", squat: "squats" };
@@ -2002,6 +2055,8 @@ async function showApp(userId) {
     // on reminders right away, instead of needing to find the toggle
     // buried in Settings themselves.
     showScreen("reminder-setup-screen");
+  } else {
+    recoverUnsavedSet();
   }
 }
 
@@ -2141,6 +2196,7 @@ function showAppAsGuest() {
   data = loadLocalData() || defaultData();
   revealApp();
   maybeCompleteDay();
+  recoverUnsavedSet();
 }
 
 // Shows/hides the right button at the bottom of the Me tab depending on

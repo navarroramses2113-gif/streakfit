@@ -176,6 +176,50 @@ const ForjaCamera = (function () {
   let saved = false; // verified and waiting for "Done"
   let rewardRun = 0; // bumped to stop a reward animation that's no longer on screen
 
+  // A set in progress is copied to this phone as it goes, so an app that
+  // closes mid-set (a crash, iOS reclaiming memory, a reload) can't take
+  // the reps with it: the next time the app opens, the set is offered back
+  // to save (see recover). The copy is the same recording the server
+  // recounts, so nothing about it can be claimed that wasn't done. It's
+  // removed once the set is saved, redone or closed.
+  const BACKUP_KEY = "forja-unsaved-set";
+  const BACKUP_EVERY_MS = 3000;
+  let backupTag = null; // options.backup ({ user, day }): whose set this is, and for which day
+  let lastBackupAt = -Infinity;
+  let backupDue = false; // a rep just counted - copy it now, not in 3 s
+
+  function writeBackup(extra) {
+    if (!backupTag || !session) return;
+    lastBackupAt = performance.now();
+    backupDue = false;
+    try {
+      localStorage.setItem(BACKUP_KEY, JSON.stringify({ tag: backupTag, trace: session.trace(), ...extra }));
+    } catch (e) {
+      // storage full or blocked - this set just isn't backed up
+    }
+  }
+  function clearBackup() {
+    if (!backupTag) return;
+    try {
+      localStorage.removeItem(BACKUP_KEY);
+    } catch (e) {
+      // storage blocked - nothing was kept
+    }
+  }
+  // The kept set, recounted the way the server will, or null when there's
+  // none (or nothing in it would count).
+  function readBackup() {
+    try {
+      const kept = JSON.parse(localStorage.getItem(BACKUP_KEY) || "null");
+      if (!kept || !kept.tag || !kept.trace) return null;
+      const recount = ForjaCounter.recountTrace(kept.trace);
+      if (!recount.plausible || recount.value <= 0) return null;
+      return { ...kept, exercise: kept.trace.exercise, value: recount.value };
+    } catch (e) {
+      return null; // unreadable or a recording the server would refuse
+    }
+  }
+
   // The pose model is ~6 MB, so it only downloads the first time someone
   // actually opens the camera - not on every app load.
   async function loadModel() {
@@ -324,6 +368,7 @@ const ForjaCamera = (function () {
     if (!described) return;
     setFeedback(described.text, described.kind);
     attempts.push({ ok: described.kind === "good", text: described.text });
+    if (described.kind === "good") backupDue = true;
   }
 
   // t is milliseconds since the set started - the same clock the server
@@ -391,6 +436,7 @@ const ForjaCamera = (function () {
         lastProcessedMs = now;
         const t = Math.round(now - setStartMs);
         handleFrame(poseLandmarker.detectForVideo(video, now), t);
+        if (backupDue || now - lastBackupAt >= BACKUP_EVERY_MS) writeBackup();
         if (t >= AUTO_FINISH_MS) {
           finishSet();
           return;
@@ -445,7 +491,10 @@ const ForjaCamera = (function () {
     }
 
     const video = $("camera-video");
+    clearBackup(); // a new set: whatever was kept is done with
     session = ForjaCounter.createSetSession(exerciseKey, video.videoWidth, video.videoHeight);
+    lastBackupAt = -Infinity;
+    backupDue = false;
     currentSideName = null;
     prevState = "waiting";
     lastBuzzAt = -Infinity;
@@ -463,7 +512,13 @@ const ForjaCamera = (function () {
   function finishSet() {
     result = session.value();
     stopStream();
+    // Kept until it's saved: the review screen can be lost too.
+    if (result > 0) writeBackup();
+    else clearBackup();
+    showReview();
+  }
 
+  function showReview() {
     // The finished set gets its number and what it earned - none of the
     // live coaching text. (The rep-by-rep list is for debug mode only.)
     const counted = result > 0;
@@ -649,6 +704,7 @@ const ForjaCamera = (function () {
     rewardRun++;
     saved = false;
     stopStream();
+    clearBackup();
     if (onClose) onClose();
     else showScreen("app-screen");
   }
@@ -663,7 +719,11 @@ const ForjaCamera = (function () {
     button.disabled = true;
     button.textContent = "Verifying...";
 
+    // When it went out: if the app closes before the reply, the next start
+    // can tell whether the server already has it (see the app's recovery).
+    writeBackup({ sentAt: Date.now() });
     const outcome = await onSave({ exercise: exerciseKey, value: result, trace: session.trace() });
+    if (outcome && outcome.ok) clearBackup();
 
     if (!outcome || !outcome.ok) {
       $("camera-result-note").textContent = (outcome && outcome.error) || "Couldn't verify this set. Check your connection and try again.";
@@ -671,6 +731,7 @@ const ForjaCamera = (function () {
       // second time can't help, so point to Redo instead of "Try again".
       // Anything else (no signal, server busy) is worth retrying as-is.
       if (outcome && (outcome.code === "bad_trace" || outcome.code === "implausible")) {
+        clearBackup();
         button.classList.add("hidden");
         $("camera-close-button").classList.remove("hidden");
         return;
@@ -719,6 +780,12 @@ const ForjaCamera = (function () {
     });
     $("camera-save-button").addEventListener("click", saveSet);
     $("camera-close-button").addEventListener("click", close);
+    // Leaving the app mid-set is when iOS is most likely to close it.
+    const keepNow = () => {
+      if (running && document.visibilityState === "hidden") writeBackup();
+    };
+    document.addEventListener("visibilitychange", keepNow);
+    window.addEventListener("pagehide", () => running && writeBackup());
     let titleTaps = [];
     $("camera-title").addEventListener("click", () => {
       const now = Date.now();
@@ -748,6 +815,8 @@ const ForjaCamera = (function () {
   }
 
   return {
+    // options: { onClose, reward, backup: { user, day } } - backup keeps
+    // the set on this phone until it's saved (see BACKUP_KEY).
     open(key, saveCallback, options = {}) {
       wireButtonsOnce();
       exerciseKey = key;
@@ -755,6 +824,7 @@ const ForjaCamera = (function () {
       onSave = saveCallback;
       onClose = options.onClose || null;
       rewardFor = options.reward || null;
+      backupTag = options.backup || null;
       saved = false;
       rewardRun++;
       result = 0;
@@ -768,6 +838,41 @@ const ForjaCamera = (function () {
       renderSoundButton();
       setMode("idle");
       showScreen("camera-screen");
+    },
+
+    // The set kept from an app that closed before it was saved:
+    // { tag, exercise, value, sentAt? }, or null.
+    unsavedSet() {
+      const kept = readBackup();
+      return kept && { tag: kept.tag, exercise: kept.exercise, value: kept.value, sentAt: kept.sentAt || null };
+    },
+    dropUnsavedSet() {
+      try {
+        localStorage.removeItem(BACKUP_KEY);
+      } catch (e) {
+        // storage blocked
+      }
+    },
+    // Opens the kept set straight on the review screen (Save / Redo), as if
+    // it had just been finished. Same options as open().
+    recover(saveCallback, options = {}) {
+      const kept = readBackup();
+      if (!kept) return false;
+      wireButtonsOnce();
+      exerciseKey = kept.exercise;
+      exercise = ForjaCounter.EXERCISES[exerciseKey];
+      onSave = saveCallback;
+      onClose = options.onClose || null;
+      rewardFor = options.reward || null;
+      backupTag = kept.tag;
+      saved = false;
+      attempts = [];
+      session = { value: () => kept.value, trace: () => kept.trace };
+      result = kept.value;
+      $("camera-title").textContent = exercise.title;
+      showScreen("camera-screen");
+      showReview();
+      return true;
     },
   };
 })();
