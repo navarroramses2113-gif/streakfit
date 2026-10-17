@@ -3523,26 +3523,21 @@ async function loadLeaderboard() {
     const midnight = new Date();
     midnight.setHours(0, 0, 0, 0);
     const [{ data: profiles }, { data: statsRows }, { data: nudgeRows }] = await Promise.all([
-      supabaseClient.from("profiles").select("user_id, username, avatar_color, time_zone").in("user_id", friendIds),
+      supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", friendIds),
       supabaseClient.from("player_stats").select("user_id, streak, last_logged_date, rest_days_used, week_start_date").in("user_id", friendIds),
       supabaseClient.from("nudges").select("receiver_id").eq("sender_id", currentUserId).gte("created_at", midnight.toISOString()),
     ]);
     rememberAvatarColors(profiles);
 
     const usernameByUserId = {};
-    const zoneByUserId = {};
     (profiles || []).forEach((p) => {
       usernameByUserId[p.user_id] = p.username;
-      zoneByUserId[p.user_id] = p.time_zone;
     });
-    // A friend's streak is over once their own day passes with no rest day
-    // left, so it's judged by their date (yours if they never saved a zone).
-    const friendStreak = (id, stats) => {
-      if (!stats) return 0;
-      const zone = zoneByUserId[id];
-      const theirToday = ForjaRules.isValidTimeZone(zone) ? ForjaRules.localDate(zone, Date.now()) : today;
-      return ForjaRules.shownStreak({ streak: stats.streak, lastLoggedDate: stats.last_logged_date, restDaysUsed: stats.rest_days_used, weekStartDate: stats.week_start_date }, theirToday);
-    };
+    // A friend's streak is 0 once it ran out of rest days, judged by your
+    // date. (Their time zone stays private: profiles.time_zone isn't
+    // readable by other players - see security-cleanup-2026-10-17.sql.)
+    const friendStreak = (stats) =>
+      stats ? ForjaRules.shownStreak({ streak: stats.streak, lastLoggedDate: stats.last_logged_date, restDaysUsed: stats.rest_days_used, weekStartDate: stats.week_start_date }, today) : 0;
     const statsByUserId = {};
     (statsRows || []).forEach((row) => {
       statsByUserId[row.user_id] = row;
@@ -3555,7 +3550,7 @@ async function loadLeaderboard() {
       const stats = statsByUserId[id];
       combined.push({
         name: usernameByUserId[id] || "Unknown",
-        streak: friendStreak(id, stats),
+        streak: friendStreak(stats),
         isYou: false,
         userId: id,
         doneToday: !!(stats && stats.last_logged_date && stats.last_logged_date >= today),
