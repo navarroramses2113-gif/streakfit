@@ -163,6 +163,7 @@ const ForjaCamera = (function () {
   let sessionSize = { w: 0, h: 0 }; // the video's shape the recording is measured in
   let lastResult = null; // the counter's latest result this set (what's counted so far)
   let seenThisSet = false; // the pose model has found a body at some point this set
+  let pendingBuzzAt = null; // a rejection buzz waiting to see if the person stays (see settleBuzz)
   let setStartMs = 0;
   let lastProcessedMs = -Infinity;
   let onSave = null;
@@ -399,18 +400,38 @@ const ForjaCamera = (function () {
   }
 
   // Plays whatever sound this frame calls for (counted, rejected, ready...).
-  // The rejection buzz is also rate-limited: a flurry of fidgeting should
-  // never turn into a flurry of buzzing.
+  // The rejection buzz waits a moment first (see settleBuzz): getting up to
+  // grab the phone after the last rep looks like a bad rep or two and then
+  // a lost one, and that shouldn't buzz at anyone (2026-10-17).
+  const BUZZ_HOLD_MS = 800;
   function cue(result) {
     const name = ForjaCounter.soundCue(prevState, result, exercise.kind);
     prevState = result.state;
     if (!name) return;
     if (name === "reject") {
-      const now = performance.now();
-      if (now - lastBuzzAt < 1500) return;
-      lastBuzzAt = now;
+      // Lost sight mid-rep: nearly always someone leaving. The words say it.
+      if (result.event !== "abandoned") pendingBuzzAt = performance.now();
+      return;
     }
     Sound.play(name);
+  }
+
+  // A held buzz plays once BUZZ_HOLD_MS pass with the person still in
+  // place (in view, and for push-ups still roughly flat); leaving or
+  // standing up meanwhile cancels it. Still at most one buzz per 1.5 s - a
+  // flurry of fidgeting should never turn into a flurry of buzzing.
+  function settleBuzz(stillInPlace) {
+    if (pendingBuzzAt === null) return;
+    if (!stillInPlace) {
+      pendingBuzzAt = null;
+      return;
+    }
+    const now = performance.now();
+    if (now - pendingBuzzAt < BUZZ_HOLD_MS) return;
+    pendingBuzzAt = null;
+    if (now - lastBuzzAt < 1500) return;
+    lastBuzzAt = now;
+    Sound.play("reject");
   }
 
   // What a rep event means in words - used for the live feedback line AND
@@ -457,6 +478,7 @@ const ForjaCamera = (function () {
       const lost = session.push(t, null).r;
       lastResult = lost;
       cue(lost);
+      settleBuzz(false);
       noteEvent(lost);
       // Part of a body: show it and name what's cut off. None at all: the
       // general line.
@@ -477,6 +499,9 @@ const ForjaCamera = (function () {
     const { r, m } = session.push(t, joints);
     lastResult = r;
     cue(r);
+    // Push-ups happen flat on the floor; a body tilting up is someone
+    // getting up.
+    settleBuzz(exerciseKey !== "pushup" || !(m && m.tilt > 35));
 
     if (exercise.kind === "plank") {
       drawBody(landmarks, side, r.state === "holding");
@@ -593,6 +618,7 @@ const ForjaCamera = (function () {
     sessionSize = { w: video.videoWidth, h: video.videoHeight };
     lastResult = null;
     seenThisSet = false;
+    pendingBuzzAt = null;
     lastBackupAt = -Infinity;
     backupDue = false;
     currentSideName = null;
