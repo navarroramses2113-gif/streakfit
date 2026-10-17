@@ -160,6 +160,8 @@ const ForjaCamera = (function () {
   let exerciseKey = null;
   let exercise = null;
   let session = null;
+  let sessionSize = { w: 0, h: 0 }; // the video's shape the recording is measured in
+  let lastResult = null; // the counter's latest result this set (what's counted so far)
   let setStartMs = 0;
   let lastProcessedMs = -Infinity;
   let onSave = null;
@@ -296,6 +298,67 @@ const ForjaCamera = (function () {
     return { name, idx: JOINTS[name] };
   }
 
+  // Not every joint the exercise needs is visible: which ones are missing,
+  // on whichever side the camera sees best (null = no body at all).
+  const PART_NAMES = { shoulder: "shoulders", elbow: "elbows", wrist: "hands", hip: "hips", knee: "knees", ankle: "feet" };
+  function missingParts(landmarks) {
+    let best = null;
+    for (const idx of Object.values(JOINTS)) {
+      const vis = (joint) => landmarks[idx[joint]].visibility ?? 0;
+      const missing = exercise.needs.filter((joint) => vis(joint) < exercise.minVisibility);
+      const score = Math.min(...exercise.needs.map(vis));
+      if (!best || score > best.score) best = { idx, missing, score };
+    }
+    return best;
+  }
+
+  // What to fix, in words: the missing body parts, and how. A body lying
+  // flat (push-ups, plank) rarely fits a phone standing upright - the feet
+  // are what usually falls off the edge.
+  function lyingInUprightFrame() {
+    const video = $("camera-video");
+    return (exerciseKey === "pushup" || exerciseKey === "plank") && video.videoHeight > video.videoWidth;
+  }
+  function missingHint(missing) {
+    const parts = [...new Set(missing.map((joint) => PART_NAMES[joint]))];
+    const list = parts.length < 3 ? parts.join(" and ") : "whole body";
+    const far = missing.includes("ankle") || missing.includes("knee") || parts.length >= 3;
+    const how = far && lyingInUprightFrame() ? "turn the phone sideways or move it back" : far ? "move the phone back" : "turn side-on to the camera";
+    return `Can't see your ${list} - ${how}`;
+  }
+
+  // The joints it can see, drawn in gray, so it's clear the camera has you
+  // and what's cut off.
+  function drawPartial(landmarks, idx) {
+    const overlay = $("camera-overlay");
+    const ctx = overlay.getContext("2d");
+    const w = overlay.width;
+    const h = overlay.height;
+    const seen = (joint) => (landmarks[idx[joint]].visibility ?? 0) >= exercise.minVisibility;
+    const at = (joint) => ({ x: landmarks[idx[joint]].x * w, y: landmarks[idx[joint]].y * h });
+    ctx.clearRect(0, 0, w, h);
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#a1a1aa";
+    exercise.draw.forEach((joint, i) => {
+      const next = exercise.draw[i + 1];
+      if (!next || !seen(joint) || !seen(next)) return;
+      const a = at(joint);
+      const b = at(next);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    });
+    ctx.fillStyle = "#fff";
+    exercise.draw.filter(seen).forEach((joint) => {
+      const p = at(joint);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
   function drawBody(landmarks, side, good) {
     const overlay = $("camera-overlay");
     const ctx = overlay.getContext("2d");
@@ -379,17 +442,27 @@ const ForjaCamera = (function () {
 
     if (!side) {
       const lost = session.push(t, null).r;
+      lastResult = lost;
       cue(lost);
       noteEvent(lost);
-      const overlay = $("camera-overlay");
-      overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
-      $("camera-state").textContent = exercise.lost;
+      // Part of a body: show it and name what's cut off. None at all: the
+      // general line.
+      const partial = landmarks ? missingParts(landmarks) : null;
+      if (partial && partial.missing.length < exercise.needs.length) {
+        drawPartial(landmarks, partial.idx);
+        $("camera-state").textContent = missingHint(partial.missing);
+      } else {
+        const overlay = $("camera-overlay");
+        overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
+        $("camera-state").textContent = lyingInUprightFrame() ? "Can't see you - turn the phone sideways, whole body in frame" : exercise.lost;
+      }
       $("camera-live").textContent = "";
       return;
     }
 
     const joints = exercise.needs.map((joint) => [landmarks[side.idx[joint]].x, landmarks[side.idx[joint]].y]);
     const { r, m } = session.push(t, joints);
+    lastResult = r;
     cue(r);
 
     if (exercise.kind === "plank") {
@@ -429,8 +502,9 @@ const ForjaCamera = (function () {
   function loop() {
     if (!running) return;
     const video = $("camera-video");
-    if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    if (video.readyState >= 2 && video.currentTime !== lastVideoTime && video.videoWidth > 0) {
       lastVideoTime = video.currentTime;
+      if ((video.videoWidth !== sessionSize.w || video.videoHeight !== sessionSize.h) && videoChangedShape(video)) return;
       const now = performance.now();
       if (now - lastProcessedMs >= MIN_FRAME_GAP_MS) {
         lastProcessedMs = now;
@@ -490,9 +564,21 @@ const ForjaCamera = (function () {
       return;
     }
 
-    const video = $("camera-video");
     clearBackup(); // a new set: whatever was kept is done with
+    newSession();
+    $("camera-state").textContent = "Get in position";
+    running = true;
+    setMode("running");
+    $("camera-start-button").disabled = false;
+    loop();
+  }
+
+  // A fresh recording, measured in the video's current shape.
+  function newSession() {
+    const video = $("camera-video");
     session = ForjaCounter.createSetSession(exerciseKey, video.videoWidth, video.videoHeight);
+    sessionSize = { w: video.videoWidth, h: video.videoHeight };
+    lastResult = null;
     lastBackupAt = -Infinity;
     backupDue = false;
     currentSideName = null;
@@ -502,11 +588,25 @@ const ForjaCamera = (function () {
     setStartMs = performance.now();
     lastProcessedMs = -Infinity;
     $("camera-count").textContent = exercise.kind === "plank" ? "0.0" : "0";
-    $("camera-state").textContent = "Get in position";
-    running = true;
-    setMode("running");
-    $("camera-start-button").disabled = false;
-    loop();
+  }
+
+  // The phone turned (upright <-> sideways) mid-set, so the video changed
+  // shape. A recording keeps one shape - every angle is measured in it - so
+  // nothing counted yet: start the set over in the new shape, quietly.
+  // Something counted: end the set here so those reps go to Save, and the
+  // next set starts in the new shape. Returns true when the set ended.
+  function videoChangedShape(video) {
+    const overlay = $("camera-overlay");
+    overlay.width = video.videoWidth;
+    overlay.height = video.videoHeight;
+    const counted = lastResult && (exercise.kind === "plank" ? lastResult.bestMs > 0 || lastResult.state === "holding" : lastResult.count > 0);
+    if (counted) {
+      finishSet();
+      return true;
+    }
+    clearBackup();
+    newSession();
+    return false;
   }
 
   function finishSet() {
