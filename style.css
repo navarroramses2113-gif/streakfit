@@ -784,9 +784,11 @@ body {
   font-family: inherit;
   font-size: var(--font-footnote);
   font-weight: 700;
-  color: var(--text-secondary);
-  background: none;
-  border: 1px solid var(--border);
+  /* Green like every other action (Accept, Save set, New Challenge): a
+     lit pill reads as "tap me". Once sent it goes quiet (see .is-sent). */
+  color: var(--accent-text);
+  background: var(--accent-tint);
+  border: 1px solid color-mix(in srgb, var(--accent-text) 45%, transparent);
   border-radius: 999px;
   cursor: pointer;
 }
@@ -801,15 +803,19 @@ body {
   transform: translateY(-50%);
 }
 
+/* Sent: a plain gray "Nudged" with a check, like a finished task. */
 .nudge-button.is-sent {
-  color: var(--orange-light);
-  background: #c0855226;
-  border-color: var(--orange);
+  gap: 4px;
+  padding: 0 6px;
+  color: var(--text-muted);
+  background: none;
+  border-color: transparent;
   cursor: default;
 }
 
-:root[data-theme="light"] .nudge-button.is-sent {
-  color: var(--orange-dark);
+.nudge-button svg {
+  width: 13px;
+  height: 13px;
 }
 
 .nudge-button:disabled:not(.is-sent) {

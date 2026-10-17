@@ -2636,13 +2636,15 @@ function buildLeaderboardRow({ name, streak, isYou, userId, doneToday, nudged },
 }
 
 // ---------- friend nudges ----------
-// A "Nudge" pill in Kudos' look, warm once sent. Words only (like a
-// "Follow" pill) so names keep their room. The name only reaches the label
-// through setAttribute, never HTML.
+// A green "Nudge" pill (the look of every action); once sent, a quiet gray
+// "Nudged" with a check. (It used to copy Kudos, lit once sent - which read
+// as the opposite: the nudged friends looked like the ones to tap.) Words
+// only so names keep their room. The name only reaches the label through
+// setAttribute, never HTML.
 function drawNudgeButton(button, name, nudged) {
   button.disabled = nudged;
   button.classList.toggle("is-sent", nudged);
-  button.textContent = nudged ? "Nudged" : "Nudge";
+  button.innerHTML = nudged ? CHECK_SMALL_SVG + "Nudged" : "Nudge";
   button.setAttribute("aria-label", nudged ? `Nudged ${name}` : `Nudge ${name}`);
 }
 
