@@ -60,6 +60,8 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // who (if anyone) is signed in.
 let currentUserId = null;
 let data = null;
+// The account whose data finished loading onto the screen (see showApp).
+let shownUserId = null;
 
 // Today logs itself (see maybeCompleteDay): true while it's being saved,
 // and true after a save that failed, until the next attempt.
@@ -1965,6 +1967,7 @@ async function showApp(userId) {
     return;
   }
   data = result.data;
+  shownUserId = userId;
   // A brand new account brings along what this phone did as a guest today
   // (its plan's starting numbers came with `data`), and the username typed
   // when signing up.
@@ -1979,7 +1982,7 @@ async function showApp(userId) {
   // A new account's plan starts at the pace picked during sign-up.
   await Promise.all([loadServerStats(), refreshVerifiedProgress(), loadServerPlan(result.isNewAccount ? data.startPace : undefined)]);
   const signingUp = Onboarding.isActive();
-  revealApp(!signingUp);
+  revealApp(!signingUp && !cameraIsOpen());
   // Catches a day that hit its minimums but didn't get saved (no signal).
   maybeCompleteDay();
   updateFriendRequestBadge();
@@ -2110,7 +2113,24 @@ document.addEventListener("visibilitychange", () => {
   loadReceivedNudges();
   refreshMyColor();
   loadWeekRecap();
+  refreshServerNumbers();
 });
+
+// The streak, today's verified sets and the plan, fresh from the server -
+// the Home Screen app can stay open for days, and another phone may have
+// logged in between. Never mid-set or while a day saves, and it redraws
+// in place without changing screens.
+async function refreshServerNumbers() {
+  if (cameraIsOpen() || savingDay || shownUserId !== currentUserId) return;
+  const viewerId = currentUserId;
+  await Promise.all([loadServerStats(), refreshVerifiedProgress(), loadServerPlan()]);
+  if (viewerId !== currentUserId || !data) return;
+  revealApp(false);
+}
+
+function cameraIsOpen() {
+  return !document.getElementById("camera-screen").classList.contains("hidden");
+}
 
 // Lets someone use the full app without an account yet. Their data is
 // only saved to this browser (via saveData's guest branch) until they
@@ -2178,10 +2198,18 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
 
   if (session) {
     justLoggedOut = false;
+    // The same account again: supabase-js renews the login every hour
+    // (TOKEN_REFRESHED) and can announce it again when the app comes back
+    // on screen. Loading the whole app again would jump off whatever screen
+    // is open - mid-set, the camera closed and the reps were lost
+    // (2026-10-16). Coming back on screen refreshes what the server owns
+    // instead (see the visibilitychange listener).
+    if (session.user.id === shownUserId) return;
     showApp(session.user.id);
     return;
   }
 
+  shownUserId = null;
   currentUserId = null;
   data = null;
   serverPlan = null;
