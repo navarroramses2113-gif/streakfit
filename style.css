@@ -3474,7 +3474,16 @@ a.account-menu-item {
 /* The walk/run summary: a centered title, like the camera's "Nice work!". */
 .summary-title {
   text-align: center;
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+/* After a walk or run the title leads and the six numbers sit a step
+   below it (Title 2), so they read as one group rather than six headings.
+   The live tracking screen keeps its bigger numbers for glancing at. */
+#tracking-summary-screen .tracking-stat-value {
+  font-size: var(--font-title2);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* The calendar's month reads as a headline, like the iPhone's Calendar. */
