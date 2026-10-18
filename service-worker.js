@@ -2,7 +2,10 @@
 // separate from the page itself. It can intercept network requests -
 // which is what lets an app keep working offline.
 
-const CACHE_NAME = "streakfit-v5";
+// v6: earlier versions also saved Supabase's replies (workouts, friends,
+// profiles) here, where they outlived signing out. The new name makes the
+// "activate" step below delete that old cache with everything in it.
+const CACHE_NAME = "streakfit-v6";
 
 // The files needed to run the app at all. These get saved into the
 // browser's cache during "install", so they're available even offline.
@@ -62,12 +65,18 @@ self.addEventListener("activate", (event) => {
 // and offline support is purely a fallback rather than the default.
 //
 // Left alone (the browser handles them as if there were no service worker):
-// anything that isn't a plain GET (those can't be cached), and map pieces
-// for the Feed's route maps - thousands of small files that would only pile
-// up here, since the finished map pictures are kept instead.
+//  - anything that isn't a plain GET (those can't be cached)
+//  - Supabase: people's data, logins and server replies must never be
+//    kept on the device, where they'd outlive signing out
+//  - map pieces (the Feed's route maps and the live walk map): thousands
+//    of small files that would only pile up here
+const LEFT_ALONE_HOSTS = ["tiles.openfreemap.org", "tile.openstreetmap.org"];
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  if (new URL(event.request.url).hostname === "tiles.openfreemap.org") return;
+  const host = new URL(event.request.url).hostname;
+  if (host.endsWith(".supabase.co")) return;
+  if (LEFT_ALONE_HOSTS.some((h) => host === h || host.endsWith("." + h))) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {

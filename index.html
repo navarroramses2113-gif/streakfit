@@ -32,9 +32,11 @@
   <link rel="stylesheet" href="style.css?v=32">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
-       OpenStreetMap tiles - no API key needed. -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+       OpenStreetMap tiles - no API key needed. integrity = the file's
+       fingerprint: the browser refuses anything that isn't exactly this
+       file, so a hacked download server couldn't slip code into Forja. -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 
   <!-- PWA: lets the browser offer "Install App" / "Add to Home Screen" -->
   <link rel="manifest" href="manifest.json">
@@ -885,8 +887,10 @@
   </div>
 
   <!-- Supabase's client library - lets our JavaScript talk to our
-       database and handle user accounts/login. -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+       database and handle user accounts/login. Pinned to one exact version
+       (a plain "@2" would load whatever came out last, unchecked) with
+       its fingerprint, like Leaflet above. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
   <script src="supabase/functions/_shared/game-rules.js?v=9"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=11"></script>
   <script src="camera-verify.js?v=13"></script>
