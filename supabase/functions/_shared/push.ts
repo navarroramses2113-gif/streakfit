@@ -28,22 +28,43 @@ export function isKnownPushService(endpoint: string) {
 }
 
 type Subscription = { endpoint: string; p256dh: string; auth_key: string };
+type Text = { title: string; body: string };
+// pet-voice.ts messages carry their Spanish as `es`.
+type Payload = Text & { es?: Text };
+
+// The message in one person's language: the app saves "es" in their data
+// when it's used in Spanish; anything else gets English.
+export function inLanguage(payload: Payload, language: unknown): Text {
+  if (language === "es" && payload.es) return payload.es;
+  return { title: payload.title, body: payload.body };
+}
+
+// Each user's app language, read from their saved data (user_progress).
+// Unreadable: everyone gets English, as before.
+async function languagesOf(supabaseAdmin: ReturnType<typeof createClient>, userIds: string[]) {
+  const { data, error } = await supabaseAdmin.from("user_progress").select("user_id, language:data->>language").in("user_id", userIds);
+  if (error || !data) return new Map<string, unknown>();
+  return new Map((data as { user_id: string; language: unknown }[]).map((row) => [row.user_id, row.language]));
+}
 
 // Sends one notification to each given subscription, cleaning up any the
 // push service reports as dead (404/410 - uninstalled, permission revoked,
 // etc.) instead of retrying them forever. Returns which endpoints got it.
+// (A payload with Spanish attached goes out in English here; pick the
+// language first with inLanguage.)
 export async function sendPushToSubscriptions(
   supabaseAdmin: ReturnType<typeof createClient>,
   subscriptions: Subscription[],
-  payload: { title: string; body: string }
+  payload: Payload
 ) {
   const sentEndpoints: string[] = [];
   const expiredEndpoints: string[] = [];
+  const message = inLanguage(payload, "en");
 
   await Promise.all(
     subscriptions.filter((sub) => isKnownPushService(sub.endpoint)).map(async (sub) => {
       try {
-        await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } }, JSON.stringify(payload));
+        await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } }, JSON.stringify(message));
         sentEndpoints.push(sub.endpoint);
       } catch (err) {
         if (err && (err.statusCode === 404 || err.statusCode === 410)) {
@@ -60,18 +81,33 @@ export async function sendPushToSubscriptions(
   return { sent: sentEndpoints.length, sentEndpoints, expiredRemoved: expiredEndpoints.length };
 }
 
-// Sends one notification to every subscription belonging to the given users.
+// Sends one notification to every subscription belonging to the given
+// users, each in their own app language.
 export async function sendPushToUsers(
   supabaseAdmin: ReturnType<typeof createClient>,
   userIds: string[],
-  payload: { title: string; body: string }
+  payload: Payload
 ) {
   if (userIds.length === 0) return { sent: 0, sentEndpoints: [], expiredRemoved: 0 };
 
   const { data: subscriptions } = await supabaseAdmin
     .from("push_subscriptions")
-    .select("endpoint, p256dh, auth_key")
+    .select("endpoint, user_id, p256dh, auth_key")
     .in("user_id", userIds);
+  const subs = (subscriptions || []) as (Subscription & { user_id: string })[];
 
-  return sendPushToSubscriptions(supabaseAdmin, subscriptions || [], payload);
+  // Only messages with Spanish attached need the lookup.
+  const languages = payload.es ? await languagesOf(supabaseAdmin, userIds) : new Map<string, unknown>();
+  const spanish = subs.filter((sub) => languages.get(sub.user_id) === "es");
+  const english = subs.filter((sub) => languages.get(sub.user_id) !== "es");
+
+  const result = { sent: 0, sentEndpoints: [] as string[], expiredRemoved: 0 };
+  for (const [group, language] of [[english, "en"], [spanish, "es"]] as const) {
+    if (group.length === 0) continue;
+    const sent = await sendPushToSubscriptions(supabaseAdmin, group, inLanguage(payload, language));
+    result.sent += sent.sent;
+    result.sentEndpoints.push(...sent.sentEndpoints);
+    result.expiredRemoved += sent.expiredRemoved;
+  }
+  return result;
 }

@@ -12,6 +12,8 @@ const CACHE_NAME = "streakfit-v6";
 const FILES_TO_CACHE = [
   "./",
   "./index.html",
+  "./i18n.js",
+  "./i18n-es.js",
   "./style.css",
   "./script.js",
   "./supabase/functions/_shared/game-rules.js",

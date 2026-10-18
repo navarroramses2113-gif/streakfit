@@ -69,7 +69,7 @@ window.FORJA_ES = {
   "Automatic": "Automático",
   "Daily Reminders": "Recordatorios diarios",
   "Reminder time": "Hora del recordatorio",
-  "Distance units": "Unidades de distancia",
+  "Distance units": "Unidades",
   "Miles": "Millas",
   "Kilometers": "Kilómetros",
   "Weight (lb)": "Peso (lb)",

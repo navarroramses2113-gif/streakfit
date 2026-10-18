@@ -476,7 +476,18 @@
   </footer>
 </div>
 
+<!-- English or Spanish, like the app (i18n.js); this page's Spanish is its
+     own small file. -->
+<script src="i18n.js?v=1"></script>
+<script src="i18n-landing-es.js?v=1"></script>
 <script>
+  // The example week's letters (a lookup can't tell Tuesday's T from Thursday's).
+  if (ForjaI18n.lang === "es") {
+    document.querySelectorAll(".streak-row span").forEach((day, i) => {
+      if (!day.classList.contains("rest")) day.textContent = ["L", "M", "X", "J", "V", "S", "D"][i];
+    });
+  }
+
   // ---------- links to the app ----------
   // Netlify's "Pretty URLs" rewrites href="index.html" to "/" as it serves
   // this file, and "/" is this page, so tapping "Open the beta" just
@@ -531,10 +542,10 @@
   const error = document.getElementById("form-error");
   const joinButton = document.getElementById("join-button");
   const ERRORS = {
-    bad_email: "Enter an email like you@email.com.",
-    already_joined: "That email is already on the list. You're in.",
-    too_many: "Too many sign-ups from this connection. Try again in an hour.",
-    busy: "Lots of people are joining right now. Try again in a few minutes.",
+    bad_email: tr("Enter an email like you@email.com."),
+    already_joined: tr("That email is already on the list. You're in."),
+    too_many: tr("Too many sign-ups from this connection. Try again in an hour."),
+    busy: tr("Lots of people are joining right now. Try again in a few minutes."),
   };
   const showError = (text) => {
     email.setAttribute("aria-invalid", "true");
@@ -547,14 +558,14 @@
     const join = document.getElementById("join");
     join.innerHTML = `
       <div class="joined" role="status">
-        <div class="joined-top">${PET}<div><h2>You're on the list</h2><p>You're <span class="place">#${Number(place).toLocaleString()}</span> in line and a Founding Member.</p></div></div>
-        <p>Each friend who joins with your link moves you up 10 spots.${Number(referrals) ? ` ${Number(referrals) === 1 ? "1 friend has" : `${Number(referrals)} friends have`} joined so far.` : ""}</p>
+        <div class="joined-top">${PET}<div><h2>${tr("You're on the list")}</h2><p>${tr("You're {place} in line and a Founding Member.", { place: `<span class="place">#${Number(place).toLocaleString()}</span>` })}</p></div></div>
+        <p>${tr("Each friend who joins with your link moves you up 10 spots.")}${Number(referrals) ? " " + tr(Number(referrals) === 1 ? "1 friend has joined so far." : "{n} friends have joined so far.", { n: Number(referrals) }) : ""}</p>
         <div class="ref"><code id="ref-link"></code></div>
         <div class="ref-actions">
-          ${canShare ? '<button class="btn small" type="button" id="share">Share</button>' : ""}
-          <button class="btn small${canShare ? " ghost" : ""}" type="button" id="copy">Copy Link</button>
+          ${canShare ? `<button class="btn small" type="button" id="share">${tr("Share")}</button>` : ""}
+          <button class="btn small${canShare ? " ghost" : ""}" type="button" id="copy">${tr("Copy Link")}</button>
         </div>
-        <a class="beta-link" href="index.html">Start training in the beta now
+        <a class="beta-link" href="index.html">${tr("Start training in the beta now")}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
       </div>`;
     document.getElementById("ref-link").textContent = link.replace(/^https?:\/\//, "");
@@ -562,19 +573,19 @@
     copy.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(link);
-        copy.textContent = "Copied";
+        copy.textContent = tr("Copied");
       } catch (e) {
         const range = document.createRange();
         range.selectNodeContents(document.getElementById("ref-link"));
         const selection = getSelection();
         selection.removeAllRanges();
         selection.addRange(range);
-        copy.textContent = "Selected";
+        copy.textContent = tr("Selected");
       }
     });
     const share = document.getElementById("share");
     if (share) share.addEventListener("click", () => {
-      navigator.share({ title: "Forja", text: "The workout app you can't cheat. Join the waitlist with me:", url: link }).catch(() => {});
+      navigator.share({ title: "Forja", text: tr("The workout app you can't cheat. Join the waitlist with me:"), url: link }).catch(() => {});
     });
   }
 
@@ -587,7 +598,7 @@
       return;
     }
     joinButton.disabled = true;
-    joinButton.textContent = "Joining...";
+    joinButton.textContent = tr("Joining...");
     let reply;
     try {
       reply = await callWaitlist({
@@ -601,13 +612,13 @@
       reply = { ok: false, error: "offline" };
     }
     joinButton.disabled = false;
-    joinButton.textContent = "Join the waitlist";
+    joinButton.textContent = tr("Join the waitlist");
     if (reply.ok && reply.code) {
       store.set(WAITLIST_KEY, { code: reply.code });
       showJoined(reply);
       return;
     }
-    showError(ERRORS[reply.error] || (reply.error === "offline" ? "Couldn't reach Forja. Check your connection and try again." : "Something went wrong on our side. Try again in a minute."));
+    showError(ERRORS[reply.error] || (reply.error === "offline" ? tr("Couldn't reach Forja. Check your connection and try again.") : tr("Something went wrong on our side. Try again in a minute.")));
   });
   email.addEventListener("input", () => { email.removeAttribute("aria-invalid"); error.textContent = ""; });
   document.getElementById("offer-join").addEventListener("click", () => {
@@ -682,7 +693,7 @@
       if (rep < TARGET) {
         const phase = (inCycle % REP_MS) / REP_MS;
         draw((1 - Math.cos(phase * Math.PI * 2)) / 2);
-        stateEl.textContent = phase < 0.5 ? "Going down" : "Full rep";
+        stateEl.textContent = phase < 0.5 ? tr("Going down") : tr("Full rep");
         // The count lands as the arms lock out at the top.
         const counted = phase > 0.9 ? rep + 1 : rep;
         if (counted !== lastRep) {
@@ -692,7 +703,7 @@
         }
       } else {
         draw(0);
-        stateEl.textContent = "Ring slice closed";
+        stateEl.textContent = tr("Ring slice closed");
         if (lastRep !== TARGET) { lastRep = TARGET; setCount(TARGET); }
       }
       requestAnimationFrame(tick);
