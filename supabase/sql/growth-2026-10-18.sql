@@ -8,6 +8,7 @@
 create table if not exists private.admins (
   user_id uuid primary key references auth.users(id) on delete cascade
 );
+alter table private.admins enable row level security;
 revoke all on private.admins from public, anon, authenticated;
 insert into private.admins (user_id)
 select user_id from public.profiles where lower(username) = 'ramsesn'
