@@ -5453,14 +5453,25 @@ function drawShareImage(ctx, style, logo) {
   ctx.fillStyle = style.subtext;
   ctx.font = font(64, 700);
   ctx.fillText(`${unitWord} ${isRun ? "RUN" : "WALKED"}`, W / 2, 610);
-  ctx.fillStyle = style.text;
-  ctx.font = font(96, 800);
-  ctx.fillText(distanceInUnits > 0 ? formatDuration(shareRoute.durationMs / distanceInUnits) : "--", W / 2 - 230, 790);
-  ctx.fillText(formatDuration(shareRoute.durationMs), W / 2 + 230, 790);
-  ctx.fillStyle = style.subtext;
-  ctx.font = font(48, 700);
-  ctx.fillText(`PACE /${distanceUnitLabel().toUpperCase()}`, W / 2 - 230, 855);
-  ctx.fillText("TIME", W / 2 + 230, 855);
+  // Pace, time and steps in a row. (No calories: with the distance and time
+  // right here, they'd give away the weight they're worked out from.) A
+  // value too wide for its third, like 1:05:30 or 12,345, shrinks to fit.
+  const columns = [
+    [distanceInUnits > 0 ? formatDuration(shareRoute.durationMs / distanceInUnits) : "--", `PACE /${distanceUnitLabel().toUpperCase()}`],
+    [formatDuration(shareRoute.durationMs), "TIME"],
+    [ForjaRules.estimateSteps(shareRoute.distanceKm, shareRoute.durationMs).toLocaleString(), "STEPS"],
+  ];
+  columns.forEach(([value, label], i) => {
+    const x = W / 2 + (i - 1) * 330;
+    let size = 96;
+    ctx.font = font(size, 800);
+    while (size > 60 && ctx.measureText(value).width > 270) ctx.font = font(--size, 800);
+    ctx.fillStyle = style.text;
+    ctx.fillText(value, x, 790);
+    ctx.fillStyle = style.subtext;
+    ctx.font = font(48, 700);
+    ctx.fillText(label, x, 855);
+  });
 
   // The route.
   const placed = fitRoute(shareRoute.points, 140, 960, W - 280, 650, 20);
