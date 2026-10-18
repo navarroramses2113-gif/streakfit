@@ -346,6 +346,12 @@
         </select>
       </div>
 
+      <div class="settings-row">
+        <label id="body-weight-label" for="body-weight">Weight (lb)</label>
+        <input type="number" id="body-weight" inputmode="decimal" placeholder="–" aria-describedby="body-weight-note">
+      </div>
+      <p id="body-weight-note" class="settings-note">Optional, for walk and run calories. Stays on this phone.</p>
+
       <div id="leagues-setting" class="settings-row settings-checkbox-row hidden">
         <label for="show-in-leagues">Show Me in Leagues</label>
         <input type="checkbox" id="show-in-leagues" role="switch">
@@ -517,6 +523,15 @@
       <div class="tracking-stat">
         <span id="summary-elevation" class="tracking-stat-value">0</span>
         <span id="summary-elevation-label" class="tracking-stat-label">ft gain</span>
+      </div>
+      <!-- Estimates from distance, time and climbing (game-rules.js). -->
+      <div class="tracking-stat">
+        <span id="summary-steps" class="tracking-stat-value">0</span>
+        <span class="tracking-stat-label">steps</span>
+      </div>
+      <div class="tracking-stat">
+        <span id="summary-calories" class="tracking-stat-value">0</span>
+        <span class="tracking-stat-label">cal</span>
       </div>
     </div>
 
@@ -891,7 +906,7 @@
        (a plain "@2" would load whatever came out last, unchecked) with
        its fingerprint, like Leaflet above. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
-  <script src="supabase/functions/_shared/game-rules.js?v=9"></script>
+  <script src="supabase/functions/_shared/game-rules.js?v=10"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=11"></script>
   <script src="camera-verify.js?v=13"></script>
   <script src="onboarding.js?v=10"></script>

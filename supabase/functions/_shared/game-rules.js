@@ -238,6 +238,43 @@
     return { ok: true, kind: kmh >= ACTIVITY.RUN_KMH ? "run" : "walk", distanceM: Math.round(km * 1000), durationS: Math.round(durationMs / 1000) };
   }
 
+  // Steps and calories for a walk or run: estimates for the summary screen
+  // only, never part of a streak or anything friends see.
+  const ESTIMATES = {
+    WALK_STEP_M: 0.75, // an average adult's walking step
+    RUN_STEPS_PER_S: 2.7, // a typical running cadence (~160 a minute)...
+    RUN_STEP_M: [0.8, 1.6], // ...so faster runs take longer steps, within these
+    DEFAULT_WEIGHT_KG: 70, // used until someone enters their own
+    WEIGHT_KG: [30, 300], // what counts as a real weight
+  };
+
+  // Steps: the distance divided by one step's length.
+  function estimateSteps(distanceKm, durationMs) {
+    if (!(distanceKm > 0) || !(durationMs > 0)) return 0;
+    const meters = distanceKm * 1000;
+    const kmh = distanceKm / (durationMs / 3600000);
+    if (kmh < ACTIVITY.RUN_KMH) return Math.round(meters / ESTIMATES.WALK_STEP_M);
+    const [shortest, longest] = ESTIMATES.RUN_STEP_M;
+    const step = Math.min(longest, Math.max(shortest, meters / (durationMs / 1000) / ESTIMATES.RUN_STEPS_PER_S));
+    return Math.round(meters / step);
+  }
+
+  // Active calories (on top of what the body burns resting, like Apple's
+  // "Active Calories"), from the ACSM walking and running equations: the
+  // oxygen moving and climbing take, in ml per kg per minute, at 5 kcal per
+  // liter. Climbing counts the route's total elevation gain.
+  function activeCalories(distanceKm, durationMs, elevationGainM, weightKg) {
+    if (!(distanceKm > 0) || !(durationMs > 0)) return 0;
+    const [lightest, heaviest] = ESTIMATES.WEIGHT_KG;
+    const kg = weightKg >= lightest && weightKg <= heaviest ? weightKg : ESTIMATES.DEFAULT_WEIGHT_KG;
+    const minutes = durationMs / 60000;
+    const speed = (distanceKm * 1000) / minutes; // m/min
+    const climb = Math.max(0, elevationGainM || 0) / minutes; // m/min upward
+    const kmh = distanceKm / (durationMs / 3600000);
+    const oxygen = kmh >= ACTIVITY.RUN_KMH ? 0.2 * speed + 0.9 * climb : 0.1 * speed + 1.8 * climb;
+    return Math.round(((oxygen * kg * minutes) / 1000) * 5);
+  }
+
   // ---------- Route shapes ----------
   // Routes are [[lat, lng], ...]. Kept routes are stored small: first drop
   // the points that barely change the shape (Douglas-Peucker), then pack
@@ -787,6 +824,7 @@
   return {
     FLOORS, REST_DAYS_PER_WEEK, MAX_SETS_PER_DAY, MAX_REPS_PER_DAY, ACTIVITY, PLAN_RULES, EXERCISE_KEYS,
     isValidDay, daysBetween, weekOf, dayInRange, totalsFromSets, shortfalls, nextStats, shownStreak, restDays, feedPost, routeDistanceKm, checkActivity,
+    ESTIMATES, estimateSteps, activeCalories,
     ROUTE_PRIVACY_M, simplifyRoute, encodePolyline, decodePolyline, trimRouteEnds, feedRoute,
     stepSize, startTargets, newPlan, planOn, completePlanDay,
     planShortfalls, setCountsFromSets, planFromMinimums, planFromRow, planToRow, nextLevelUp, addDays,

@@ -456,6 +456,7 @@ distanceUnitsEl.addEventListener("change", () => {
   saveData(data);
   renderDistanceChart();
   renderPastRoutesList();
+  renderBodyWeightInput(); // lb <-> kg
   showSettingSaved();
 });
 
@@ -625,7 +626,66 @@ function renderSettingsInputs() {
   minWalkrunEl.value = walkRunEnabled ? data.minimums.walkRun : 15;
   minWalkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
   distanceUnitsEl.value = data.units;
+  renderBodyWeightInput();
 }
+
+// ---- Body weight (optional, for walk/run calories) ----
+//
+// Kept only on this device - never sent to the server - because the only
+// thing that uses it is the walk/run summary screen. Saved per account
+// (or "guest") in case two people share a phone. Stored in kg; shown in
+// lb when distances are in miles.
+const BODY_WEIGHT_KEY = "forja-body-weight";
+const KG_PER_LB = 0.45359237;
+const bodyWeightEl = document.getElementById("body-weight");
+
+function savedBodyWeights() {
+  try {
+    return JSON.parse(localStorage.getItem(BODY_WEIGHT_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+// This account's weight in kg, or null if it was never entered.
+function bodyWeightKg() {
+  const kg = savedBodyWeights()[currentUserId || "guest"];
+  return Number.isFinite(kg) ? kg : null;
+}
+
+function renderBodyWeightInput() {
+  const inPounds = data.units !== "km";
+  document.getElementById("body-weight-label").textContent = inPounds ? "Weight (lb)" : "Weight (kg)";
+  const kg = bodyWeightKg();
+  bodyWeightEl.value = kg === null ? "" : String(Math.round(inPounds ? kg / KG_PER_LB : kg));
+}
+
+bodyWeightEl.addEventListener("change", () => {
+  const weights = savedBodyWeights();
+  const who = currentUserId || "guest";
+  const typed = bodyWeightEl.value.trim();
+  const statusEl = document.getElementById("settings-status");
+  if (typed === "") {
+    delete weights[who];
+  } else {
+    const kg = Number(typed) * (data.units === "km" ? 1 : KG_PER_LB);
+    const [lightest, heaviest] = ForjaRules.ESTIMATES.WEIGHT_KG;
+    if (!(kg >= lightest && kg <= heaviest)) {
+      statusEl.textContent = `Enter your weight as a number, like ${data.units === "km" ? 70 : 160}.`;
+      statusEl.classList.remove("success");
+      renderBodyWeightInput();
+      return;
+    }
+    weights[who] = Math.round(kg * 10) / 10;
+  }
+  try {
+    localStorage.setItem(BODY_WEIGHT_KEY, JSON.stringify(weights));
+  } catch {
+    // Storage blocked: calories keep using the average weight.
+  }
+  renderBodyWeightInput();
+  showSettingSaved();
+});
 
 const minimumsStatusEl = document.getElementById("minimums-status");
 
@@ -5283,6 +5343,8 @@ function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode
 
   document.getElementById("summary-elevation").textContent = String(displayElevation(elevationGainM || 0));
   document.getElementById("summary-elevation-label").textContent = elevationUnitLabel();
+  document.getElementById("summary-steps").textContent = ForjaRules.estimateSteps(distanceKm, durationMs).toLocaleString();
+  document.getElementById("summary-calories").textContent = ForjaRules.activeCalories(distanceKm, durationMs, elevationGainM || 0, bodyWeightKg()).toLocaleString();
 
   // Share needs something left once the first and last 200 m are cut.
   shareRoute.points = ForjaRules.trimRouteEnds(route, ForjaRules.ROUTE_PRIVACY_M);
