@@ -469,7 +469,7 @@
       title: "Push-ups",
       countLabel: "Verified push-ups",
       graphLabel: "Elbow angle (last 8 seconds)",
-      tip: "Put the phone on the floor about 6 feet away and get into a plank <b>side-on</b>, with your whole body from head to feet in frame. Landscape works best. <b>Look at the camera for a second first</b> so it finds you, then get down. Arms straight to start, body flat and straight.",
+      tip: "Put the phone on the floor about 6 feet away and get into a plank <b>side-on</b>, with your whole body from head to feet in frame. Landscape works best. Arms straight to start, body flat and straight.",
       needs: ["shoulder", "elbow", "wrist", "hip", "ankle"],
       minVisibility: 0.4,
       draw: ["wrist", "elbow", "shoulder", "hip", "ankle"],
@@ -525,7 +525,7 @@
       title: "Plank",
       countLabel: "Plank hold (seconds)",
       graphLabel: "Body line angle - 180 is perfectly straight (last 8 seconds)",
-      tip: "Put the phone on the floor about 6 feet away and hold a plank <b>side-on</b>, on your forearms or hands, with your whole body from head to feet in frame. <b>Look at the camera for a second first</b> so it finds you, then get down. The clock starts after one second of good form. A wobble just pauses it.",
+      tip: "Put the phone on the floor about 6 feet away and hold a plank <b>side-on</b>, on your forearms or hands, with your whole body from head to feet in frame. The clock starts after one second of good form. A wobble just pauses it.",
       needs: ["shoulder", "hip", "ankle", "elbow"],
       // Recordings from before 2026-10-14 (trace v1) had no elbow; the
       // server still replays them, just without the arm check.
