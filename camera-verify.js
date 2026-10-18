@@ -333,11 +333,11 @@ const ForjaCamera = (function () {
     return (exerciseKey === "pushup" || exerciseKey === "plank") && video.videoHeight > video.videoWidth;
   }
   function missingHint(missing) {
-    const parts = [...new Set(missing.map((joint) => PART_NAMES[joint]))];
-    const list = parts.length < 3 ? parts.join(" and ") : "whole body";
+    const parts = [...new Set(missing.map((joint) => tr(PART_NAMES[joint])))];
+    const list = parts.length < 3 ? parts.join(tr(" and ")) : tr("whole body");
     const far = missing.includes("ankle") || missing.includes("knee") || parts.length >= 3;
-    const how = far && lyingInUprightFrame() ? "turn the phone sideways or move it back" : far ? "move the phone back" : "turn side-on to the camera";
-    return `Can't see your ${list} - ${how}`;
+    const how = far && lyingInUprightFrame() ? tr("turn the phone sideways or move it back") : far ? tr("move the phone back") : tr("turn side-on to the camera");
+    return tr("Can't see your {parts} - {how}", { parts: list, how });
   }
 
   // The joints it can see, drawn in gray, so it's clear the camera has you
@@ -441,19 +441,19 @@ const ForjaCamera = (function () {
     let kind = "bad", plain = null, detail = null;
     if (r.event === "rep") {
       kind = "good";
-      plain = "Counted";
+      plain = tr("Counted");
       detail = exercise.jointName + " " + Math.round(r.lastRep.depth) + "\u00b0, " + exercise.dropName + " down " + pct(r.lastRep.drop);
     } else if (r.event === "shallow") {
-      plain = "Go lower";
+      plain = tr("Go lower");
       detail = exercise.jointName + " only reached " + Math.round(r.depth) + "\u00b0";
     } else if (r.event === "too_fast") {
-      plain = "Slow down - control the movement";
+      plain = tr("Slow down - control the movement");
       detail = "faster than a real rep can be";
     } else if (r.event === "abandoned") {
-      plain = "Lost sight of you - that rep didn't count. Reset and go again.";
+      plain = tr("Lost sight of you - that rep didn't count. Reset and go again.");
       detail = "tracking was lost mid-rep";
     } else if (r.event && exercise.events[r.event]) {
-      plain = exercise.events[r.event].plain;
+      plain = tr(exercise.events[r.event].plain);
       detail = exercise.events[r.event].detail(r);
     }
     if (!plain) return null;
@@ -488,7 +488,7 @@ const ForjaCamera = (function () {
       } else {
         const overlay = $("camera-overlay");
         overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
-        say(lyingInUprightFrame() ? "Can't see you - turn the phone sideways, whole body in frame" : exercise.lost, true);
+        say(lyingInUprightFrame() ? tr("Can't see you - turn the phone sideways, whole body in frame") : tr(exercise.lost), true);
       }
       $("camera-live").textContent = "";
       return;
@@ -509,18 +509,18 @@ const ForjaCamera = (function () {
       // A wobble pauses the clock (it doesn't reset): say so, and what to fix.
       const fix =
         r.reason === "not_supported"
-          ? "Up on your forearms or hands"
+          ? tr("Up on your forearms or hands")
           : r.reason === "not_horizontal"
-            ? "Get flat - body should be horizontal"
+            ? tr("Get flat - body should be horizontal")
             : r.reason === "hips_sagging_or_piking"
-              ? "Straighten your body - hips level with shoulders and ankles"
-              : "Get into plank position";
+              ? tr("Straighten your body - hips level with shoulders and ankles")
+              : tr("Get into plank position");
       if (r.state === "holding") {
-        say(r.paused ? "Paused - " + fix.charAt(0).toLowerCase() + fix.slice(1) : "Holding - keep it straight", r.paused);
+        say(r.paused ? tr("Paused - {fix}", { fix: fix.charAt(0).toLowerCase() + fix.slice(1) }) : tr("Holding - keep it straight"), r.paused);
       } else {
         say(fix, true);
       }
-      setFeedback(r.bestMs > 0 ? "Best hold: " + (r.bestMs / 1000).toFixed(1) + "s" : "", r.bestMs > 0 ? "good" : "");
+      setFeedback(r.bestMs > 0 ? tr("Best hold: {s}s", { s: (r.bestMs / 1000).toFixed(1) }) : "", r.bestMs > 0 ? "good" : "");
       return;
     }
 
@@ -531,7 +531,7 @@ const ForjaCamera = (function () {
     // "get in position" - the start position has several conditions and
     // any one failing looks the same from outside.
     const hint = r.state === "waiting" && exercise.waitingHint ? exercise.waitingHint(m) : null;
-    say(hint || exercise.states[r.state] || "", !!hint);
+    say(tr(hint || exercise.states[r.state] || ""), !!hint);
     $("camera-live").textContent =
       Debug.isOn() && r.drop !== null ? exercise.dropName + " down " + pct(r.drop) + "  ·  " + exercise.anchorName + " moved " + pct(r.anchorMove) : "";
 
@@ -573,7 +573,7 @@ const ForjaCamera = (function () {
     // offered when there's nothing to save.
     $("camera-close-button").classList.toggle("hidden", mode === "running" || (mode === "review" && result > 0));
     $("camera-stage").classList.toggle("hidden", mode === "review");
-    if (mode !== "review") $("camera-title").textContent = exercise.title;
+    if (mode !== "review") $("camera-title").textContent = tr(exercise.title);
   }
 
   async function startSet() {
@@ -582,23 +582,23 @@ const ForjaCamera = (function () {
     Sound.prime();
     $("camera-start-button").disabled = true;
     setFeedback("", "");
-    say("Loading pose model (first time only)...");
+    say(tr("Loading pose model (first time only)..."));
     try {
       await loadModel();
     } catch (err) {
-      say("Couldn't load the camera model - check your connection and try again.", true);
+      say(tr("Couldn't load the camera model - check your connection and try again."), true);
       $("camera-start-button").disabled = false;
       return;
     }
 
-    say("Starting camera...");
+    say(tr("Starting camera..."));
     try {
       await startStream();
     } catch (err) {
       say(
         err && err.name === "NotAllowedError"
-          ? "Camera access was denied. Allow it in your browser settings to log workouts."
-          : "Couldn't start the camera on this device.",
+          ? tr("Camera access was denied. Allow it in your browser settings to log workouts.")
+          : tr("Couldn't start the camera on this device."),
         true
       );
       $("camera-start-button").disabled = false;
@@ -607,7 +607,7 @@ const ForjaCamera = (function () {
 
     clearBackup(); // a new set: whatever was kept is done with
     newSession();
-    say("Get in position");
+    say(tr("Get in position"));
     running = true;
     setMode("running");
     $("camera-start-button").disabled = false;
@@ -691,14 +691,14 @@ const ForjaCamera = (function () {
     resultUnit = exercise.kind === "plank" ? "s" : "";
     saved = false;
     // Without a reward there's no pet to say why nothing counted.
-    $("camera-result-note").textContent = !counted && !rewardFor ? "Make sure your whole body is in frame, side-on, and try again." : "";
+    $("camera-result-note").textContent = !counted && !rewardFor ? tr("Make sure your whole body is in frame, side-on, and try again.") : "";
     const save = $("camera-save-button");
     save.classList.toggle("hidden", !counted);
     save.classList.remove("is-verified");
     save.disabled = false;
-    save.textContent = "Save set";
+    save.textContent = tr("Save set");
     $("camera-redo-button").classList.remove("hidden");
-    $("camera-redo-button").textContent = counted ? "Redo set" : "Try again";
+    $("camera-redo-button").textContent = counted ? tr("Redo set") : tr("Try again");
     $("camera-attempts").classList.toggle("hidden", !Debug.isOn());
     renderAttempts();
     setMode("review");
@@ -780,8 +780,8 @@ const ForjaCamera = (function () {
     const still = () => run === rewardRun;
     const fmt = (n) => n + resultUnit;
     $("camera-screen").style.setProperty("--set-color", SET_COLORS[exerciseKey]);
-    $("reward-name").textContent = exercise.title;
-    $("camera-result-label").textContent = exercise.kind === "plank" ? "plank hold" : exercise.title.toLowerCase();
+    $("reward-name").textContent = tr(exercise.title);
+    $("camera-result-label").textContent = exercise.kind === "plank" ? tr("plank hold") : tr(exercise.title).toLowerCase();
     $("camera-result").classList.toggle("is-zero", result === 0);
     // Sized by the final number so it doesn't shrink mid count-up.
     $("camera-result").classList.toggle("is-long", fmt(result).length >= 4);
@@ -814,7 +814,7 @@ const ForjaCamera = (function () {
     });
     if (!still()) return;
     $("camera-result").textContent = fmt(result);
-    if (reward && result > 0) $("reward-today").innerHTML = `<b>${fmt(reward.total)}</b> of ${fmt(reward.target)} today`;
+    if (reward && result > 0) $("reward-today").innerHTML = tr("<b>{total}</b> of {target} today", { total: fmt(reward.total), target: fmt(reward.target) });
 
     if (finishedNow && !reducedMotion()) {
       const fill = $("reward-ring-fill");
@@ -883,7 +883,7 @@ const ForjaCamera = (function () {
       return;
     }
     button.disabled = true;
-    button.textContent = "Verifying...";
+    button.textContent = tr("Verifying...");
 
     // When it went out: if the app closes before the reply, the next start
     // can tell whether the server already has it (see the app's recovery).
@@ -892,7 +892,7 @@ const ForjaCamera = (function () {
     if (outcome && outcome.ok) clearBackup();
 
     if (!outcome || !outcome.ok) {
-      $("camera-result-note").textContent = (outcome && outcome.error) || "Couldn't verify this set. Check your connection and try again.";
+      $("camera-result-note").textContent = (outcome && outcome.error) || tr("Couldn't verify this set. Check your connection and try again.");
       // A recording the server refused will be refused again - sending it a
       // second time can't help, so point to Redo instead of "Try again".
       // Anything else (no signal, server busy) is worth retrying as-is.
@@ -903,7 +903,7 @@ const ForjaCamera = (function () {
         return;
       }
       button.disabled = false;
-      button.textContent = "Try again";
+      button.textContent = tr("Try again");
       return;
     }
 
@@ -911,7 +911,7 @@ const ForjaCamera = (function () {
       // The server's recount is the one that counts. Show it instead of
       // quietly saving a different number than the one on screen.
       $("camera-result").textContent = outcome.value + resultUnit;
-      $("camera-result-note").textContent = "Saved. The server's recount is the official number.";
+      $("camera-result-note").textContent = tr("Saved. The server's recount is the official number.");
       button.classList.add("hidden");
       $("camera-close-button").classList.remove("hidden");
       return;
@@ -921,19 +921,19 @@ const ForjaCamera = (function () {
     saved = true;
     $("camera-redo-button").classList.add("hidden");
     button.disabled = false;
-    button.textContent = "✓ Verified";
+    button.textContent = tr("✓ Verified");
     button.classList.remove("is-verified");
     void button.offsetWidth;
     button.classList.add("is-verified");
     setTimeout(() => {
-      if (saved) button.textContent = "Done";
+      if (saved) button.textContent = tr("Done");
     }, 900);
   }
 
   function renderSoundButton() {
     const on = Sound.isEnabled();
     $("camera-sound-button").setAttribute("aria-pressed", String(on));
-    $("camera-sound-button").setAttribute("aria-label", on ? "Sound on" : "Sound off");
+    $("camera-sound-button").setAttribute("aria-label", on ? tr("Sound on") : tr("Sound off"));
   }
 
   function wireButtonsOnce() {
@@ -977,7 +977,7 @@ const ForjaCamera = (function () {
         running = true;
         loop();
       } catch (err) {
-        say("Couldn't switch cameras.", true);
+        say(tr("Couldn't switch cameras."), true);
       }
     });
   }
@@ -998,10 +998,10 @@ const ForjaCamera = (function () {
       saved = false;
       rewardRun++;
       result = 0;
-      $("camera-title").textContent = exercise.title;
+      $("camera-title").textContent = tr(exercise.title);
       $("camera-screen").style.setProperty("--set-color", SET_COLORS[exerciseKey]);
-      $("camera-tip").innerHTML = exercise.tip;
-      $("camera-count-label").textContent = exercise.countLabel;
+      $("camera-tip").innerHTML = tr(exercise.tip);
+      $("camera-count-label").textContent = tr(exercise.countLabel);
       $("camera-count").textContent = exercise.kind === "plank" ? "0.0" : "0";
       say("");
       $("camera-live").textContent = "";
@@ -1040,7 +1040,7 @@ const ForjaCamera = (function () {
       attempts = [];
       session = { value: () => kept.value, trace: () => kept.trace };
       result = kept.value;
-      $("camera-title").textContent = exercise.title;
+      $("camera-title").textContent = tr(exercise.title);
       showScreen("camera-screen");
       showReview();
       return true;

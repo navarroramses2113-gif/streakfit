@@ -21,6 +21,7 @@ const Challenges = (function () {
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s) % 60).padStart(2, "0")}`;
   const ordinal = (n) => {
+    if (ForjaI18n.lang === "es") return `${n}.º`;
     const tens = n % 100;
     return `${n}${tens >= 11 && tens <= 13 ? "th" : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th"}`;
   };
@@ -44,35 +45,35 @@ const Challenges = (function () {
   };
 
   const EXERCISES = {
-    pushups: { name: "Push-ups", color: "var(--ring-pushups)", camera: "pushup" },
-    squats: { name: "Squats", color: "var(--ring-squats)", camera: "squat" },
-    planks: { name: "Plank", color: "var(--ring-planks)", camera: "plank" },
+    pushups: { name: tr("Push-ups"), color: "var(--ring-pushups)", camera: "pushup" },
+    squats: { name: tr("Squats"), color: "var(--ring-squats)", camera: "squat" },
+    planks: { name: tr("Plank"), color: "var(--ring-planks)", camera: "plank" },
   };
   const TYPES = {
-    rep: { name: "Rep Race", line: "Most reps wins", icon: ICON.bolt, color: EXERCISES.pushups.color },
-    lms: { name: "Last One Standing", line: "Miss your plan and you're out", icon: ICON.crown, color: "var(--ember)" },
-    climb: { name: "Climb", line: "Same workout, harder every day", icon: ICON.climb, color: "var(--accent)" },
-    dist: { name: "Distance", line: "Most distance walked or run wins", icon: ICON.route, color: "var(--ring-walkrun)" },
+    rep: { name: tr("Rep Race"), line: tr("Most reps wins"), icon: ICON.bolt, color: EXERCISES.pushups.color },
+    lms: { name: tr("Last One Standing"), line: tr("Miss your plan and you're out"), icon: ICON.crown, color: "var(--ember)" },
+    climb: { name: tr("Climb"), line: tr("Same workout, harder every day"), icon: ICON.climb, color: "var(--accent)" },
+    dist: { name: tr("Distance"), line: tr("Most distance walked or run wins"), icon: ICON.route, color: "var(--ring-walkrun)" },
   };
   const TIPS = {
-    rep: "Camera-verified reps only. Everyone starts at 0 on day 1. Most reps when it ends wins.",
-    lms: "Hit your own plan every day. Miss one and you're out. Last one left wins.",
-    climb: "Everyone does the same targets, and they go up every day. Miss a day and you're out. Last one left wins.",
-    dist: "Tracked walks and runs count. Most distance when it ends wins.",
+    rep: tr("Camera-verified reps only. Everyone starts at 0 on day 1. Most reps when it ends wins."),
+    lms: tr("Hit your own plan every day. Miss one and you're out. Last one left wins."),
+    climb: tr("Everyone does the same targets, and they go up every day. Miss a day and you're out. Last one left wins."),
+    dist: tr("Tracked walks and runs count. Most distance when it ends wins."),
   };
   const DAY_OPTIONS = [3, 7, 14, 30];
   // How many plan steps a Climb goes up each day (the server checks these).
-  const SPEEDS = { slow: { name: "Slow", steps: 1 }, medium: { name: "Medium", steps: 2 }, fast: { name: "Fast", steps: 3 } };
+  const SPEEDS = { slow: { name: tr("Slow"), steps: 1 }, medium: { name: tr("Medium"), steps: 2 }, fast: { name: tr("Fast"), steps: 3 } };
   const STEP = { pushups: 1, squats: 2, planks: 5 };
   const MAX_FRIENDS = 10;
   const ERRORS = {
-    too_many: "You're already in 4 challenges.",
-    rate_limited: "That's enough new challenges for today.",
-    not_friends: "Someone on the list isn't your friend anymore.",
-    closed: "That challenge already started.",
-    not_invited: "That invite isn't open anymore.",
+    too_many: tr("You're already in 4 challenges."),
+    rate_limited: tr("That's enough new challenges for today."),
+    not_friends: tr("Someone on the list isn't your friend anymore."),
+    closed: tr("That challenge already started."),
+    not_invited: tr("That invite isn't open anymore."),
   };
-  const errorText = (reply) => ERRORS[reply && reply.error] || "Couldn't reach the server. Check your connection.";
+  const errorText = (reply) => ERRORS[reply && reply.error] || tr("Couldn't reach the server. Check your connection.");
 
   // list: the server's challenges (null until loaded), trophies, the draft
   // being set up, and the friends you can invite (null until loaded).
@@ -88,14 +89,14 @@ const Challenges = (function () {
   };
   const challengeColor = (c) => (c.type === "rep" ? EXERCISES[c.exercise].color : TYPES[c.type].color);
   const challengeIcon = (c) => TYPES[c.type].icon;
-  const nameOf = (c) => ForjaRules.challengeName(c);
+  const nameOf = (c) => tr(ForjaRules.challengeName(c));
   const tile = (color, icon, extra = "") => `<span class="challenge-tile ${extra}" style="--c:${color}">${icon}</span>`;
   const avatar = (name) => avatarHtml(name); // no name: the plain person icon
   const backButton = (label, to) => `<button class="nav-back" data-ch-go="${to}">${ICON.back}${esc(label)}</button>`;
-  const tipButton = (type) => `<button class="tip-btn challenge-tip-btn" data-ch-tip="${type}" aria-label="How it works" aria-expanded="false">i</button>`;
+  const tipButton = (type) => `<button class="tip-btn challenge-tip-btn" data-ch-tip="${type}" aria-label="${tr("How it works")}" aria-expanded="false">i</button>`;
   const shortDate = (day) => {
     const [year, month, date] = day.split("-").map(Number);
-    return new Date(year, month - 1, date).toLocaleDateString([], { month: "short", day: "numeric" });
+    return new Date(year, month - 1, date).toLocaleDateString(trLocale([]), { month: "short", day: "numeric" });
   };
 
   // A score as people read it: reps, plank time, or distance in their unit.
@@ -172,35 +173,35 @@ const Challenges = (function () {
   }
 
   function startsText(c) {
-    if (c.dayNumber === 0) return "Starts tomorrow";
-    return c.dayNumber < 0 ? `Starts ${shortDate(c.startDay)}` : "Starting";
+    if (c.dayNumber === 0) return tr("Starts tomorrow");
+    return c.dayNumber < 0 ? tr("Starts {date}", { date: shortDate(c.startDay) }) : tr("Starting");
   }
 
   // The card's one status line: [plain part, bold part].
   function cardLine(c) {
-    if (c.myStatus === "invited") return [`From ${c.from || "a friend"}`, ""];
-    if (c.status === "cancelled") return ["Didn't start", "Nobody joined"];
-    if (c.status === "ended") return ["Ended", c.myPlace === 1 ? "You won" : `You came ${ordinal(c.myPlace)}`];
+    if (c.myStatus === "invited") return [tr("From {name}", { name: c.from || tr("a friend") }), ""];
+    if (c.status === "cancelled") return [tr("Didn't start"), tr("Nobody joined")];
+    if (c.status === "ended") return [tr("Ended"), c.myPlace === 1 ? tr("You won") : tr("You came {place}", { place: ordinal(c.myPlace) })];
     if (c.status === "pending") {
       const friends = c.joinedCount - 1 + c.invitedCount;
-      return [startsText(c), c.fromYou ? `${c.joinedCount - 1} of ${friends} in` : "You're in"];
+      return [startsText(c), c.fromYou ? tr("{n} of {total} in", { n: c.joinedCount - 1, total: friends }) : tr("You're in")];
     }
     if (c.type === "rep" || c.type === "dist") {
-      const day = c.dayNumber > c.days ? "Last day done" : `Day ${c.dayNumber} of ${c.days}`;
-      return [day, `You're ${ordinal(myPlace(c))}`];
+      const day = c.dayNumber > c.days ? tr("Last day done") : tr("Day {n} of {total}", { n: c.dayNumber, total: c.days });
+      return [day, tr("You're {place}", { place: ordinal(myPlace(c)) })];
     }
     const me = c.players.find((p) => p.you);
-    if (me && me.outDay !== null) return [`Day ${c.dayNumber}`, `Out on day ${me.outDay}`];
+    if (me && me.outDay !== null) return [tr("Day {n}", { n: c.dayNumber }), tr("Out on day {n}", { n: me.outDay })];
     const left = c.players.filter((p) => p.outDay === null).length;
-    return [`Day ${c.dayNumber}`, c.type === "lms" ? `${left} left` : `${left} of ${c.players.length} still in`];
+    return [tr("Day {n}", { n: c.dayNumber }), c.type === "lms" ? tr("{n} left", { n: left }) : tr("{n} of {total} still in", { n: left, total: c.players.length })];
   }
 
   function card(c) {
     const [plain, bold] = cardLine(c);
     let end = `<span class="challenge-chevron">${ICON.chevron}</span>`;
-    if (c.myStatus === "invited") end = '<span class="challenge-pill is-invite">Invite</span>';
-    else if (c.status === "pending") end = '<span class="challenge-pill">Pending</span>';
-    else if (c.status === "ended") end = '<span class="challenge-pill is-result">Results</span>';
+    if (c.myStatus === "invited") end = `<span class="challenge-pill is-invite">${tr("Invite")}</span>`;
+    else if (c.status === "pending") end = `<span class="challenge-pill">${tr("Pending")}</span>`;
+    else if (c.status === "ended") end = `<span class="challenge-pill is-result">${tr("Results")}</span>`;
     else if (c.status === "cancelled") end = "";
     return `
       <button class="challenge-card" data-ch-open="${esc(c.id)}">${tile(challengeColor(c), challengeIcon(c))}
@@ -213,12 +214,12 @@ const Challenges = (function () {
     const listEl = $("challenge-list");
     if (state.list === null) {
       listEl.innerHTML = state.error
-        ? `<div class="challenge-message"><span>Couldn't load challenges.</span><button class="challenge-text-button" data-ch-act="retry">Try Again</button></div>`
+        ? `<div class="challenge-message"><span>${tr("Couldn't load challenges.")}</span><button class="challenge-text-button" data-ch-act="retry">${tr("Try Again")}</button></div>`
         : "";
       return;
     }
     if (state.list.length === 0) {
-      listEl.innerHTML = `<button class="challenge-new-row" data-ch-act="new">${ICON.plus}New Challenge</button>`;
+      listEl.innerHTML = `<button class="challenge-new-row" data-ch-act="new">${ICON.plus}${tr("New Challenge")}</button>`;
       return;
     }
     listEl.innerHTML = [...state.list].sort((a, b) => ORDER(a) - ORDER(b)).map(card).join("");
@@ -251,8 +252,8 @@ const Challenges = (function () {
   function typeView() {
     show(
       `
-      ${backButton("Competition", "tab")}
-      <h1 class="large-title">New Challenge</h1>
+      ${backButton(tr("Competition"), "tab")}
+      <h1 class="large-title">${tr("New Challenge")}</h1>
       <div class="challenge-picks">${Object.entries(TYPES).map(([key, t]) => `
         <button class="challenge-pick" data-ch-type="${key}">${tile(t.color, t.icon)}
           <span class="challenge-pick-text"><b>${t.name}</b><span>${t.line}</span></span>
@@ -286,66 +287,66 @@ const Challenges = (function () {
       .join("")}</div>`;
   }
 
-  const climbLine = (n) => `+${n * STEP.pushups} push-up${n > 1 ? "s" : ""} · +${n * STEP.squats} squats · +${mmss(n * STEP.planks)} plank a day`;
+  const climbLine = (n) => tr(n > 1 ? "+{pushups} push-ups · +{squats} squats · +{plank} plank a day" : "+{pushups} push-up · +{squats} squats · +{plank} plank a day", { pushups: n * STEP.pushups, squats: n * STEP.squats, plank: mmss(n * STEP.planks) });
 
   function setupView() {
     const d = state.draft;
-    const days = `<p class="section-heading">Days</p>${segmented("days", DAY_OPTIONS.map((n) => [n, n]), d.days, "Days")}`;
+    const days = `<p class="section-heading">${tr("Days")}</p>${segmented("days", DAY_OPTIONS.map((n) => [n, n]), d.days, tr("Days"))}`;
     let body = "";
     if (d.type === "rep") {
       body = `
-        <div class="challenge-field"><p class="section-heading">Exercise</p>${segmented("exercise", Object.entries(EXERCISES).map(([key, ex]) => [key, ex.name]), d.exercise, "Exercise")}</div>
+        <div class="challenge-field"><p class="section-heading">${tr("Exercise")}</p>${segmented("exercise", Object.entries(EXERCISES).map(([key, ex]) => [key, ex.name]), d.exercise, tr("Exercise"))}</div>
         <div class="challenge-field">${days}</div>`;
     } else if (d.type === "dist") {
       body = `<div class="challenge-field">${days}</div>`;
     } else if (d.type === "lms") {
-      body = `<p class="challenge-rule">Miss your plan once and you're out.</p>`;
+      body = `<p class="challenge-rule">${tr("Miss your plan once and you're out.")}</p>`;
     } else {
       body = `
-        <div class="challenge-field"><p class="section-heading">Day 1</p>
+        <div class="challenge-field"><p class="section-heading">${tr("Day 1")}</p>
           <div class="challenge-steppers">${Object.entries(EXERCISES).map(([key, ex]) => {
             const value = d.targets[key];
             return `
             <div class="challenge-stepper" style="--c:${ex.color}">
               <span class="challenge-dot"></span><span class="challenge-stepper-name">${ex.name}</span>
-              <button class="challenge-step-button" data-ch-step="${key}" data-ch-dir="-1" aria-label="Fewer" ${value - STEP[key] < ForjaRules.FLOORS[key] ? "disabled" : ""}>${ICON.minus}</button>
+              <button class="challenge-step-button" data-ch-step="${key}" data-ch-dir="-1" aria-label="${tr("Fewer")}" ${value - STEP[key] < ForjaRules.FLOORS[key] ? "disabled" : ""}>${ICON.minus}</button>
               <span class="challenge-step-value">${key === "planks" ? mmss(value) : value}</span>
-              <button class="challenge-step-button" data-ch-step="${key}" data-ch-dir="1" aria-label="More">${ICON.plus}</button>
+              <button class="challenge-step-button" data-ch-step="${key}" data-ch-dir="1" aria-label="${tr("More")}">${ICON.plus}</button>
             </div>`;
           }).join("")}</div>
         </div>
-        <div class="challenge-field"><p class="section-heading">Goes up every day</p>
-          ${segmented("speed", Object.entries(SPEEDS).map(([key, s]) => [key, s.name]), d.speed, "How fast it goes up")}
+        <div class="challenge-field"><p class="section-heading">${tr("Goes up every day")}</p>
+          ${segmented("speed", Object.entries(SPEEDS).map(([key, s]) => [key, s.name]), d.speed, tr("How fast it goes up"))}
           <p class="challenge-climb-line">${climbLine(SPEEDS[d.speed].steps)}</p>
         </div>`;
     }
     show(
       `
-      ${backButton("New Challenge", "type")}
+      ${backButton(tr("New Challenge"), "type")}
       <div class="challenge-setup-head">
         ${tile(challengeColor(d), TYPES[d.type].icon, "is-large")}
         <div class="challenge-title-row"><h1 class="large-title">${esc(nameOf(d))}</h1>${tipButton(d.type)}</div>
       </div>
       ${body}
-      <p class="challenge-starts">Starts tomorrow</p>
-      <button class="auth-submit-button" data-ch-go="friends">Next</button>`,
+      <p class="challenge-starts">${tr("Starts tomorrow")}</p>
+      <button class="auth-submit-button" data-ch-go="friends">${tr("Next")}</button>`,
       "setup"
     );
   }
 
   function sendLabel() {
     const n = state.draft.friends.size;
-    if (state.sending) return "Sending...";
-    return n ? `Send ${n} Invite${n > 1 ? "s" : ""}` : "Pick a Friend";
+    if (state.sending) return tr("Sending...");
+    return n ? tr(n > 1 ? "Send {n} Invites" : "Send {n} Invite", { n }) : tr("Pick a Friend");
   }
 
   async function friendsView() {
     const d = state.draft;
     const draw = () => {
       let rows;
-      if (state.friends === null) rows = `<p class="preview-note">Loading friends...</p>`;
-      else if (state.friends === false) rows = `<div class="challenge-message"><span>Couldn't load your friends.</span><button class="challenge-text-button" data-ch-act="friends-retry">Try Again</button></div>`;
-      else if (state.friends.length === 0) rows = `<p class="preview-note">Add friends on the Competition tab first.</p>`;
+      if (state.friends === null) rows = `<p class="preview-note">${tr("Loading friends...")}</p>`;
+      else if (state.friends === false) rows = `<div class="challenge-message"><span>${tr("Couldn't load your friends.")}</span><button class="challenge-text-button" data-ch-act="friends-retry">${tr("Try Again")}</button></div>`;
+      else if (state.friends.length === 0) rows = `<p class="preview-note">${tr("Add friends on the Competition tab first.")}</p>`;
       else {
         rows = `<div class="leaderboard">${state.friends.map((f) => `
           <button class="leaderboard-row challenge-friend" role="checkbox" aria-checked="${d.friends.has(f.id)}" data-ch-friend="${esc(f.id)}">
@@ -355,7 +356,7 @@ const Challenges = (function () {
       show(
         `
         ${backButton(nameOf(d), "setup")}
-        <h1 class="large-title">Invite Friends</h1>
+        <h1 class="large-title">${tr("Invite Friends")}</h1>
         ${rows}
         <button id="challenge-send-button" class="auth-submit-button" data-ch-act="send" ${d.friends.size && !state.sending ? "" : "disabled"}>${sendLabel()}</button>`,
         "friends"
@@ -389,7 +390,7 @@ const Challenges = (function () {
     }
     state.draft = null;
     backToTab();
-    toast("Invites sent");
+    toast(tr("Invites sent"));
   }
 
   function friendsSendButton() {
@@ -409,7 +410,7 @@ const Challenges = (function () {
     const max = Math.max(1, ...c.players.map((p) => p.score));
     return `<div class="challenge-standings" style="--c:${challengeColor(c)}">${c.players.map((p) => {
       const place = 1 + c.players.filter((other) => other.score > p.score).length;
-      const today = p.today > 0 ? `${ICON.up}${esc(scoreText(c, p.today))}${c.type === "dist" ? ` ${scoreUnit(c)}` : ""} today` : "Nothing yet today";
+      const today = p.today > 0 ? ICON.up + tr("{value} today", { value: `${esc(scoreText(c, p.today))}${c.type === "dist" ? ` ${scoreUnit(c)}` : ""}` }) : tr("Nothing yet today");
       return `
       <div class="challenge-standing ${p.you ? "is-you" : ""}">
         <span class="leaderboard-rank ${place === 1 ? "is-first" : ""}">${place}</span>${avatar(p.name)}
@@ -424,8 +425,8 @@ const Challenges = (function () {
   function inOutRows(c, final) {
     const icon = (p) => (p.outDay !== null ? `<span class="challenge-state is-out">${ICON.x}</span>` : p.doneToday ? `<span class="challenge-state is-done">${ICON.check}</span>` : `<span class="challenge-state is-waiting">${ICON.clock}</span>`);
     const stillIn = c.players.filter((p) => p.outDay === null).length;
-    const finalNote = stillIn === 1 ? "Last one standing" : "Made it to the end";
-    const note = (p) => (p.outDay !== null ? `Out on day ${p.outDay}` : final ? finalNote : p.doneToday ? "Done today" : "Not yet today");
+    const finalNote = stillIn === 1 ? tr("Last one standing") : tr("Made it to the end");
+    const note = (p) => (p.outDay !== null ? tr("Out on day {n}", { n: p.outDay }) : final ? finalNote : p.doneToday ? tr("Done today") : tr("Not yet today"));
     return `<div class="challenge-standings">${c.players.map((p) => `
       <div class="challenge-standing no-rank ${p.you ? "is-you" : ""} ${p.outDay !== null ? "is-out" : ""}">
         ${avatar(p.name)}
@@ -437,7 +438,7 @@ const Challenges = (function () {
   function header(c) {
     const long = c.type === "lms";
     return `
-      ${backButton("Competition", "tab")}
+      ${backButton(tr("Competition"), "tab")}
       <div class="challenge-title-row">${tile(challengeColor(c), challengeIcon(c))}<h1 class="large-title ${long ? "is-long" : ""}">${esc(nameOf(c))}</h1>${tipButton(c.type)}</div>`;
   }
 
@@ -446,10 +447,10 @@ const Challenges = (function () {
     const others = c.players.filter((p) => !p.you);
     const best = Math.max(...others.map((p) => p.score));
     const unit = scoreUnit(c) ? ` ${scoreUnit(c)}` : "";
-    if (me.score > best) return `${scoreText(c, me.score - best)}${unit} ahead`;
-    if (me.score === best) return "Tied for 1st";
+    if (me.score > best) return tr("{gap} ahead", { gap: `${scoreText(c, me.score - best)}${unit}` });
+    if (me.score === best) return tr("Tied for 1st");
     const leader = others.find((p) => p.score === best);
-    return `${scoreText(c, best - me.score)}${unit} behind ${leader.name}`;
+    return tr("{gap} behind {name}", { gap: `${scoreText(c, best - me.score)}${unit}`, name: leader.name });
   }
 
   function detailView(c) {
@@ -460,11 +461,11 @@ const Challenges = (function () {
       html = `
         ${header(c)}
         ${dayBar(day, c.days, color)}
-        <p class="challenge-status">Day ${day} of ${c.days} · <b>${esc(raceStatus(c))}</b></p>
+        <p class="challenge-status">${tr("Day {n} of {total}", { n: day, total: c.days })} · <b>${esc(raceStatus(c))}</b></p>
         ${standings(c, false)}
         ${c.type === "rep"
-          ? `<button class="auth-submit-button challenge-icon-button" data-ch-act="camera" data-ch-exercise="${EXERCISES[c.exercise].camera}">${ICON.camera}Do a Set</button>`
-          : `<button class="auth-submit-button" data-ch-act="record">Start a Walk</button>`}`;
+          ? `<button class="auth-submit-button challenge-icon-button" data-ch-act="camera" data-ch-exercise="${EXERCISES[c.exercise].camera}">${ICON.camera}${tr("Do a Set")}</button>`
+          : `<button class="auth-submit-button" data-ch-act="record">${tr("Start a Walk")}</button>`}`;
     } else {
       const left = c.players.filter((p) => p.outDay === null).length;
       const me = c.players.find((p) => p.you);
@@ -472,14 +473,14 @@ const Challenges = (function () {
         ? `<div class="plan-card"><div class="plan-targets">${Object.entries(EXERCISES)
             .map(([key, ex]) => `<div><div class="plan-target-value">${key === "planks" ? mmss(c.targets.today[key]) : c.targets.today[key]}</div><div class="plan-target-name"><i style="background:${ex.color}"></i>${ex.name}</div></div>`)
             .join("")}</div>
-            <p class="challenge-tomorrow">Tomorrow <b>${c.targets.tomorrow.pushups} · ${c.targets.tomorrow.squats} · ${mmss(c.targets.tomorrow.planks)}</b></p></div>`
+            <p class="challenge-tomorrow">${tr("Tomorrow")} <b>${c.targets.tomorrow.pushups} · ${c.targets.tomorrow.squats} · ${mmss(c.targets.tomorrow.planks)}</b></p></div>`
         : "";
       html = `
         ${header(c)}
-        <p class="challenge-status is-spaced">Day ${c.dayNumber} · <b>${c.type === "lms" ? `${left} of ${c.players.length} left` : `${left} of ${c.players.length} still in`}</b></p>
+        <p class="challenge-status is-spaced">${tr("Day {n}", { n: c.dayNumber })} · <b>${c.type === "lms" ? tr("{n} of {total} left", { n: left, total: c.players.length }) : tr("{n} of {total} still in", { n: left, total: c.players.length })}</b></p>
         ${targets}
         ${inOutRows(c, false)}
-        ${me && me.outDay === null ? `<button class="auth-submit-button" data-ch-act="today">Do Today's Plan</button>` : ""}`;
+        ${me && me.outDay === null ? `<button class="auth-submit-button" data-ch-act="today">${tr("Do Today's Plan")}</button>` : ""}`;
     }
     show(html, `detail:${c.id}`);
   }
@@ -511,15 +512,15 @@ const Challenges = (function () {
     const racing = c.type === "rep" || c.type === "dist";
     show(
       `
-      ${backButton("Competition", "tab")}
+      ${backButton(tr("Competition"), "tab")}
       <div class="challenge-result">
         ${won ? `<div class="challenge-burst">${sparks}<span class="challenge-trophy">${ICON.trophy}</span></div>` : tile(challengeColor(c), challengeIcon(c), "is-large challenge-result-tile")}
-        <h1 class="large-title">${won ? "You won!" : `${ordinal(c.myPlace)} place`}</h1>
-        <p class="screen-subtitle">${esc(nameOf(c))}${racing ? ` · ${c.days} days` : ""}</p>
+        <h1 class="large-title">${won ? tr("You won!") : tr("{place} place", { place: ordinal(c.myPlace) })}</h1>
+        <p class="screen-subtitle">${esc(nameOf(c))}${racing ? ` · ${tr("{n} days", { n: c.days })}` : ""}</p>
         ${racing ? standings(c, true) : inOutRows(c, true)}
       </div>
-      <button class="auth-submit-button" data-ch-act="rematch" data-ch-id="${esc(c.id)}">Rematch</button>
-      <button class="challenge-text-button" data-ch-go="tab">Done</button>`,
+      <button class="auth-submit-button" data-ch-act="rematch" data-ch-id="${esc(c.id)}">${tr("Rematch")}</button>
+      <button class="challenge-text-button" data-ch-go="tab">${tr("Done")}</button>`,
       `result:${c.id}`
     );
   }
@@ -531,15 +532,15 @@ const Challenges = (function () {
     scrim.dataset.chAct = "close-sheet";
     const players = c.joinedCount + c.invitedCount;
     scrim.innerHTML = `
-      <div class="challenge-sheet" role="dialog" aria-modal="true" aria-label="Challenge invite">
+      <div class="challenge-sheet" role="dialog" aria-modal="true" aria-label="${tr("Challenge invite")}">
         <span class="challenge-grabber"></span>
         ${tile(challengeColor(c), challengeIcon(c), "is-large")}
-        <p class="challenge-sheet-from"><b>${esc(c.from || "A friend")}</b> challenged you</p>
+        <p class="challenge-sheet-from">${tr("{name} challenged you", { name: `<b>${esc(c.from || tr("A friend"))}</b>` })}</p>
         <h2>${esc(nameOf(c))}</h2>
         <div class="challenge-faces">${avatar().repeat(Math.min(players, 6))}</div>
-        <p class="challenge-sheet-meta">${players} players · ${esc(startsText(c))}</p>
-        <button class="auth-submit-button" data-ch-act="accept" data-ch-id="${esc(c.id)}">Accept</button>
-        <button class="challenge-text-button is-muted" data-ch-act="decline" data-ch-id="${esc(c.id)}">Decline</button>
+        <p class="challenge-sheet-meta">${tr("{n} players", { n: players })} · ${esc(startsText(c))}</p>
+        <button class="auth-submit-button" data-ch-act="accept" data-ch-id="${esc(c.id)}">${tr("Accept")}</button>
+        <button class="challenge-text-button is-muted" data-ch-act="decline" data-ch-id="${esc(c.id)}">${tr("Decline")}</button>
       </div>`;
     document.body.appendChild(scrim);
     scrim.querySelector("[data-ch-act=accept]").focus();
@@ -554,7 +555,7 @@ const Challenges = (function () {
     const reply = await callServerFunction("challenge", { action: "respond", challengeId: id, accept, timeZone: timeZone() });
     closeInvite();
     if (!reply.ok) toast(errorText(reply));
-    else if (accept) toast("You're in. Starts tomorrow");
+    else if (accept) toast(tr("You're in. Starts tomorrow"));
     await load();
     renderList();
   }
@@ -605,7 +606,7 @@ const Challenges = (function () {
     const section = $("trophies-section");
     if (!ENABLED || !signedIn() || state.trophies.length === 0) return section.classList.add("hidden");
     $("trophy-shelf").innerHTML = state.trophies
-      .map((t) => `<div class="trophy-tile">${ICON.trophy}<b>${esc(t.name)}</b><span>${esc(new Date(t.endedAt).toLocaleDateString([], { month: "short", day: "numeric" }))}</span></div>`)
+      .map((t) => `<div class="trophy-tile">${ICON.trophy}<b>${esc(tr(t.name))}</b><span>${esc(new Date(t.endedAt).toLocaleDateString(trLocale([]), { month: "short", day: "numeric" }))}</span></div>`)
       .join("");
     section.classList.remove("hidden");
   }
@@ -633,7 +634,7 @@ const Challenges = (function () {
       if (!c) return;
       if (c.myStatus === "invited") return openInvite(c);
       if (c.status === "pending") return toast(startsText(c));
-      if (c.status === "cancelled") return toast("Nobody joined, so it didn't start");
+      if (c.status === "cancelled") return toast(tr("Nobody joined, so it didn't start"));
       if (c.status === "ended") return resultView(c);
       return openDetail(c);
     }
