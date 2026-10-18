@@ -40,7 +40,8 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key !== CACHE_NAME)
+          // The Feed's map pictures (script.js) outlive app updates.
+          .filter((key) => key !== CACHE_NAME && !key.startsWith("forja-route-maps"))
           .map((key) => caches.delete(key))
       )
     )
@@ -59,7 +60,14 @@ self.addEventListener("activate", (event) => {
 // fails (e.g. you're offline). This is the opposite of "cache-first" -
 // it means you always see the newest version when you have a connection,
 // and offline support is purely a fallback rather than the default.
+//
+// Left alone (the browser handles them as if there were no service worker):
+// anything that isn't a plain GET (those can't be cached), and map pieces
+// for the Feed's route maps - thousands of small files that would only pile
+// up here, since the finished map pictures are kept instead.
 self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+  if (new URL(event.request.url).hostname === "tiles.openfreemap.org") return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {

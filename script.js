@@ -3848,7 +3848,10 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
   });
   if (isActivityPost(post) && post.route) {
     const shape = routeShapeSvg(post.route);
-    if (shape) statsEl.after(shape);
+    if (shape) {
+      statsEl.after(shape);
+      showRouteMap(post, shape);
+    }
   }
 
   // Everyone who gave kudos, with you first.
@@ -4591,6 +4594,191 @@ function routeShapeSvg(encoded) {
     svg.appendChild(dot);
   });
   return svg;
+}
+
+// ---- A Feed route on a real map ----
+//
+// Maps come from OpenFreeMap: no key, no account, no limit. This phone
+// draws them with MapLibre (loaded only once a route needs it) into one
+// hidden map, with every name and icon left out and the route drawn in,
+// then keeps the result as a picture - a post's map never changes, so each
+// is drawn once per theme. Until the picture is ready, and whenever the map
+// can't be drawn (no WebGL, offline, the service is down), the card keeps
+// the plain line.
+const MAPLIBRE_SCRIPT = {
+  src: "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js",
+  // The browser refuses the file unless it's exactly this one.
+  integrity: "sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj",
+};
+const ROUTE_MAP_STYLES = { dark: "https://tiles.openfreemap.org/styles/dark", light: "https://tiles.openfreemap.org/styles/positron" };
+const ROUTE_MAP_CACHE = "forja-route-maps-v1"; // the service worker keeps it across updates
+const ROUTE_MAP_KEEP = 150; // newest pictures kept on this phone
+const ROUTE_MAP_TIMEOUT_MS = 15000;
+
+let mapLibreLoading = null;
+const routeMapStyles = {}; // theme -> the style, names removed
+const routeMaps = {}; // theme -> its hidden map
+let routeMapQueue = Promise.resolve(); // one drawing at a time
+
+function currentTheme() {
+  return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error("timed out")), ms))]);
+}
+
+function loadMapLibre() {
+  if (window.maplibregl) return Promise.resolve(window.maplibregl);
+  if (!mapLibreLoading) {
+    mapLibreLoading = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = MAPLIBRE_SCRIPT.src;
+      script.integrity = MAPLIBRE_SCRIPT.integrity;
+      script.crossOrigin = "anonymous";
+      script.onload = () => (window.maplibregl ? resolve(window.maplibregl) : reject(new Error("no maplibregl")));
+      script.onerror = () => reject(new Error("MapLibre didn't load"));
+      document.head.appendChild(script);
+    }).catch((error) => {
+      mapLibreLoading = null; // try again next time the Feed opens
+      throw error;
+    });
+  }
+  return mapLibreLoading;
+}
+
+// The map style without its "symbol" layers (every street, place and water
+// name, and every icon), plus empty layers for the route and its two dots.
+async function routeMapStyle(theme) {
+  if (routeMapStyles[theme]) return routeMapStyles[theme];
+  const response = await fetch(ROUTE_MAP_STYLES[theme]);
+  if (!response.ok) throw new Error(`map style ${response.status}`);
+  const style = await response.json();
+  style.layers = style.layers.filter((layer) => layer.type !== "symbol");
+  delete style.glyphs;
+  delete style.sprite;
+  const css = getComputedStyle(document.documentElement);
+  const color = (name) => css.getPropertyValue(name).trim();
+  const empty = { type: "FeatureCollection", features: [] };
+  style.sources.route = { type: "geojson", data: empty };
+  style.sources["route-ends"] = { type: "geojson", data: empty };
+  const round = { "line-cap": "round", "line-join": "round" };
+  style.layers.push(
+    { id: "route-casing", type: "line", source: "route", layout: round, paint: { "line-color": color("--route-casing"), "line-width": 8.5 } },
+    { id: "route-line", type: "line", source: "route", layout: round, paint: { "line-color": color("--accent"), "line-width": 4.5 } },
+    {
+      id: "route-ends", type: "circle", source: "route-ends",
+      paint: { "circle-radius": 5, "circle-color": ["get", "color"], "circle-stroke-width": 3, "circle-stroke-color": color("--route-casing") },
+    },
+  );
+  style.metadata = { ...style.metadata, endColors: [color("--accent"), color("--text-primary")] };
+  routeMapStyles[theme] = style;
+  return style;
+}
+
+async function routeMapFor(theme) {
+  if (routeMaps[theme]) return routeMaps[theme];
+  const maplibregl = await loadMapLibre();
+  const style = await routeMapStyle(theme);
+  const container = document.createElement("div");
+  container.className = "route-map-painter";
+  container.setAttribute("aria-hidden", "true");
+  document.body.appendChild(container);
+  const map = new maplibregl.Map({
+    container, style, pixelRatio: 2, interactive: false, attributionControl: false,
+    preserveDrawingBuffer: true, fadeDuration: 0,
+  });
+  routeMaps[theme] = withTimeout(new Promise((resolve, reject) => {
+    map.once("load", () => resolve(map));
+    map.once("error", (event) => reject(event.error || new Error("map error")));
+  }), ROUTE_MAP_TIMEOUT_MS).catch((error) => {
+    delete routeMaps[theme];
+    map.remove();
+    container.remove();
+    throw error;
+  });
+  return routeMaps[theme];
+}
+
+// Draws one route and returns the picture (a JPEG blob).
+async function drawRouteMap(points, theme) {
+  const map = await routeMapFor(theme);
+  const [startColor, endColor] = routeMapStyles[theme].metadata.endColors;
+  const lngLat = ([lat, lng]) => [lng, lat];
+  map.getSource("route").setData({ type: "Feature", geometry: { type: "LineString", coordinates: points.map(lngLat) } });
+  map.getSource("route-ends").setData({
+    type: "FeatureCollection",
+    features: [[points[0], startColor], [points[points.length - 1], endColor]].map(([point, color]) => ({
+      type: "Feature", properties: { color }, geometry: { type: "Point", coordinates: lngLat(point) },
+    })),
+  });
+  const lats = points.map((p) => p[0]);
+  const lngs = points.map((p) => p[1]);
+  const drawn = new Promise((resolve) => map.once("idle", resolve));
+  map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 20, maxZoom: 17, animate: false });
+  await withTimeout(drawn, ROUTE_MAP_TIMEOUT_MS);
+  const blob = await new Promise((resolve) => map.getCanvas().toBlob(resolve, "image/jpeg", 0.9));
+  if (!blob) throw new Error("no picture");
+  return blob;
+}
+
+async function openRouteMapCache() {
+  try {
+    return await caches.open(ROUTE_MAP_CACHE);
+  } catch {
+    return null; // private browsing etc.: still drawn, just not kept
+  }
+}
+
+// Keeps the newest ROUTE_MAP_KEEP pictures (the cache lists oldest first).
+async function trimRouteMapCache(cache) {
+  const keys = await cache.keys();
+  await Promise.all(keys.slice(0, Math.max(0, keys.length - ROUTE_MAP_KEEP)).map((key) => cache.delete(key)));
+}
+
+async function routeMapPicture(postId, points, theme) {
+  const cache = await openRouteMapCache();
+  const key = `route-map/${encodeURIComponent(postId)}-${theme}.jpg`;
+  const saved = cache && (await cache.match(key));
+  if (saved) return saved.blob();
+  const job = routeMapQueue.then(() => drawRouteMap(points, theme));
+  routeMapQueue = job.catch(() => {});
+  const blob = await job;
+  if (cache) {
+    try {
+      await cache.put(key, new Response(blob, { headers: { "Content-Type": "image/jpeg" } }));
+      await trimRouteMapCache(cache);
+    } catch {
+      // Full storage: the picture just isn't kept.
+    }
+  }
+  return blob;
+}
+
+// Swaps a card's plain line for the map once the picture is ready.
+async function showRouteMap(post, lineEl) {
+  const theme = currentTheme();
+  let blob;
+  try {
+    blob = await routeMapPicture(post.id, decodePolyline(post.route), theme);
+  } catch {
+    return; // keep the line
+  }
+  if (!lineEl.isConnected || theme !== currentTheme()) return;
+  const box = document.createElement("div");
+  box.className = "feed-route feed-route-map";
+  box.setAttribute("role", "img");
+  box.setAttribute("aria-label", "Route on a map");
+  const img = document.createElement("img");
+  img.alt = "";
+  const url = URL.createObjectURL(blob);
+  img.onload = img.onerror = () => URL.revokeObjectURL(url);
+  img.src = url;
+  const credit = document.createElement("span");
+  credit.className = "feed-route-credit";
+  credit.textContent = "© OpenMapTiles © OpenStreetMap";
+  box.append(img, credit);
+  lineEl.replaceWith(box);
 }
 
 // Formats milliseconds as "M:SS" (or "H:MM:SS" past an hour).

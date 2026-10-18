@@ -78,7 +78,7 @@
     <a class="back" href="./">&larr; Back to Forja</a>
 
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: October 16, 2026</p>
+    <p class="updated">Last updated: October 17, 2026</p>
 
     <div class="summary">
       <strong>The short version</strong>
@@ -127,10 +127,10 @@
     <p>
       When you log a day, Forja posts a summary of it to the Feed: the date, your streak, that day's push-ups, squats
       and plank time, and your walk/run minutes if you had any. Each walk or run you finish is also posted on its own:
-      whether it was a walk or a run, its distance, moving time and pace, and the shape of its route as a line (no map) with the
+      whether it was a walk or a run, its distance, moving time and pace, and its route drawn on a map (with no street or place names), with the
       first and last 200 m cut off, so where it starts and ends - usually your home - is never shown or stored with the post. To work
       these out, the app sends the walk's GPS points to our server, which keeps only that trimmed line and discards the rest.
-      Your accepted friends can see your posts and give them kudos. Feed posts are deleted automatically after 30 days.
+      Because the route is shown on a map, your friends can tell the area you walked or ran in. Your accepted friends can see your posts and give them kudos. Feed posts are deleted automatically after 30 days.
     </p>
 
     <h3>Camera and body movement</h3>
@@ -207,6 +207,7 @@
       <li><strong>Anthropic</strong> &mdash; its AI assistant, Claude, helps us build and fix Forja. When we investigate a problem, it can read the app's stored data (such as usernames, streaks, workouts and saved routes), never your password or email address, and it can't change anything.</li>
       <li><strong>jsDelivr and unpkg</strong> &mdash; deliver open-source code libraries the app needs (for example the maps library and the login library).</li>
       <li><strong>Google</strong> &mdash; serves the app's font and the pose-estimation model file your device downloads for camera verification. Google receives your IP address when your device fetches them; it does not receive your video.</li>
+      <li><strong>OpenFreeMap</strong> &mdash; supplies the maps under walk and run routes in the Feed. To draw one, your device requests map data for that route's area, so OpenFreeMap receives that area and your IP address. Each map is drawn once and kept on your device.</li>
       <li><strong>OpenStreetMap</strong> &mdash; supplies map images. When a map is shown, your device requests images for the area being displayed, so OpenStreetMap receives that area and your IP address.</li>
       <li><strong>Apple, Google and Mozilla push services</strong> &mdash; deliver notifications to your device if you turn reminders on.</li>
     </ul>

@@ -89,6 +89,8 @@ input[type="number"]::-webkit-inner-spin-button {
   --surface-solid: #1c1c1f;
   --route-dot: #ffffff14; /* the dot grid behind a Feed route */
   --route-bg: #26262a; /* a Feed route's box, a step lighter than its card */
+  --route-casing: #09090bcc; /* the edge around a route drawn on a map */
+  --map-credit: #f4f4f580;
   --card-solid: #1c1c1f; /* Feed posts: solid, so each one stands apart */
   --card-line: #ffffff14;
   --popover-bg: #2c2c31; /* raised a step above cards, for tip bubbles */
@@ -140,6 +142,8 @@ input[type="number"]::-webkit-inner-spin-button {
   --surface-solid: #e5e5ea;
   --route-dot: #0000001a;
   --route-bg: #e5e5ea;
+  --route-casing: #ffffffe0;
+  --map-credit: #1c1c1e99;
   --card-solid: #ffffff;
   --card-line: #3c3c4326;
   --popover-bg: #ffffff;
@@ -1012,6 +1016,42 @@ body {
 
 .feed-route-end {
   fill: var(--text-primary);
+}
+
+/* The same box once its map picture is ready (names left out, the route
+   drawn in), with the credit the map's makers ask for. */
+.feed-route-map {
+  position: relative;
+  overflow: hidden;
+  background-image: none;
+}
+
+.feed-route-map img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.feed-route-credit {
+  position: absolute;
+  right: 6px;
+  bottom: 3px;
+  font-size: 9px;
+  line-height: 1.2;
+  color: var(--map-credit);
+  pointer-events: none;
+}
+
+/* Where those pictures get drawn: a card-sized map kept off screen. */
+.route-map-painter {
+  position: fixed;
+  top: 0;
+  left: -2000px;
+  width: 320px;
+  height: 200px;
+  pointer-events: none;
 }
 
 .feed-card-footer {
