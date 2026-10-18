@@ -176,6 +176,7 @@ const ForjaCamera = (function () {
   let result = 0;
   let resultUnit = "";
   let rewardFor = null; // options.reward: what a finished set earned (see renderReward)
+  let progressFor = null; // options.progress: {before, target, hold} for the live ring
   let saved = false; // verified and waiting for "Done"
   let rewardRun = 0; // bumped to stop a reward animation that's no longer on screen
 
@@ -256,10 +257,21 @@ const ForjaCamera = (function () {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       throw new Error("no-camera-api");
     }
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } },
+    const constraints = {
+      // 16:9 (720x1280 on a phone held upright): close to the screen's own
+      // shape, so the full-screen picture shows nearly all the counter sees.
+      video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false,
-    });
+    };
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      // Right after the last set let go of it, the camera can still be busy
+      // for a moment: one more try. A "no" from the person is final.
+      if (err && err.name === "NotAllowedError") throw err;
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+    }
     const video = $("camera-video");
     video.srcObject = stream;
     await video.play();
@@ -472,11 +484,11 @@ const ForjaCamera = (function () {
       const partial = landmarks ? missingParts(landmarks) : null;
       if (partial && partial.missing.length < exercise.needs.length) {
         drawPartial(landmarks, partial.idx);
-        $("camera-state").textContent = missingHint(partial.missing);
+        say(missingHint(partial.missing), true);
       } else {
         const overlay = $("camera-overlay");
         overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
-        $("camera-state").textContent = lyingInUprightFrame() ? "Can't see you - turn the phone sideways, whole body in frame" : exercise.lost;
+        say(lyingInUprightFrame() ? "Can't see you - turn the phone sideways, whole body in frame" : exercise.lost, true);
       }
       $("camera-live").textContent = "";
       return;
@@ -493,6 +505,7 @@ const ForjaCamera = (function () {
     if (exercise.kind === "plank") {
       drawBody(landmarks, side, r.state === "holding");
       $("camera-count").textContent = (r.holdMs / 1000).toFixed(1);
+      liveRing(Math.max(r.bestMs, r.holdMs) / 1000);
       // A wobble pauses the clock (it doesn't reset): say so, and what to fix.
       const fix =
         r.reason === "not_supported"
@@ -503,9 +516,9 @@ const ForjaCamera = (function () {
               ? "Straighten your body - hips level with shoulders and ankles"
               : "Get into plank position";
       if (r.state === "holding") {
-        $("camera-state").textContent = r.paused ? "Paused - " + fix.charAt(0).toLowerCase() + fix.slice(1) : "Holding - keep it straight";
+        say(r.paused ? "Paused - " + fix.charAt(0).toLowerCase() + fix.slice(1) : "Holding - keep it straight", r.paused);
       } else {
-        $("camera-state").textContent = fix;
+        say(fix, true);
       }
       setFeedback(r.bestMs > 0 ? "Best hold: " + (r.bestMs / 1000).toFixed(1) + "s" : "", r.bestMs > 0 ? "good" : "");
       return;
@@ -513,11 +526,12 @@ const ForjaCamera = (function () {
 
     drawBody(landmarks, side, r.state !== "down");
     $("camera-count").textContent = r.count;
+    liveRing(r.count);
     // Before counting starts, say exactly what's missing instead of just
     // "get in position" - the start position has several conditions and
     // any one failing looks the same from outside.
     const hint = r.state === "waiting" && exercise.waitingHint ? exercise.waitingHint(m) : null;
-    $("camera-state").textContent = hint || exercise.states[r.state] || "";
+    say(hint || exercise.states[r.state] || "", !!hint);
     $("camera-live").textContent =
       Debug.isOn() && r.drop !== null ? exercise.dropName + " down " + pct(r.drop) + "  ·  " + exercise.anchorName + " moved " + pct(r.anchorMove) : "";
 
@@ -568,30 +582,32 @@ const ForjaCamera = (function () {
     Sound.prime();
     $("camera-start-button").disabled = true;
     setFeedback("", "");
-    $("camera-state").textContent = "Loading pose model (first time only)...";
+    say("Loading pose model (first time only)...");
     try {
       await loadModel();
     } catch (err) {
-      $("camera-state").textContent = "Couldn't load the camera model - check your connection and try again.";
+      say("Couldn't load the camera model - check your connection and try again.", true);
       $("camera-start-button").disabled = false;
       return;
     }
 
-    $("camera-state").textContent = "Starting camera...";
+    say("Starting camera...");
     try {
       await startStream();
     } catch (err) {
-      $("camera-state").textContent =
+      say(
         err && err.name === "NotAllowedError"
           ? "Camera access was denied. Allow it in your browser settings to log workouts."
-          : "Couldn't start the camera on this device.";
+          : "Couldn't start the camera on this device.",
+        true
+      );
       $("camera-start-button").disabled = false;
       return;
     }
 
     clearBackup(); // a new set: whatever was kept is done with
     newSession();
-    $("camera-state").textContent = "Get in position";
+    say("Get in position");
     running = true;
     setMode("running");
     $("camera-start-button").disabled = false;
@@ -614,6 +630,30 @@ const ForjaCamera = (function () {
     setStartMs = performance.now();
     lastProcessedMs = -Infinity;
     $("camera-count").textContent = exercise.kind === "plank" ? "0.0" : "0";
+    liveRing(0);
+  }
+
+  // The status pill. hint = something to fix (white), else it's going
+  // right (green).
+  function say(text, hint = false) {
+    const el = $("camera-state");
+    el.textContent = text;
+    el.classList.toggle("is-hint", hint);
+  }
+
+  // Today's ring for this exercise, as this set adds to it: reps add up
+  // across sets, a plank counts its best single hold (same rule as the
+  // reward, script.js setReward). Hidden when there's no day to fill
+  // (sign-up, challenges).
+  function liveRing(setValue) {
+    const ring = $("camera-ring");
+    ring.classList.toggle("hidden", !progressFor);
+    if (!progressFor) return;
+    const { before, target, hold } = progressFor;
+    const total = hold ? Math.max(before, Math.floor(setValue)) : before + setValue;
+    $("camera-ring-fill").setAttribute("stroke-dasharray", `${(213.6 * Math.min(total, target)) / target} 213.6`);
+    $("camera-ring-fill").style.opacity = total > 0 ? 1 : 0; // a zero-length round cap still draws a dot
+    $("camera-ring-text").textContent = `${total}/${target}${hold ? "s" : ""}`;
   }
 
   // The phone turned (upright <-> sideways) mid-set, so the video changed
@@ -891,7 +931,9 @@ const ForjaCamera = (function () {
   }
 
   function renderSoundButton() {
-    $("camera-sound-button").textContent = "Sound: " + (Sound.isEnabled() ? "On" : "Off");
+    const on = Sound.isEnabled();
+    $("camera-sound-button").setAttribute("aria-pressed", String(on));
+    $("camera-sound-button").setAttribute("aria-label", on ? "Sound on" : "Sound off");
   }
 
   function wireButtonsOnce() {
@@ -935,13 +977,14 @@ const ForjaCamera = (function () {
         running = true;
         loop();
       } catch (err) {
-        $("camera-state").textContent = "Couldn't switch cameras.";
+        say("Couldn't switch cameras.", true);
       }
     });
   }
 
   return {
-    // options: { onClose, reward, backup: { user, day } } - backup keeps
+    // options: { onClose, reward, progress: { before, target, hold },
+    // backup: { user, day } } - progress fills the live ring; backup keeps
     // the set on this phone until it's saved (see BACKUP_KEY).
     open(key, saveCallback, options = {}) {
       wireButtonsOnce();
@@ -950,15 +993,17 @@ const ForjaCamera = (function () {
       onSave = saveCallback;
       onClose = options.onClose || null;
       rewardFor = options.reward || null;
+      progressFor = options.progress || null;
       backupTag = options.backup || null;
       saved = false;
       rewardRun++;
       result = 0;
       $("camera-title").textContent = exercise.title;
+      $("camera-screen").style.setProperty("--set-color", SET_COLORS[exerciseKey]);
       $("camera-tip").innerHTML = exercise.tip;
       $("camera-count-label").textContent = exercise.countLabel;
       $("camera-count").textContent = exercise.kind === "plank" ? "0.0" : "0";
-      $("camera-state").textContent = "Camera is off";
+      say("");
       $("camera-live").textContent = "";
       setFeedback("", "");
       renderSoundButton();

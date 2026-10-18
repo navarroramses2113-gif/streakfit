@@ -447,20 +447,43 @@
 
   <!-- Records one camera-verified set. Every exercise count in Forja comes
        from here - there is deliberately no way to type a number in. -->
+  <!-- Before and during a set the camera fills the screen: round buttons
+       on top, the count under them, the pill (what's happening / what to
+       fix) bottom-left, today's ring for this exercise bottom-right.
+       Sideways, everything moves to the top edge (style.css). After the
+       set it's a normal page again (the reward). -->
   <main id="camera-screen" class="card hidden">
-    <h1 id="camera-title" class="large-title">Push-ups</h1>
-    <p id="camera-tip" class="preview-note"></p>
+    <div class="camera-top">
+      <button id="camera-close-button" class="camera-icon-button" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <h1 id="camera-title" class="camera-title">Push-ups</h1>
+      <button id="camera-sound-button" class="camera-icon-button" aria-label="Sound" aria-pressed="true">
+        <svg class="sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+        <svg class="sound-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+      </button>
+      <button id="camera-flip-button" class="camera-icon-button" aria-label="Flip camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8L10 4h4l1.7 2h1.8A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><path d="M9.2 12.6a3 3 0 0 1 5.3-1.7M14.8 13.4a3 3 0 0 1-5.3 1.7"/><path d="M14.6 9.4v1.6H13M9.4 16.6V15H11"/></svg>
+      </button>
+    </div>
+    <p id="camera-tip" class="camera-tip"></p>
 
     <div id="camera-stage" class="camera-stage mirrored">
       <video id="camera-video" playsinline muted autoplay></video>
       <canvas id="camera-overlay"></canvas>
     </div>
 
-    <div id="camera-count" class="camera-count">0</div>
-    <p id="camera-count-label" class="camera-count-label"></p>
-    <p id="camera-state" class="camera-state"></p>
-    <p id="camera-feedback" class="camera-feedback"></p>
-    <p id="camera-live" class="camera-live"></p>
+    <div class="camera-hud">
+      <div id="camera-count" class="camera-count">0</div>
+      <p id="camera-count-label" class="camera-count-label"></p>
+      <p id="camera-feedback" class="camera-feedback"></p>
+      <p id="camera-live" class="camera-live"></p>
+    </div>
+    <p id="camera-state" class="camera-state" aria-live="polite"></p>
+    <div id="camera-ring" class="camera-ring hidden" aria-hidden="true">
+      <svg viewBox="0 0 84 84"><circle class="camera-ring-track" cx="42" cy="42" r="34"/><circle id="camera-ring-fill" class="camera-ring-fill" cx="42" cy="42" r="34" stroke-dasharray="0 213.6"/></svg>
+      <b id="camera-ring-text"></b>
+    </div>
 
     <!-- After a set: its number inside today's ring for that exercise, what
          it earned (target done / new best set / the day), the pet's line
@@ -497,9 +520,6 @@
 
     <button id="camera-start-button" class="auth-submit-button">Start set</button>
     <button id="camera-finish-button" class="auth-submit-button hidden">Finish set</button>
-    <button id="camera-sound-button" class="tracking-cancel-button full-width-button">Sound: On</button>
-    <button id="camera-flip-button" class="tracking-cancel-button full-width-button">Flip camera</button>
-    <button id="camera-close-button" class="tracking-cancel-button full-width-button">Close</button>
   </main>
 
   <!-- Shown once after finishing a tracked walk/run. -->

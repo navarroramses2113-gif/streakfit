@@ -2554,11 +2554,6 @@ body {
   display: none;
 }
 
-/* The review has its own small heading (.reward-eyebrow). */
-#camera-screen.is-review .large-title {
-  display: none;
-}
-
 /* ---------- after a set: what it earned ----------
    --set-color is the exercise's ring color (set by camera-verify.js). */
 .camera-review {
@@ -2894,10 +2889,7 @@ body {
   width: 100%;
 }
 
-/* The title and the setup tip only matter before the set starts - once
-   it's running they just push the big text off the bottom of the screen,
-   where nobody propping a phone against a wall can scroll to it. */
-#camera-screen.is-running .large-title,
+/* The setup tip only matters before the set starts. */
 #camera-screen.is-running #camera-tip {
   display: none;
 }
@@ -2964,9 +2956,7 @@ body {
   }
 
   /* While a set is running, only what matters from across the room stays. */
-  #camera-screen.is-running .large-title,
   #camera-screen.is-running #camera-tip,
-  #camera-screen.is-running .camera-count-label,
   #camera-screen.is-running .camera-live,
   #camera-screen.is-running #camera-flip-button {
     display: none;
@@ -6325,4 +6315,386 @@ a.account-menu-item {
 .week-recap-share:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ---------- the set screen: the camera fills it (2026-10-18) ----------
+   Before and during a set (not the reward after it). Always dark, whatever
+   the app theme: it's a camera. Upright: round buttons on top, the count
+   under them, the pill bottom-left (green = going right, white = something
+   to fix), today's ring for this exercise bottom-right, the big button at
+   the bottom. Sideways (push-ups, plank): the body fills the bottom of the
+   frame, so it all moves to the top edge. */
+.camera-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.camera-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.camera-icon-button {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--control-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.camera-icon-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+#camera-sound-button .sound-off,
+#camera-sound-button[aria-pressed="false"] .sound-on {
+  display: none;
+}
+
+#camera-sound-button[aria-pressed="false"] .sound-off {
+  display: block;
+}
+
+/* A hidden button keeps its place, so the title stays centered. */
+.camera-top > .camera-icon-button.hidden {
+  display: grid !important;
+  visibility: hidden;
+}
+
+/* The reward has its own heading. */
+#camera-screen.is-review .camera-title {
+  visibility: hidden;
+}
+
+.camera-ring {
+  position: relative;
+}
+
+.camera-ring.hidden,
+#camera-screen.is-review .camera-ring,
+#camera-screen.is-review .camera-hud {
+  display: none !important;
+}
+
+#camera-screen:not(.is-review) {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+  display: block;
+  overflow: hidden;
+}
+
+#camera-screen:not(.is-review) .camera-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  margin: 0;
+  border-radius: 0;
+  background: #000;
+}
+
+/* Dark fades top and bottom so white text reads over any room. */
+#camera-screen:not(.is-review)::before,
+#camera-screen:not(.is-review)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+#camera-screen:not(.is-review)::before {
+  top: 0;
+  height: 42%;
+  background: linear-gradient(#000000b3, #00000000);
+}
+
+#camera-screen:not(.is-review)::after {
+  bottom: 0;
+  height: 38%;
+  background: linear-gradient(#00000000, #000000c7);
+}
+
+#camera-screen:not(.is-review) > :not(.camera-stage) {
+  position: absolute;
+  z-index: 2;
+}
+
+#camera-screen:not(.is-review) .camera-top {
+  top: calc(var(--safe-top) + 10px);
+  left: calc(12px + var(--safe-left));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+}
+
+#camera-screen:not(.is-review) .camera-title {
+  color: #fff;
+}
+
+#camera-screen:not(.is-review) .camera-icon-button {
+  background: #0000004d;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+}
+
+/* Mid-set only Close's place stays (Close itself comes back after Finish):
+   sound and camera are chosen before you start. */
+#camera-screen.is-running #camera-flip-button {
+  visibility: hidden;
+}
+
+#camera-screen:not(.is-review) .camera-hud {
+  top: calc(var(--safe-top) + 58px);
+  left: 16px;
+  right: 16px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+  pointer-events: none;
+}
+
+#camera-screen:not(.is-review) .camera-count {
+  font-size: clamp(88px, 26vw, 128px);
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 2px 18px #00000080;
+  font-variant-numeric: tabular-nums;
+}
+
+#camera-screen:not(.is-review) .camera-count-label {
+  margin: 0;
+  font-size: var(--font-subhead);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  color: #ffffffcc;
+  text-shadow: 0 1px 8px #00000099;
+}
+
+#camera-screen:not(.is-review) .camera-feedback {
+  min-height: 0;
+  margin: 6px 0 0;
+  font-size: var(--font-title3);
+  text-shadow: 0 1px 10px #000000b3;
+}
+
+#camera-screen:not(.is-review) .camera-feedback:not(.good):not(.bad) {
+  color: #ffffffd9;
+}
+
+#camera-screen:not(.is-review) .camera-live {
+  min-height: 0;
+  margin: 0;
+  font-size: var(--font-footnote);
+  color: #ffffffb3;
+}
+
+/* The pill, centered on the ring beside it (a longer one grows upward). */
+#camera-screen:not(.is-review) .camera-state {
+  left: calc(16px + var(--safe-left));
+  bottom: calc(var(--safe-bottom) + 120px);
+  max-width: calc(100% - 128px - var(--safe-left));
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  border-radius: 22px;
+  background: #0b1a10cc;
+  border: 1px solid #22c55e73;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #22c55e;
+  font-size: var(--font-body);
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+}
+
+#camera-screen:not(.is-review) .camera-state.is-hint {
+  background: #1a1a1ccc;
+  border-color: #ffffff33;
+  color: #fff;
+}
+
+#camera-screen:not(.is-review) .camera-state:empty {
+  display: none;
+}
+
+/* Before the set (loading, camera errors): under the buttons, centered. */
+#camera-screen:not(.is-review):not(.is-running) .camera-state {
+  top: calc(var(--safe-top) + 64px);
+  bottom: auto;
+  left: 50%;
+  max-width: calc(100% - 32px);
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+/* Today's ring for this exercise. */
+#camera-screen:not(.is-review) .camera-ring {
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--safe-bottom) + 100px);
+  width: 84px;
+  height: 84px;
+}
+
+.camera-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.camera-ring-track,
+.camera-ring-fill {
+  fill: none;
+  stroke-width: 9;
+}
+
+.camera-ring-track {
+  stroke: #ffffff2e;
+}
+
+.camera-ring-fill {
+  stroke: var(--set-color, var(--ring-pushups));
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.25s ease-out;
+}
+
+.camera-ring b {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: var(--font-subhead);
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 6px #00000099;
+}
+
+#camera-screen:not(.is-review):not(.is-running) .camera-hud,
+#camera-screen:not(.is-review):not(.is-running) .camera-ring {
+  display: none;
+}
+
+/* The big button you press from the floor. */
+#camera-screen:not(.is-review) #camera-start-button,
+#camera-screen:not(.is-review) #camera-finish-button {
+  left: calc(16px + var(--safe-left));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--safe-bottom) + 16px);
+  width: auto;
+  min-height: 72px;
+  margin: 0;
+}
+
+/* Before the set: the setup tip on a dark glass card above Start. */
+#camera-screen:not(.is-review) .camera-tip {
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--safe-bottom) + 104px);
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: #0b0c0ecc;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #ffffffd9;
+  font-size: var(--font-subhead);
+  line-height: 1.4;
+  text-align: left;
+}
+
+#camera-screen.is-running .camera-tip {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-ring-fill {
+    transition: none;
+  }
+}
+
+/* Sideways: everything on the top edge, the bottom half stays clear for
+   the body - the pill under Close, Finish and the ring on the right. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #camera-screen:not(.is-review) .camera-hud {
+    top: calc(var(--safe-top) + 10px);
+  }
+
+  #camera-screen:not(.is-review) .camera-count {
+    font-size: 88px;
+  }
+
+  /* The count's label already says what this is. */
+  #camera-screen.is-running .camera-title {
+    visibility: hidden;
+  }
+
+  #camera-screen.is-running .camera-state {
+    top: calc(var(--safe-top) + 64px);
+    bottom: auto;
+    max-width: calc(50% - 110px - var(--safe-left));
+  }
+
+  #camera-screen:not(.is-review) #camera-finish-button {
+    top: calc(var(--safe-top) + 10px);
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    bottom: auto;
+    left: auto;
+    width: 168px;
+    min-height: 56px;
+    font-size: var(--font-title3);
+  }
+
+  #camera-screen:not(.is-review) #camera-start-button {
+    left: 50%;
+    right: auto;
+    width: 260px;
+    min-height: 64px;
+    transform: translateX(-50%);
+  }
+
+  #camera-screen:not(.is-review) .camera-ring {
+    top: calc(var(--safe-top) + 78px);
+    bottom: auto;
+    width: 76px;
+    height: 76px;
+  }
+
+  #camera-screen:not(.is-review) .camera-tip {
+    left: 22%;
+    right: 22%;
+    bottom: calc(var(--safe-bottom) + 92px);
+  }
+
+  #camera-screen:not(.is-review)::after {
+    height: 30%;
+  }
 }

@@ -1505,7 +1505,16 @@ document.querySelectorAll(".verify-button").forEach((button) => {
 // so far is looked up on the way in, so the finished set can be compared.
 function openSetCamera(exercise, options = {}) {
   loadBestSet(exercise);
-  ForjaCamera.open(exercise, saveCameraSet, { ...options, reward: setReward, backup: { user: currentUserId || "guest", day: todayString() } });
+  ForjaCamera.open(exercise, saveCameraSet, { ...options, reward: setReward, progress: setProgressFor(exercise), backup: { user: currentUserId || "guest", day: todayString() } });
+}
+
+// Where today stands for this exercise, for the camera's live ring: done so
+// far, the target, and whether it's a hold (the plank counts its best single
+// hold - the same rule as setReward).
+function setProgressFor(exercise) {
+  if (!data) return null;
+  const key = SET_KEY[exercise];
+  return { before: todayProgress()[key] || 0, target: Math.max(data.minimums[key], 1), hold: key === "planks" };
 }
 
 // A set the app closed on before it was saved (crash, iOS reclaiming
