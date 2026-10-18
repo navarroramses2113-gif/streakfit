@@ -23,6 +23,7 @@
 /supabase/functions/plan/*                 /404.html  404!
 /supabase/functions/send-reminders/*       /404.html  404!
 /supabase/functions/submit-set/*           /404.html  404!
+/supabase/functions/waitlist/*             /404.html  404!
 /supabase/functions/weekly-recap/*         /404.html  404!
 
 /supabase/functions/_shared/challenges.ts  /404.html  404!
@@ -32,4 +33,14 @@
 /supabase/functions/_shared/pet-voice.ts   /404.html  404!
 /supabase/functions/_shared/plan.ts        /404.html  404!
 /supabase/functions/_shared/push.ts        /404.html  404!
+/supabase/functions/_shared/waitlist.ts    /404.html  404!
 /supabase/functions/_shared/weekly.ts      /404.html  404!
+
+# The front page. getforja.app/ shows landing.html; the app stays at
+# /index.html (the Home Screen app opens that, see manifest.json). An invite
+# link (/?i=<code>) belongs to the app, so a shared link previews the app's
+# card. "200!" serves the other file without changing the address, even
+# though index.html exists. landing.html also sends app users on (its first
+# script).
+/  i=:code  /index.html  200!
+/           /landing.html  200!

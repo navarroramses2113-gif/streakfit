@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Forja: the workout app you can't cheat</title>
+  <!-- getforja.app's front page. The app itself is index.html. People who
+       already use the app never stay here: an installed Home Screen app, a
+       signed-in or guest phone, an invite link (?i=) or a login/reset link
+       go straight to the app, before anything is drawn. -->
+  <script>
+    (function () {
+      var l = window.location;
+      var toApp = /(^|[?&])(i|code)=/.test(l.search.slice(1)) ||
+        /(access_token|refresh_token|type=recovery|error_description|error)=/.test(l.hash);
+      try {
+        if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone) toApp = true;
+        if (localStorage.getItem("sb-wiixtjykewtqvpxqwtor-auth-token") || localStorage.getItem("streakfit-data")) toApp = true;
+      } catch (e) {}
+      if (toApp) l.replace("index.html" + l.search + l.hash);
+    })();
+  </script>
+  <meta name="description" content="Your camera counts every push-up, squat and plank. No typing in numbers. Join the waitlist: Founding Members get Forja Pro free for a year.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Forja">
+  <meta property="og:url" content="https://getforja.app/">
+  <meta property="og:title" content="Forja: the workout app you can't cheat">
+  <meta property="og:description" content="Your camera counts every rep. Join the waitlist and become a Founding Member.">
+  <meta property="og:image" content="https://getforja.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Forja pet inside its ring: workouts your camera verifies">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b0c0e">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+  /* Layout: phone-first single column (most visitors arrive from TikTok/IG
+     on a phone); from 880px the hero splits into pitch + live camera demo.
+     One visual world: Forja's dark app, the three ring colors as the only
+     ornament, green for every action. */
+  :root {
+    --bg: #0b0c0e;
+    --panel: #141417;
+    --panel-2: #1c1c1f;
+    --line: #ffffff14;
+    --line-strong: #ffffff26;
+    --text: #f4f4f5;
+    --text-2: #a3a39e;
+    --text-3: #6f6f6a;
+    --accent: #22c55e;
+    --accent-press: #16a34a;
+    --accent-tint: #22c55e1f;
+    --red: #ff5a5f;
+    --yellow: #ffc233;
+    --teal: #2dd4bf;
+    --violet: #7c5cff;
+    --cream: #fff6ea;
+    --ink: #1c1c1e;
+    --font-display: "Archivo", "Inter", -apple-system, "Segoe UI", sans-serif;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 400 16px/1.5 var(--font);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 0 48px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  a { color: inherit; }
+  button, input { font: inherit; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+
+
+  /* ---------- nav ---------- */
+  nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 18px; }
+  .lockup { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+  .lockup svg.mark { width: 30px; height: 30px; }
+  .lockup svg.word { height: 22px; width: auto; }
+  .nav-link {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px;
+    border: 1px solid var(--line-strong); border-radius: 999px;
+    font-size: 15px; font-weight: 600; text-decoration: none; color: var(--text);
+  }
+
+  /* ---------- hero ---------- */
+  .hero { display: grid; gap: 40px; padding-block: 28px 56px; align-items: center; }
+  @media (min-width: 880px) { .hero { grid-template-columns: 1.1fr 0.9fr; padding-block: 56px 88px; } }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px; margin: 0 0 18px;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-2);
+  }
+  .eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-tint); }
+  h1 {
+    margin: 0; font-family: var(--font-display); font-weight: 900;
+    font-size: clamp(44px, 10.5vw, 84px); line-height: 0.95; letter-spacing: -0.035em; text-wrap: balance;
+  }
+  h1 .cant { position: relative; white-space: nowrap; }
+  h1 .cant::after {
+    content: ""; position: absolute; left: -2%; right: -2%; bottom: 0.06em; height: 0.12em; border-radius: 99px;
+    background: linear-gradient(90deg, var(--red) 0 31%, transparent 31% 34.5%, var(--yellow) 34.5% 65.5%, transparent 65.5% 69%, var(--teal) 69%);
+  }
+  .lede { margin: 22px 0 0; max-width: 33em; font-size: clamp(17px, 2.2vw, 19px); line-height: 1.5; color: var(--text-2); }
+  .lede b { color: var(--text); font-weight: 600; }
+
+  .join { margin-top: 30px; max-width: 480px; }
+  .join form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .join label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .join input {
+    flex: 1 1 220px; min-width: 0; min-height: 52px; padding: 0 18px;
+    border: 1px solid var(--line-strong); border-radius: 14px; background: var(--panel); color: var(--text); font-size: 17px;
+  }
+  .join input::placeholder { color: var(--text-3); }
+  .join input[aria-invalid="true"] { border-color: var(--red); }
+  .btn {
+    flex: 1 0 auto; min-height: 52px; padding: 0 22px; border: 0; border-radius: 14px; cursor: pointer;
+    background: var(--accent); color: #04130a; font-size: 17px; font-weight: 700;
+  }
+  .btn:active { background: var(--accent-press); }
+  .form-error { min-height: 20px; margin: 8px 0 0; font-size: 14px; color: var(--red); }
+  .founder-line { margin: 4px 0 0; font-size: 15px; color: var(--text-2); }
+  .founder-line b { color: var(--text); }
+  .beta-link {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 4px;
+    font-size: 15px; font-weight: 600; color: var(--accent); text-decoration: none;
+  }
+  .beta-link svg { width: 16px; height: 16px; }
+
+  /* after joining */
+  .joined { display: grid; gap: 14px; padding: 20px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); }
+  .joined-top { display: flex; align-items: center; gap: 14px; }
+  .joined-top svg { width: 56px; height: 56px; flex-shrink: 0; }
+  .joined h2 { margin: 0; font: 800 22px/1.15 var(--font-display); letter-spacing: -0.01em; }
+  .joined p { margin: 2px 0 0; color: var(--text-2); font-size: 15px; }
+  .place { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 700; }
+  .ref { display: flex; gap: 8px; }
+  .ref code {
+    flex: 1; min-width: 0; display: flex; align-items: center; padding: 0 14px; min-height: 48px; border-radius: 12px;
+    background: var(--bg); border: 1px solid var(--line); font: 500 15px var(--font); color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .btn.small { min-height: 48px; padding: 0 18px; font-size: 15px; border-radius: 12px; }
+
+  /* ---------- the camera demo ---------- */
+  /* Narrower on phones so the faint ring behind it stays on screen. */
+  .demo { position: relative; justify-self: center; width: min(100% - 64px, 340px); }
+  .demo-ring { position: absolute; inset: -6% -9%; pointer-events: none; opacity: 0.16; }
+  .phone {
+    position: relative; aspect-ratio: 9 / 17; border-radius: 44px; padding: 10px;
+    background: #050506; border: 1px solid var(--line-strong);
+    box-shadow: 0 40px 80px -30px #000, 0 0 0 6px #ffffff08;
+  }
+  .screen {
+    position: relative; height: 100%; border-radius: 34px; overflow: hidden;
+    background: radial-gradient(120% 70% at 50% 35%, #23252a 0%, #141518 70%);
+    display: flex; flex-direction: column;
+  }
+  .screen-top { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px 0; font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .live { display: inline-flex; align-items: center; gap: 6px; color: var(--text); }
+  .live i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: blink 1.4s infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  .count-wrap { text-align: center; padding-top: 18px; }
+  .count { display: block; font: 900 88px/1 var(--font-display); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+  .count.bump { animation: bump 0.32s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes bump { 40% { transform: scale(1.12); color: var(--accent); } }
+  .count-label { font-size: 13px; color: var(--text-2); }
+  .stage { flex: 1; position: relative; }
+  .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .screen-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 18px 20px; }
+  .verified {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px;
+    background: var(--accent-tint); color: var(--accent); font-size: 13px; font-weight: 700;
+  }
+  .verified svg { width: 14px; height: 14px; }
+  .mini-ring { width: 40px; height: 40px; }
+  .state-line { font-size: 13px; color: var(--text-2); }
+
+  /* ---------- sections ---------- */
+  section { padding-block: 56px; border-top: 1px solid var(--line); }
+  .kicker { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-2); }
+  h2.big { margin: 0; font: 900 clamp(32px, 6.4vw, 52px)/1 var(--font-display); letter-spacing: -0.03em; text-wrap: balance; max-width: 16em; }
+  .sub { margin: 16px 0 0; max-width: 36em; color: var(--text-2); font-size: 17px; }
+
+  .proof { display: grid; gap: 12px; margin-top: 32px; }
+  @media (min-width: 760px) { .proof { grid-template-columns: repeat(3, 1fr); } }
+  .proof article { padding: 22px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); }
+  .proof .icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 16px; }
+  .proof .icon svg { width: 24px; height: 24px; }
+  .proof h3 { margin: 0 0 6px; font-size: 19px; font-weight: 700; }
+  .proof p { margin: 0; color: var(--text-2); font-size: 15px; }
+
+  .split { display: grid; gap: 32px; align-items: center; }
+  @media (min-width: 880px) { .split { grid-template-columns: 1fr 1fr; gap: 56px; } }
+
+  /* ring section */
+  .ring-card { padding: 28px; border-radius: 28px; background: var(--panel); border: 1px solid var(--line); display: grid; gap: 22px; justify-items: center; }
+  .ring-big { width: min(220px, 60vw); height: auto; }
+  .ring-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; text-align: center; }
+  .ring-stats b { display: block; font: 800 24px var(--font-display); font-variant-numeric: tabular-nums; }
+  .ring-stats span { font-size: 13px; color: var(--text-2); }
+  .ring-stats .r b { color: var(--red); } .ring-stats .y b { color: var(--yellow); } .ring-stats .t b { color: var(--teal); }
+  .streak-row { display: flex; gap: 6px; }
+  .streak-row span { width: 30px; height: 30px; border-radius: 8px; background: #22c55e; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #04130a; }
+  .streak-row span.rest { background: #247644; color: var(--text); }
+  .streak-row span.rest svg { width: 14px; height: 14px; }
+  .streak-row span.today { outline: 2px solid var(--text); outline-offset: 2px; }
+  .streak-caption { font-size: 14px; color: var(--text-2); margin-top: -10px; }
+  .points { display: grid; gap: 14px; margin: 24px 0 0; padding: 0; list-style: none; }
+  .points li { display: flex; gap: 12px; color: var(--text-2); font-size: 16px; }
+  .points li b { color: var(--text); font-weight: 600; }
+  .dot { flex-shrink: 0; width: 10px; height: 10px; margin-top: 7px; border-radius: 50%; }
+
+  /* friends section */
+  .social { display: grid; gap: 12px; }
+  .feed-card { padding: 16px; border-radius: 18px; background: var(--panel-2); border: 1px solid var(--line); display: grid; gap: 10px; }
+  .fc-head { display: flex; align-items: center; gap: 10px; }
+  .av { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+  .fc-name { flex: 1; font-weight: 700; font-size: 15px; }
+  .fc-time { font-size: 13px; color: var(--text-2); }
+  .fc-kind { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #d4a373; }
+  .fc-stats { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .fc-stats b { display: block; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .fc-stats span { font-size: 12px; color: var(--text-2); }
+  .fc-foot { display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-2); }
+  .fc-foot svg { width: 22px; height: 22px; color: var(--red); }
+  .row-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--panel-2); border: 1px solid var(--line); }
+  .row-card .who { flex: 1; min-width: 0; }
+  .row-card .who b { display: block; font-size: 15px; }
+  .row-card .who span { font-size: 13px; color: var(--text-2); }
+  .pill { display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--accent); background: var(--accent-tint); border: 1px solid #22c55e73; }
+  .medal { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 13px; background: #c08a1233; color: #f0c04a; }
+  .pts { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* founder offer */
+  .offer {
+    position: relative; overflow: hidden; display: grid; gap: 28px; padding: clamp(24px, 5vw, 48px);
+    border-radius: 32px; background: var(--panel); border: 1px solid var(--line-strong);
+  }
+  @media (min-width: 880px) { .offer { grid-template-columns: 1.1fr 0.9fr; align-items: center; } }
+  .offer-ring { position: absolute; width: 520px; right: -170px; top: -170px; opacity: 0.12; pointer-events: none; }
+  .price { position: relative; display: grid; gap: 6px; padding: 24px; border-radius: 22px; background: var(--bg); border: 1px solid var(--line); }
+  .price .now { font: 900 56px/1 var(--font-display); letter-spacing: -0.03em; }
+  .price .now small { font: 600 17px var(--font); letter-spacing: 0; color: var(--text-2); }
+  .price .then { font-size: 17px; color: var(--text); }
+  .price .then s { color: var(--text-3); margin-left: 6px; }
+  .price ul { margin: 12px 0 0; padding: 14px 0 0; border-top: 1px solid var(--line); list-style: none; display: grid; gap: 8px; font-size: 15px; color: var(--text-2); }
+  .price li { display: flex; gap: 10px; }
+  .price li svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; color: var(--accent); }
+  .offer .btn { margin-top: 24px; }
+
+  /* faq */
+  .faq { display: grid; gap: 8px; margin-top: 28px; max-width: 760px; }
+  details { border-radius: 16px; background: var(--panel); border: 1px solid var(--line); }
+  summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 0 18px; cursor: pointer; font-weight: 600; font-size: 17px; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary svg { width: 18px; height: 18px; color: var(--text-2); transition: transform 0.2s; flex-shrink: 0; }
+  details[open] summary svg { transform: rotate(45deg); }
+  details p { margin: 0; padding: 0 18px 18px; color: var(--text-2); font-size: 16px; max-width: 40em; }
+
+  footer { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; justify-content: space-between; padding-top: 28px; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-3); }
+  footer a { display: inline-flex; align-items: center; min-height: 44px; color: var(--text-2); text-decoration: none; }
+  footer nav { padding: 0; gap: 20px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .live i, .count.bump { animation: none; }
+    summary svg { transition: none; }
+  }
+
+  /* ---------- real-page additions ---------- */
+  .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+  .ref-actions { display: flex; gap: 8px; }
+  .ref-actions .btn { flex: 1 1 0; }
+  .btn.ghost { background: none; color: var(--text); border: 1px solid var(--line-strong); }
+  .joined .fine { font-size: 13px; color: var(--text-3); margin: 0; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <nav aria-label="Main">
+    <a class="lockup" href="./" aria-label="Forja home">
+      <svg class="mark" viewBox="8 8 84 84" aria-hidden="true"><g transform="rotate(-73 50 50)"><circle cx="50" cy="50" r="36" fill="none" stroke="#ff5a5f" stroke-width="12" stroke-linecap="round" stroke-dasharray="54 172.2"/><circle cx="50" cy="50" r="36" fill="none" stroke="#ffc233" stroke-width="12" stroke-linecap="round" stroke-dasharray="54 172.2" stroke-dashoffset="-75.4"/><circle cx="50" cy="50" r="36" fill="none" stroke="#2dd4bf" stroke-width="12" stroke-linecap="round" stroke-dasharray="54 172.2" stroke-dashoffset="-150.8"/></g></svg>
+      <svg class="word" viewBox="0 0 233 92.1" aria-hidden="true"><path fill="#f4f4f5" d="M17.90 72.40L0 72.40L0 3.70L52.70 3.70L52.70 17.70L17.90 17.70L17.90 32.50L48.50 32.50L48.50 46.20L17.90 46.20L17.90 72.40ZM81.30 73.60L81.30 73.60Q72.50 73.60 66.25 70.60Q60.00 67.60 56.65 61.45Q53.30 55.30 53.30 46L53.30 46Q53.30 36.70 56.65 30.60Q60.00 24.50 66.25 21.50Q72.50 18.50 81.30 18.50L81.30 18.50Q90.20 18.50 96.45 21.50Q102.70 24.50 106.05 30.60Q109.40 36.70 109.40 46L109.40 46Q109.40 55.30 106.05 61.45Q102.70 67.60 96.45 70.60Q90.20 73.60 81.30 73.60ZM81.30 61.70L81.30 61.70Q85.40 61.70 87.95 60.10Q90.50 58.50 91.65 55.45Q92.80 52.40 92.80 47.90L92.80 47.90L92.80 44.20Q92.80 39.70 91.65 36.60Q90.50 33.50 87.95 31.95Q85.40 30.40 81.30 30.40L81.30 30.40Q77.30 30.40 74.75 31.95Q72.20 33.50 71.05 36.60Q69.90 39.70 69.90 44.20L69.90 44.20L69.90 47.90Q69.90 52.40 71.05 55.45Q72.20 58.50 74.75 60.10Q77.30 61.70 81.30 61.70ZM132.20 72.40L115.80 72.40L115.80 19.70L129.30 19.70L130.50 27.80L131.20 27.80Q132.40 25.10 134.15 22.95Q135.90 20.80 138.45 19.60Q141 18.40 144.10 18.40L144.10 18.40Q145.90 18.40 147.40 18.75Q148.90 19.10 149.60 19.50L149.60 19.50L149.60 33.80L144.40 33.80Q141.30 33.80 138.95 34.65Q136.60 35.50 135.10 37.25Q133.60 39.00 132.90 41.50Q132.20 44 132.20 47.30L132.20 47.30L132.20 72.40ZM169.40 12.60L153 12.60L153 0L169.40 0L169.40 12.60ZM153.50 92.10L153.50 92.10Q152 92.10 150.05 91.90Q148.10 91.70 146.15 91.30Q144.20 90.90 142.90 90.50L142.90 90.50L142.90 80.20L148 80.20Q150.60 80.20 151.80 78.75Q153 77.30 153 74.60L153 74.60L153 19.70L169.40 19.70L169.40 76.10Q169.40 81.10 167.85 84.70Q166.30 88.30 162.80 90.20Q159.30 92.10 153.50 92.10ZM192.80 73.60L192.80 73.60Q189.50 73.60 186.35 72.95Q183.20 72.30 180.65 70.65Q178.10 69 176.60 66.10Q175.10 63.20 175.10 58.80L175.10 58.80Q175.10 53.10 177.50 49.50Q179.90 45.90 184.45 43.85Q189 41.80 195.45 41Q201.90 40.20 209.90 40.20L209.90 40.20L209.90 36.90Q209.90 34.60 209 33.05Q208.10 31.50 206.35 30.65Q204.60 29.80 201.70 29.80L201.70 29.80Q199.10 29.80 197.15 30.40Q195.20 31 194.20 32.15Q193.20 33.30 193.20 34.90L193.20 34.90L193.20 35.80L177.20 35.80Q177.10 35.30 177.10 34.95Q177.10 34.60 177.10 34L177.10 34Q177.10 29.30 180.05 25.80Q183 22.30 188.50 20.40Q194 18.50 201.80 18.50L201.80 18.50Q209.10 18.50 214.55 20.30Q220 22.10 223.15 25.80Q226.30 29.50 226.30 35.50L226.30 35.50L226.30 58.00Q226.30 59.70 227.25 60.70Q228.20 61.70 229.60 61.70L229.60 61.70L233 61.70L233 71.80Q231.90 72.30 229.55 72.95Q227.20 73.60 223.90 73.60L223.90 73.60Q220.50 73.60 217.95 72.75Q215.40 71.90 213.75 70.35Q212.10 68.80 211.50 66.70L211.50 66.70L210.80 66.70Q208.90 68.70 206.35 70.30Q203.80 71.90 200.45 72.75Q197.10 73.60 192.80 73.60ZM198.90 62.30L198.90 62.30Q201.30 62.30 203.30 61.60Q205.30 60.90 206.75 59.65Q208.20 58.40 209.05 56.60Q209.90 54.80 209.90 52.70L209.90 52.70L209.90 49.20Q204.20 49.20 200.10 50Q196 50.80 193.80 52.50Q191.60 54.20 191.60 56.80L191.60 56.80Q191.60 58.70 192.55 59.95Q193.50 61.20 195.10 61.75Q196.70 62.30 198.90 62.30Z"/></svg>
+    </a>
+    <a class="nav-link" href="index.html">Open the beta</a>
+  </nav>
+
+  <!-- ---------- hero ---------- -->
+  <header class="hero" id="top">
+    <div>
+      <p class="eyebrow"><i></i>Beta open now · App Store next</p>
+      <h1>The workout app you <span class="cant">can't cheat.</span></h1>
+      <p class="lede">Your camera counts every push-up, squat and plank. You can't type in a number. When a friend sees <b>40 push-ups</b>, you did 40.</p>
+
+      <div class="join" id="join">
+        <form id="join-form" novalidate>
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@email.com" aria-describedby="form-error" maxlength="254">
+          <!-- Hidden from people; bots that fill every box fill this too. -->
+          <div class="hp" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+          <button class="btn" type="submit" id="join-button">Join the waitlist</button>
+        </form>
+        <p class="form-error" id="form-error" role="alert"></p>
+        <p class="founder-line">Founding Members get <b>Forja Pro free for a year</b>, then $1.99/month for life.</p>
+        <a class="beta-link" href="index.html">Or start training in the beta now
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>
+    </div>
+
+    <div class="demo" role="img" aria-label="Forja's camera counting push-ups">
+      <svg class="demo-ring" viewBox="0 0 100 100" aria-hidden="true"><g transform="rotate(-73 50 50)"><circle cx="50" cy="50" r="40" fill="none" stroke="#ff5a5f" stroke-width="7" stroke-linecap="round" stroke-dasharray="60 191.3"/><circle cx="50" cy="50" r="40" fill="none" stroke="#ffc233" stroke-width="7" stroke-linecap="round" stroke-dasharray="60 191.3" stroke-dashoffset="-83.8"/><circle cx="50" cy="50" r="40" fill="none" stroke="#2dd4bf" stroke-width="7" stroke-linecap="round" stroke-dasharray="60 191.3" stroke-dashoffset="-167.6"/></g></svg>
+      <div class="phone" aria-hidden="true">
+        <div class="screen">
+          <div class="screen-top"><span>Push-ups</span><span class="live"><i></i>Camera on</span></div>
+          <div class="count-wrap"><span class="count" id="count">0</span><span class="count-label">verified push-ups</span></div>
+          <div class="stage">
+            <svg viewBox="34 64 240 110" preserveAspectRatio="xMidYMid meet">
+              <line x1="34" y1="160" x2="274" y2="160" stroke="#ffffff1a" stroke-width="2"/>
+              <g id="figure" fill="none" stroke-linecap="round" stroke-linejoin="round"></g>
+            </svg>
+          </div>
+          <div class="screen-bottom">
+            <span class="verified"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l5 5 9-10"/></svg><span id="state">Full rep</span></span>
+            <svg class="mini-ring" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke="#ffffff14" stroke-width="5"/><circle id="mini-fill" cx="20" cy="20" r="15" fill="none" stroke="#ff5a5f" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 94.2" transform="rotate(-90 20 20)"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ---------- no honor system ---------- -->
+  <section aria-labelledby="proof-title">
+    <p class="kicker">No honor system</p>
+    <h2 class="big" id="proof-title">Every rep is counted. Twice.</h2>
+    <div class="proof">
+      <article>
+        <div class="icon" style="background:#ff5a5f22;color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h2l1.5-2h6l1.5 2h2A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+        <h3>Counted on camera</h3>
+        <p>Set your phone on the floor and train. Forja watches your form and only counts full reps.</p>
+      </article>
+      <article>
+        <div class="icon" style="background:#ffc23322;color:var(--yellow)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.4-3 8.2-7 9.5-4-1.3-7-5.1-7-9.5V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></div>
+        <h3>Checked again on our server</h3>
+        <p>Your phone counts, then our server replays the movement and counts again before anything is saved.</p>
+      </article>
+      <article>
+        <div class="icon" style="background:#2dd4bf22;color:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></div>
+        <h3>Your video stays on your phone</h3>
+        <p>Nothing is recorded or uploaded. Only a few body points are checked, never an image.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ---------- one ring a day ---------- -->
+  <section aria-labelledby="ring-title">
+    <div class="split">
+      <div>
+        <p class="kicker">One ring a day</p>
+        <h2 class="big" id="ring-title">Close your ring. Keep the streak.</h2>
+        <ul class="points">
+          <li><span class="dot" style="background:var(--red)"></span><span><b>Three moves a day.</b> Push-ups, a plank and squats, sized to you.</span></li>
+          <li><span class="dot" style="background:var(--yellow)"></span><span><b>Your plan grows with you.</b> Targets step up as you get stronger.</span></li>
+          <li><span class="dot" style="background:var(--teal)"></span><span><b>Two rest days a week.</b> One bad day doesn't end your streak.</span></li>
+        </ul>
+      </div>
+      <div class="ring-card">
+        <svg class="ring-big" viewBox="0 0 120 120" aria-hidden="true">
+          <g transform="rotate(-90 60 60)">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="#ff5a5f" stroke-width="14" stroke-dasharray="80.5 221.1"/>
+            <circle cx="60" cy="60" r="48" fill="none" stroke="#ffc233" stroke-width="14" stroke-dasharray="80.5 221.1" stroke-dashoffset="-100.5"/>
+            <circle cx="60" cy="60" r="48" fill="none" stroke="#2dd4bf" stroke-width="14" stroke-dasharray="80.5 221.1" stroke-dashoffset="-201"/>
+          </g>
+          <circle cx="60" cy="60" r="33" fill="#fff6ea"/>
+          <ellipse cx="51" cy="56" rx="5" ry="6.2" fill="#1c1c1e"/><circle cx="52.7" cy="53.6" r="1.8" fill="#fff"/>
+          <ellipse cx="69" cy="56" rx="5" ry="6.2" fill="#1c1c1e"/><circle cx="70.7" cy="53.6" r="1.8" fill="#fff"/>
+          <path d="M52.5 66 Q60 74 67.5 66" stroke="#1c1c1e" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+        </svg>
+        <div class="ring-stats">
+          <div class="r"><b>25</b><span>push-ups</span></div>
+          <div class="y"><b>1:10</b><span>plank</span></div>
+          <div class="t"><b>40</b><span>squats</span></div>
+        </div>
+        <div class="streak-row" aria-label="An example week: 5 training days, 1 rest day, today closed">
+          <span>M</span><span>T</span><span class="rest"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span><span>T</span><span>F</span><span>S</span><span class="today">S</span>
+        </div>
+        <p class="streak-caption">12-day streak, with one rest day</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- friends (example people, not real accounts) ---------- -->
+  <section aria-labelledby="friends-title">
+    <div class="split">
+      <div>
+        <p class="kicker">Better with friends</p>
+        <h2 class="big" id="friends-title">Real numbers. Real bragging rights.</h2>
+        <p class="sub">See your friends' workouts in the Feed, like them, nudge anyone who hasn't trained yet today, and race everyone in a weekly league.</p>
+      </div>
+      <div class="social" aria-hidden="true">
+        <div class="feed-card">
+          <div class="fc-head"><span class="av" style="background:#0e7fa6">M</span><span class="fc-name">maya.k</span><span class="fc-time">6:42 PM</span></div>
+          <div><span class="fc-kind">Full day</span></div>
+          <div class="fc-stats"><div><b>25</b><span>push-ups</span></div><div><b>40</b><span>squats</span></div><div><b>1:10</b><span>plank</span></div></div>
+          <div class="fc-foot"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20.5s-8.5-5.1-8.5-11A4.7 4.7 0 0 1 8.2 4.8c1.6 0 2.9.8 3.8 2.1.9-1.3 2.2-2.1 3.8-2.1a4.7 4.7 0 0 1 4.7 4.7c0 5.9-8.5 11-8.5 11z"/></svg>You and jordan liked this</div>
+        </div>
+        <div class="row-card">
+          <span class="av" style="background:#0f8b7f">D</span>
+          <span class="who"><b>dev_lifts</b><span>Not yet today</span></span>
+          <span class="pill">Nudge</span>
+        </div>
+        <div class="row-card">
+          <span class="medal">1</span>
+          <span class="who"><b>You</b><span>Forja League · 6 days</span></span>
+          <span class="pts">640 pts</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- founder offer ---------- -->
+  <section aria-labelledby="offer-title">
+    <div class="offer">
+      <svg class="offer-ring" viewBox="0 0 100 100" aria-hidden="true"><g transform="rotate(-73 50 50)"><circle cx="50" cy="50" r="40" fill="none" stroke="#ff5a5f" stroke-width="8" stroke-linecap="round" stroke-dasharray="60 191.3"/><circle cx="50" cy="50" r="40" fill="none" stroke="#ffc233" stroke-width="8" stroke-linecap="round" stroke-dasharray="60 191.3" stroke-dashoffset="-83.8"/><circle cx="50" cy="50" r="40" fill="none" stroke="#2dd4bf" stroke-width="8" stroke-linecap="round" stroke-dasharray="60 191.3" stroke-dashoffset="-167.6"/></g></svg>
+      <div>
+        <p class="kicker">Founding Members</p>
+        <h2 class="big" id="offer-title">Be here first. Pay almost nothing.</h2>
+        <p class="sub">Join the waitlist or the beta before Forja launches on the App Store and you lock in the best price it will ever have. The founder price ends at launch.</p>
+        <button class="btn" type="button" id="offer-join">Claim a founder spot</button>
+      </div>
+      <div class="price">
+        <span class="now">$0 <small>for 12 months</small></span>
+        <span class="then">then $1.99/month for life <s>$5.99</s></span>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l5 5 9-10"/></svg>Camera counting, streaks, friends and leagues stay free for everyone</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l5 5 9-10"/></svg>Pro adds streak repair, an extra rest day, your full history and pet outfits</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l5 5 9-10"/></svg>Founder badge on your profile</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- faq ---------- -->
+  <section aria-labelledby="faq-title">
+    <p class="kicker">Questions</p>
+    <h2 class="big" id="faq-title">Good to know</h2>
+    <div class="faq">
+      <details><summary>Can I use Forja now?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></summary>
+        <p>Yes. The beta runs in your phone's browser today. On iPhone, add it to your Home Screen for reminders. The App Store app comes next, and your streak carries over.</p></details>
+      <details><summary>Is it free?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></summary>
+        <p>Yes. Counting, streaks, friends, the Feed and leagues are free. Forja Pro adds extras, and Founding Members get it free for a year.</p></details>
+      <details><summary>Does Forja record me?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></summary>
+        <p>No. The video is checked on your phone and never saved or uploaded. Our server only sees a list of body-point positions for each set, with no images.</p></details>
+      <details><summary>What do you do with my email?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></summary>
+        <p>We use it to tell you when Forja launches and about your founder price. Nothing else, and we never sell it. Email hello@getforja.app and we'll delete it.</p></details>
+      <details><summary>Do I need equipment?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></summary>
+        <p>No. Just your phone and a bit of floor. Walks and runs count too.</p></details>
+      <details><summary>Android?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></summary>
+        <p>The beta works in any modern phone browser, Android included.</p></details>
+    </div>
+  </section>
+
+  <footer>
+    <span>© 2026 Forja</span>
+    <nav aria-label="Footer"><a href="privacy.html">Privacy</a><span>hello@getforja.app</span></nav>
+  </footer>
+</div>
+
+<script>
+  // ---------- the waitlist ----------
+  // Same public project address and key as the app (script.js); the
+  // `waitlist` function holds the rules and only it can read the list.
+  const SUPABASE_URL = "https://wiixtjykewtqvpxqwtor.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpaXh0anlrZXd0cXZweHF3dG9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMTI3ODIsImV4cCI6MjEwNTc4ODc4Mn0.WKij4ltTLv_qNfKrT5vO8y1tyjQk2IAdz7WYDTemS80";
+  const WAITLIST_KEY = "forja-waitlist";      // { code } once you've joined (this phone)
+  const REF_KEY = "forja-waitlist-ref";       // the friend's code from their ?r= link
+  const SOURCE_KEY = "forja-signup-source";   // shared with the app: where a visitor came from
+  const PET = '<svg viewBox="-6 0 112 112" aria-hidden="true"><g transform="rotate(-73 50 60)"><circle cx="50" cy="60" r="36" fill="none" stroke="#ff5a5f" stroke-width="12" stroke-linecap="round" stroke-dasharray="54 172.2"/><circle cx="50" cy="60" r="36" fill="none" stroke="#ffc233" stroke-width="12" stroke-linecap="round" stroke-dasharray="54 172.2" stroke-dashoffset="-75.4"/><circle cx="50" cy="60" r="36" fill="none" stroke="#2dd4bf" stroke-width="12" stroke-linecap="round" stroke-dasharray="54 172.2" stroke-dashoffset="-150.8"/></g><circle cx="50" cy="60" r="26.5" fill="#fff6ea"/><ellipse cx="41" cy="56" rx="5" ry="6.2" fill="#1c1c1e"/><circle cx="42.7" cy="53.6" r="1.8" fill="#fff"/><ellipse cx="59" cy="56" rx="5" ry="6.2" fill="#1c1c1e"/><circle cx="60.7" cy="53.6" r="1.8" fill="#fff"/><path d="M42.5 66 Q50 74 57.5 66" stroke="#1c1c1e" stroke-width="3.4" fill="none" stroke-linecap="round"/></svg>';
+  const store = {
+    get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } },
+    set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} },
+  };
+
+  // ?r=<friend's code> and ?src=tiktok: remembered, then taken out of the
+  // address so a screenshot or a re-share doesn't carry them on.
+  (function readLink() {
+    const params = new URLSearchParams(location.search);
+    const ref = (params.get("r") || "").trim().toLowerCase();
+    const source = (params.get("src") || "").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+    if (/^[a-z0-9]{8}$/.test(ref)) store.set(REF_KEY, ref);
+    try {
+      if (!localStorage.getItem(SOURCE_KEY) && (source || ref)) localStorage.setItem(SOURCE_KEY, source || "waitlist-friend");
+    } catch (e) {}
+    if (params.has("r") || params.has("src")) {
+      params.delete("r");
+      params.delete("src");
+      const rest = params.toString();
+      history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+    }
+  })();
+
+  async function callWaitlist(body) {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/waitlist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify(body),
+    });
+    let reply = null;
+    try { reply = await response.json(); } catch (e) {}
+    return reply || { ok: false, error: "server_error" };
+  }
+
+  const form = document.getElementById("join-form");
+  const email = document.getElementById("email");
+  const error = document.getElementById("form-error");
+  const joinButton = document.getElementById("join-button");
+  const ERRORS = {
+    bad_email: "Enter an email like you@email.com.",
+    already_joined: "That email is already on the list. You're in.",
+    too_many: "Too many sign-ups from this connection. Try again in an hour.",
+    busy: "Lots of people are joining right now. Try again in a few minutes.",
+  };
+  const showError = (text) => {
+    email.setAttribute("aria-invalid", "true");
+    error.textContent = text;
+  };
+
+  function showJoined({ code, place, referrals }) {
+    const link = `${location.origin}/?r=${code}`;
+    const canShare = typeof navigator.share === "function";
+    const join = document.getElementById("join");
+    join.innerHTML = `
+      <div class="joined" role="status">
+        <div class="joined-top">${PET}<div><h2>You're on the list</h2><p>You're <span class="place">#${Number(place).toLocaleString()}</span> in line and a Founding Member.</p></div></div>
+        <p>Each friend who joins with your link moves you up 10 spots.${Number(referrals) ? ` ${Number(referrals) === 1 ? "1 friend has" : `${Number(referrals)} friends have`} joined so far.` : ""}</p>
+        <div class="ref"><code id="ref-link"></code></div>
+        <div class="ref-actions">
+          ${canShare ? '<button class="btn small" type="button" id="share">Share</button>' : ""}
+          <button class="btn small${canShare ? " ghost" : ""}" type="button" id="copy">Copy Link</button>
+        </div>
+        <a class="beta-link" href="index.html">Start training in the beta now
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>`;
+    document.getElementById("ref-link").textContent = link.replace(/^https?:\/\//, "");
+    const copy = document.getElementById("copy");
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(link);
+        copy.textContent = "Copied";
+      } catch (e) {
+        const range = document.createRange();
+        range.selectNodeContents(document.getElementById("ref-link"));
+        const selection = getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        copy.textContent = "Selected";
+      }
+    });
+    const share = document.getElementById("share");
+    if (share) share.addEventListener("click", () => {
+      navigator.share({ title: "Forja", text: "The workout app you can't cheat. Join the waitlist with me:", url: link }).catch(() => {});
+    });
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const value = email.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) {
+      showError(ERRORS.bad_email);
+      email.focus();
+      return;
+    }
+    joinButton.disabled = true;
+    joinButton.textContent = "Joining...";
+    let reply;
+    try {
+      reply = await callWaitlist({
+        action: "join",
+        email: value,
+        ref: store.get(REF_KEY) || undefined,
+        src: (() => { try { return localStorage.getItem(SOURCE_KEY) || undefined; } catch (e) { return undefined; } })(),
+        website: document.getElementById("website").value,
+      });
+    } catch (e) {
+      reply = { ok: false, error: "offline" };
+    }
+    joinButton.disabled = false;
+    joinButton.textContent = "Join the waitlist";
+    if (reply.ok && reply.code) {
+      store.set(WAITLIST_KEY, { code: reply.code });
+      showJoined(reply);
+      return;
+    }
+    showError(ERRORS[reply.error] || (reply.error === "offline" ? "Couldn't reach Forja. Check your connection and try again." : "Something went wrong on our side. Try again in a minute."));
+  });
+  email.addEventListener("input", () => { email.removeAttribute("aria-invalid"); error.textContent = ""; });
+  document.getElementById("offer-join").addEventListener("click", () => {
+    document.getElementById("top").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    setTimeout(() => { const input = document.getElementById("email"); if (input) input.focus({ preventScroll: true }); }, 400);
+  });
+
+  // Back on a later visit: show your place again (it moves as friends join).
+  (async function welcomeBack() {
+    const saved = store.get(WAITLIST_KEY);
+    if (!saved || !/^[a-z0-9]{8}$/.test(saved.code || "")) return;
+    try {
+      const reply = await callWaitlist({ action: "status", code: saved.code });
+      if (reply.ok) showJoined({ code: saved.code, place: reply.place, referrals: reply.referrals });
+    } catch (e) {}
+  })();
+
+  // ---------- camera demo: a side-on push-up, skeleton + count ----------
+  const fig = document.getElementById("figure");
+  const countEl = document.getElementById("count");
+  const miniFill = document.getElementById("mini-fill");
+  const stateEl = document.getElementById("state");
+  const TARGET = 20;
+  const A = { x: 52, y: 158 };      // ankle (feet stay put)
+  const L = 178;                    // ankle -> shoulder
+  const UP = 18.2, DOWN = 5.5;      // body angle in degrees
+  const ARM = 29;                   // upper arm = forearm
+  const W = { x: A.x + L * Math.cos(UP * Math.PI / 180), y: 158 }; // hands under the shoulders at the top
+  const P = (x, y) => `${x.toFixed(1)},${y.toFixed(1)}`;
+
+  function pose(depth) { // 0 = arms straight, 1 = chest down
+    const th = (UP + (DOWN - UP) * depth) * Math.PI / 180;
+    const dir = { x: Math.cos(th), y: -Math.sin(th) };
+    const S = { x: A.x + L * dir.x, y: A.y + L * dir.y };
+    const H = { x: A.x + L * 0.52 * dir.x, y: A.y + L * 0.52 * dir.y };
+    const K = { x: A.x + L * 0.26 * dir.x, y: A.y + L * 0.26 * dir.y };
+    const head = { x: S.x + 17 * dir.x, y: S.y + 17 * dir.y - 3 };
+    // Elbow: a two-part arm from shoulder to hand, bending back toward the feet.
+    const dx = W.x - S.x, dy = W.y - S.y, d = Math.min(Math.hypot(dx, dy), ARM * 2 - 0.01);
+    const h = Math.sqrt(Math.max(ARM * ARM - (d / 2) * (d / 2), 0));
+    const mx = S.x + dx / 2, my = S.y + dy / 2;
+    let E = { x: mx + (dy / d) * h, y: my - (dx / d) * h };
+    if (E.x > mx) E = { x: mx - (dy / d) * h, y: my + (dx / d) * h };
+    return { S, H, K, head, E };
+  }
+
+  function draw(depth) {
+    const { S, H, K, head, E } = pose(depth);
+    const green = "#22c55e";
+    fig.innerHTML = `
+      <polyline points="${P(A.x, A.y)} ${P(K.x, K.y)} ${P(H.x, H.y)} ${P(S.x, S.y)}" stroke="${green}" stroke-width="5"/>
+      <polyline points="${P(S.x, S.y)} ${P(E.x, E.y)} ${P(W.x, W.y)}" stroke="${green}" stroke-width="5"/>
+      <circle cx="${head.x.toFixed(1)}" cy="${head.y.toFixed(1)}" r="10" stroke="#ffffff8c" stroke-width="3.5"/>
+      ${[A, K, H, S, E, W].map((j) => `<circle cx="${j.x.toFixed(1)}" cy="${j.y.toFixed(1)}" r="4.5" fill="#fff" stroke="none"/>`).join("")}`;
+  }
+
+  function setCount(n) {
+    countEl.textContent = n;
+    miniFill.setAttribute("stroke-dasharray", `${(94.2 * Math.min(n, TARGET) / TARGET).toFixed(1)} 94.2`);
+  }
+
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    draw(0.2);
+    setCount(12);
+  } else {
+    const REP_MS = 1500;
+    let start = null, lastRep = -1;
+    const tick = (now) => {
+      if (start === null) start = now;
+      const inCycle = (now - start) % (TARGET * REP_MS + 2600); // 20 reps, then a beat at 20
+      const rep = Math.floor(inCycle / REP_MS);
+      if (rep < TARGET) {
+        const phase = (inCycle % REP_MS) / REP_MS;
+        draw((1 - Math.cos(phase * Math.PI * 2)) / 2);
+        stateEl.textContent = phase < 0.5 ? "Going down" : "Full rep";
+        // The count lands as the arms lock out at the top.
+        const counted = phase > 0.9 ? rep + 1 : rep;
+        if (counted !== lastRep) {
+          lastRep = counted;
+          setCount(counted);
+          if (counted > 0) { countEl.classList.remove("bump"); void countEl.offsetWidth; countEl.classList.add("bump"); }
+        }
+      } else {
+        draw(0);
+        stateEl.textContent = "Ring slice closed";
+        if (lastRep !== TARGET) { lastRep = TARGET; setCount(TARGET); }
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+</script>
+</body>
+</html>
