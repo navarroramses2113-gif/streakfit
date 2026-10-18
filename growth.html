@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>Forja Growth</title>
+  <!-- Private: Forja's own numbers. Only counts come back, and only for an
+       admin account (sql/growth-2026-10-18.sql, growth_stats). Uses the
+       app's login on this site - sign in to Forja first. -->
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <style>
+  /* Layout: phone-first single column (Ramses checks it on his iPhone);
+     headline tiles, then the day-by-day chart, then sources, then the
+     smaller numbers. Forja's own dark/light tokens; chart marks use the
+     validated pair green #16a34a + violet #7c5cff. */
+  :root {
+    --bg: #0b0b0d;
+    --panel: #141417;
+    --line: #ffffff14;
+    --grid: #ffffff12;
+    --text: #f4f4f5;
+    --text-2: #9a9a96;
+    --text-3: #6b6b68;
+    --green: #16a34a;
+    --violet: #7c5cff;
+    --warn: #ff9f0a;
+    --warn-tint: #ff9f0a1f;
+    --good: #22c55e;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --bg: #f2f2f7; --panel: #ffffff; --line: #3c3c4326; --grid: #3c3c431a; --text: #1c1c1e; --text-2: #636366; --text-3: #8e8e93; --warn: #b25000; --warn-tint: #ff9f0a26; --good: #15803d; color-scheme: light; }
+  }
+  :root[data-theme="light"] { --bg: #f2f2f7; --panel: #ffffff; --line: #3c3c4326; --grid: #3c3c431a; --text: #1c1c1e; --text-2: #636366; --text-3: #8e8e93; --warn: #b25000; --warn-tint: #ff9f0a26; --good: #15803d; color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); font-family: var(--font);
+    padding-block: 20px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 760px; margin: 0 auto; display: grid; gap: 16px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.01em; }
+  .asof { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  h2 { margin: 8px 0 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-2); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tiles { grid-template-columns: repeat(4, 1fr); } }
+  .tile { display: grid; gap: 2px; align-content: start; }
+  .tile b { font-size: 34px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 13px; color: var(--text-2); }
+  .tile small { font-size: 12px; color: var(--text-3); }
+  .tile.warn { border-color: color-mix(in srgb, var(--warn) 45%, transparent); background: linear-gradient(var(--warn-tint), var(--warn-tint)), var(--panel); }
+  .flag { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--warn); }
+  .flag svg { width: 14px; height: 14px; }
+
+  .callout { display: flex; gap: 12px; align-items: flex-start; }
+  .callout svg { flex-shrink: 0; width: 22px; height: 22px; color: var(--warn); margin-top: 1px; }
+  .callout p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--text-2); }
+  .callout b { color: var(--text); }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-2); margin-bottom: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .legend i.line { height: 3px; border-radius: 2px; vertical-align: 3px; width: 14px; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .tip {
+    position: absolute; pointer-events: none; padding: 8px 10px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line);
+    font-size: 13px; color: var(--text); white-space: nowrap; box-shadow: 0 6px 20px #00000040; transform: translate(-50%, -100%); font-variant-numeric: tabular-nums;
+  }
+  .tip span { color: var(--text-2); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th { text-align: left; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); padding: 0 0 8px; }
+  th.n, td.n { text-align: right; font-variant-numeric: tabular-nums; padding-left: 16px; }
+  th { white-space: nowrap; }
+  td { padding: 10px 0; border-top: 1px solid var(--line); }
+  .note { margin: 10px 0 0; font-size: 13px; color: var(--text-2); line-height: 1.45; }
+
+  .small { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .small { grid-template-columns: repeat(4, 1fr); } }
+  .small .card b { display: block; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .small .card span { font-size: 13px; color: var(--text-2); }
+  footer { font-size: 13px; color: var(--text-3); line-height: 1.5; }
+  details summary { cursor: pointer; font-size: 13px; color: var(--text-2); min-height: 44px; display: flex; align-items: center; }
+
+  /* ---------- live page additions ---------- */
+  .state { text-align: center; padding: 48px 16px; color: var(--text-2); font-size: 15px; line-height: 1.5; }
+  .state a { color: var(--good); font-weight: 600; }
+  .refresh { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: 600 13px var(--font); cursor: pointer; }
+  .refresh:focus-visible { outline: 3px solid var(--good); outline-offset: 2px; }
+  .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Growth</h1>
+    <button class="refresh" type="button" id="refresh">Refresh</button>
+  </header>
+  <p class="asof" id="asof"></p>
+
+  <p class="state" id="state">Loading...</p>
+
+  <div id="dash" class="hidden" style="display:grid;gap:16px">
+    <div class="tiles" id="tiles"></div>
+    <div class="card callout hidden" id="callout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.5v.01"/></svg>
+      <p id="callout-text"></p>
+    </div>
+
+    <h2>Day by day, last 3 weeks</h2>
+    <div class="card">
+      <div class="legend" aria-hidden="true"><span><i style="background:var(--green)"></i>New accounts</span><span><i class="line" style="background:var(--violet)"></i>People who trained</span></div>
+      <div class="chart" id="chart"></div>
+      <details><summary>Show as a table</summary><table id="daytable"><thead><tr><th>Day</th><th class="n">New accounts</th><th class="n">Waitlist</th><th class="n">Trained</th></tr></thead><tbody></tbody></table></details>
+    </div>
+
+    <h2>Where people came from</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Source</th><th class="n">Waitlist</th><th class="n">Accounts</th><th class="n" title="Trained on their first day">Day 1</th></tr></thead>
+        <tbody id="sources"></tbody>
+      </table>
+      <p class="note">Day 1 = trained on their first day. Add <b>?src=</b> to every link you post (getforja.app/?src=tiktok, ?src=ig) and each one gets its own row.</p>
+    </div>
+
+    <h2>Also</h2>
+    <div class="small" id="small"></div>
+
+    <footer>Counts only: no names, emails or workouts of anyone in particular. Days are in UTC. "Trained" means a verified set or a walk/run that day.</footer>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
+<script>
+  // Same public project address and key as the app (script.js).
+  const client = supabase.createClient("https://wiixtjykewtqvpxqwtor.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpaXh0anlrZXd0cXZweHF3dG9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMTI3ODIsImV4cCI6MjEwNTc4ODc4Mn0.WKij4ltTLv_qNfKrT5vO8y1tyjQk2IAdz7WYDTemS80");
+  const $ = (id) => document.getElementById(id);
+  const WARN = '<span class="flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.5v.01"/></svg>Needs work</span>';
+  const pct = (a, b) => (b ? Math.round((100 * a) / b) + "%" : "-");
+  const label = (iso) => new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  let DAYS = [];
+
+  function show(state, text) {
+    $("dash").classList.toggle("hidden", state !== "ok");
+    $("state").classList.toggle("hidden", state === "ok");
+    if (text) $("state").innerHTML = text;
+  }
+
+  async function load() {
+    $("refresh").disabled = true;
+    try {
+      const { data: auth } = await client.auth.getSession();
+      if (!auth.session) return show("out", 'Sign in to Forja on this phone first, then come back here.<br><a href="index.html">Open Forja</a>');
+      const { data, error } = await client.rpc("growth_stats");
+      if (error) return show("err", error.code === "42501" ? "This page is only for Forja's team." : "Couldn't load the numbers. Check your connection and tap Refresh.");
+      render(data);
+      show("ok");
+    } catch (e) {
+      show("err", "Couldn't load the numbers. Check your connection and tap Refresh.");
+    } finally {
+      $("refresh").disabled = false;
+    }
+  }
+
+  function tile(title, big, small, warn) {
+    return `<div class="card tile${warn ? " warn" : ""}"><span>${title}</span><b>${big}</b><small>${small}</small>${warn ? WARN : ""}</div>`;
+  }
+
+  function render(s) {
+    $("asof").textContent = "Updated " + new Date(s.as_of).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const day1Low = s.accounts > 0 && s.day1_trained / s.accounts < 0.5;
+    const day7Low = s.day7_eligible > 0 && s.day7_back / s.day7_eligible < 0.3;
+    $("tiles").innerHTML =
+      tile("Accounts", s.accounts, `+${s.new_7d} this week`) +
+      tile("Trained this week", s.trained_7d, `of ${s.accounts}`) +
+      tile("Trained on day 1", `${s.day1_trained} of ${s.accounts}`, pct(s.day1_trained, s.accounts), day1Low) +
+      tile("Back on day 7", `${s.day7_back} of ${s.day7_eligible}`, pct(s.day7_back, s.day7_eligible), day7Low);
+    const never = s.accounts - s.day1_trained;
+    $("callout").classList.toggle("hidden", !day1Low);
+    $("callout-text").innerHTML = `<b>${never} of ${s.accounts} people never did a set on their first day.</b> Fix this before the big social push, or most new sign-ups will leave the same way.`;
+
+    DAYS = s.days.map((d) => ({ day: d[0], accounts: d[1], waitlist: d[2], trained: d[3] }));
+    drawChart();
+    $("daytable").querySelector("tbody").innerHTML = DAYS.slice().reverse().map((d) => `<tr><td>${label(d.day)}</td><td class="n">${d.accounts}</td><td class="n">${d.waitlist}</td><td class="n">${d.trained}</td></tr>`).join("");
+
+    $("sources").innerHTML = s.sources.length
+      ? s.sources.map(([src, w, a, d1]) => `<tr><td>${esc(src === "before tracking" ? "Before tracking" : src)}</td><td class="n">${w}</td><td class="n">${a}</td><td class="n">${d1}</td></tr>`).join("")
+      : '<tr><td colspan="4">Nobody yet.</td></tr>';
+
+    $("small").innerHTML = [
+      [s.waitlist, `On the waitlist (+${s.waitlist_7d} this week)`],
+      [s.founders, "Founding Members"],
+      [s.trained_today, "Trained today"],
+      [s.reminder_people, "People with reminders on"],
+      [s.friendships, "Friendships"],
+      [`${s.best_streak} days`, "Longest streak"],
+    ].map(([b, t]) => `<div class="card"><b>${b}</b><span>${t}</span></div>`).join("");
+  }
+
+  function drawChart() {
+    const host = $("chart");
+    if (!DAYS.length) return;
+    const W = Math.max(300, host.clientWidth), H = 200;
+    const m = { l: 26, r: 8, t: 10, b: 24 };
+    const max = Math.max(4, ...DAYS.map((d) => Math.max(d.accounts, d.trained)));
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const step = iw / DAYS.length, bw = Math.max(4, step - 4);
+    const x = (i) => m.l + i * step + step / 2;
+    const y = (v) => m.t + ih - (v / max) * ih;
+    const ticks = max <= 6 ? Array.from({ length: max + 1 }, (_, i) => i) : [0, Math.round(max / 2), max];
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="New accounts and people who trained per day">`;
+    for (const v of ticks) {
+      svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/>`;
+      svg += `<text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-3)">${v}</text>`;
+    }
+    DAYS.forEach((d, i) => {
+      if (d.accounts > 0) {
+        const top = y(d.accounts), h = m.t + ih - top;
+        svg += `<path d="M${x(i) - bw / 2},${m.t + ih} v${-(h - 4)} q0,-4 4,-4 h${bw - 8} q4,0 4,4 v${h - 4} z" fill="var(--green)"/>`;
+      }
+      if (i % 7 === 0 || i === DAYS.length - 1) svg += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--text-3)">${label(d.day)}</text>`;
+    });
+    svg += `<polyline points="${DAYS.map((d, i) => `${x(i)},${y(d.trained)}`).join(" ")}" fill="none" stroke="var(--violet)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    svg += `<line id="cross" x1="0" x2="0" y1="${m.t}" y2="${m.t + ih}" stroke="var(--text-3)" stroke-width="1" visibility="hidden"/>`;
+    svg += `<circle id="dot" r="4" fill="var(--violet)" stroke="var(--panel)" stroke-width="2" visibility="hidden"/>`;
+    svg += `<rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent" id="hit"/></svg><div class="tip" id="tip" hidden></div>`;
+    host.innerHTML = svg;
+    const tip = host.querySelector("#tip"), cross = host.querySelector("#cross"), dot = host.querySelector("#dot"), hit = host.querySelector("#hit");
+    const showAt = (clientX) => {
+      const r = hit.getBoundingClientRect();
+      const i = Math.min(DAYS.length - 1, Math.max(0, Math.floor(((clientX - r.left) / r.width) * DAYS.length)));
+      const d = DAYS[i], scale = host.clientWidth / W;
+      cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+      dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(d.trained)); dot.setAttribute("visibility", "visible");
+      tip.hidden = false;
+      tip.innerHTML = `<b>${label(d.day)}</b><br><span>New accounts</span> ${d.accounts}<br><span>Waitlist</span> ${d.waitlist}<br><span>Trained</span> ${d.trained}`;
+      tip.style.left = Math.min(Math.max(x(i) * scale, 70), host.clientWidth - 70) + "px";
+      tip.style.top = m.t * scale + "px";
+    };
+    hit.addEventListener("pointermove", (e) => showAt(e.clientX));
+    hit.addEventListener("pointerdown", (e) => showAt(e.clientX));
+    hit.addEventListener("pointerleave", () => { tip.hidden = true; cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); });
+  }
+
+  $("refresh").addEventListener("click", load);
+  addEventListener("resize", drawChart);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
+  load();
+</script>
+</body>
+</html>
