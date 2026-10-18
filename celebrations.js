@@ -590,7 +590,7 @@ const Celebrations = (function () {
       streakCountEl.classList.add("pulse");
       setTimeout(() => streakCountEl.classList.remove("pulse"), 250);
       await wait(landed ? 260 : 0);
-      const milestoneDay = streak > 0 && streak % 7 === 0 && !isToday(MILESTONE_KEY);
+      const milestoneDay = streak > 0 && (streak % 7 === 0 || BIG_DAYS.includes(streak)) && !isToday(MILESTONE_KEY);
       askNotifications("done", milestoneDay);
       coachRender(true, todayProgress(), true);
       if (milestoneDay) {
@@ -1020,9 +1020,18 @@ const Celebrations = (function () {
     }
   }
 
+  // Every 7th day gets the flex; these get it too, and these plus the
+  // first two weeks get a story image to share (script.js
+  // openMilestoneShare).
+  const BIG_DAYS = [30, 60, 100, 365];
+  const SHARE_DAYS = [7, 14, ...BIG_DAYS];
+  const MILESTONE_LINES = { 30: "One month in a row.", 60: "Two months in a row.", 100: "100 days in a row.", 365: "A whole year in a row." };
+
   function milestone(streak) {
     remember(MILESTONE_KEY);
     const weeks = streak / 7;
+    const line = MILESTONE_LINES[streak] || (weeks === 1 ? "A full week in a row." : `${weeks} weeks in a row.`);
+    const canShare = SHARE_DAYS.includes(streak) && typeof openMilestoneShare === "function";
     // The last seven days, ending today.
     const letters = ["S", "M", "T", "W", "T", "F", "S"];
     const days = Array.from({ length: 7 }, (_, i) => letters[new Date(Date.now() - (6 - i) * 86400000).getDay()]);
@@ -1036,9 +1045,10 @@ const Celebrations = (function () {
         ${FlexPet.svg()}
         <span class="celebrate-number">${streak - 1}</span>
         <h2 id="celebrate-title">${streak}-day streak!</h2>
-        <p>${weeks === 1 ? "A full week in a row." : `${weeks} weeks in a row.`}</p>
+        <p>${line}</p>
         <div class="celebrate-week">${days.map((d, i) => `<span class="${i === 6 ? "is-today" : ""}">${d}</span>`).join("")}</div>
-        <button class="auth-submit-button celebrate-close">Continue</button>`;
+        ${canShare ? '<button class="auth-submit-button celebrate-share">Share My Streak</button>' : ""}
+        <button class="${canShare ? "tracking-cancel-button" : "auth-submit-button"} celebrate-close">Continue</button>`;
       document.body.appendChild(screen);
       // The number and confetti go off as the pet lands in its flex.
       const pet = screen.querySelector(".flex-pet");
@@ -1065,8 +1075,13 @@ const Celebrations = (function () {
         if (event.key === "Escape") close();
       };
       button.addEventListener("click", close);
+      const share = screen.querySelector(".celebrate-share");
+      if (share) share.addEventListener("click", () => {
+        close();
+        openMilestoneShare(streak);
+      });
       document.addEventListener("keydown", onKey);
-      button.focus();
+      (share || button).focus();
     });
   }
 

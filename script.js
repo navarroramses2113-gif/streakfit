@@ -5385,19 +5385,39 @@ document.getElementById("tracking-summary-close-button").addEventListener("click
 // The Sticker PNG (see-through, stats + route only) is also exactly what
 // Instagram's own Stories connection takes as its "sticker" once Forja is
 // an App Store app - the person's photo goes behind it there.
-const shareRoute = { points: [], distanceKm: 0, durationMs: 0, template: "sticker", file: null, drawId: 0 };
+// The same screen shares a streak milestone (kind "streak", see
+// openMilestoneShare): streak = {count, days: ["day"|"rest", ...] oldest
+// first, totals: {pushups, squats, plankSeconds} or null}.
+const shareRoute = { kind: "route", streak: null, points: [], distanceKm: 0, durationMs: 0, template: "sticker", file: null, drawId: 0 };
 const shareRouteCanvasEl = document.getElementById("share-route-canvas");
 const shareRouteButtonEl = document.getElementById("share-route-button");
 const shareRouteCopyEl = document.getElementById("share-route-copy");
 // Copying an image needs the newer clipboard (iPhone Safari 13.4+).
 const canCopyImage = !!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem);
 
+// day / rest / restMark: a streak card's days, in the History calendar's
+// colors (--accent, --heatmap-rest, --heatmap-rest-mark).
 const SHARE_TEMPLATES = {
   // See-through, white, with a soft shadow so it reads over any photo.
-  sticker: { background: null, text: "#ffffff", subtext: "#ffffffcc", line: "#ffffff", shadow: "#00000073" },
-  dark: { background: "#0b0b0d", text: "#ffffff", subtext: "#ffffffb3", line: "#22c55e", glow: "#22c55e2b" },
-  light: { background: "#f4f4f1", text: "#141416", subtext: "#14141699", line: "#16a34a" },
+  sticker: { background: null, text: "#ffffff", subtext: "#ffffffcc", line: "#ffffff", shadow: "#00000073", day: "#22c55e", rest: "#247644", restMark: "#f4f4f5" },
+  dark: { background: "#0b0b0d", text: "#ffffff", subtext: "#ffffffb3", line: "#22c55e", glow: "#22c55e2b", day: "#22c55e", rest: "#247644", restMark: "#f4f4f5" },
+  light: { background: "#f4f4f1", text: "#141416", subtext: "#14141699", line: "#16a34a", day: "#22c55e", rest: "#22c55e59", restMark: "#15803d" },
 };
+
+// The celebration's flexing pet as a picture (brand/forja-pet-flex.svg,
+// made from celebrations.js FlexPet by forja-lab/tools/export-flexpet.js).
+let sharePetImage = null;
+function sharePet() {
+  if (!sharePetImage) {
+    sharePetImage = new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = "brand/forja-pet-flex.svg";
+    });
+  }
+  return sharePetImage;
+}
 
 // The Forja lockup (ring + word) from the page's logo sprite, as an image
 // the canvas can draw, in the given word color. Made once per color.
@@ -5420,7 +5440,8 @@ function shareIsRun() {
   return shareRoute.durationMs > 0 && shareRoute.distanceKm / (shareRoute.durationMs / 3600000) >= ForjaRules.ACTIVITY.RUN_KMH;
 }
 
-function drawShareImage(ctx, style, logo) {
+function drawShareImage(ctx, style, logo, pet) {
+  if (shareRoute.kind === "streak") return drawStreakImage(ctx, style, logo, pet);
   const W = 1080;
   const H = 1920;
   const font = (size, weight) => `${weight} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
@@ -5495,6 +5516,197 @@ function drawShareImage(ctx, style, logo) {
   ctx.restore();
 }
 
+// A streak milestone: the flexing pet, the number, every day of the streak
+// (green = verified, the History calendar's moon square = a rest day) and
+// what was done across it. The pet is drawn before any shadow so its
+// colors stay exactly the app's.
+const STREAK_NAMES = { 7: "ONE WEEK", 14: "TWO WEEKS", 30: "ONE MONTH", 60: "TWO MONTHS", 100: "100 DAYS", 365: "ONE YEAR" };
+
+function drawStreakImage(ctx, style, logo, pet) {
+  const W = 1080;
+  const H = 1920;
+  const font = (size, weight) => `${weight} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  const { count, days, totals } = shareRoute.streak;
+
+  ctx.clearRect(0, 0, W, H);
+  if (style.background) {
+    ctx.fillStyle = style.background;
+    ctx.fillRect(0, 0, W, H);
+  }
+  if (style.glow) {
+    const glow = ctx.createRadialGradient(W / 2, 460, 50, W / 2, 460, 700);
+    glow.addColorStop(0, style.glow);
+    glow.addColorStop(1, "#0b0b0d00");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+  }
+  if (pet) ctx.drawImage(pet, (W - 640) / 2, 150, 640, (640 * pet.height) / pet.width);
+
+  const withShadow = (draw) => {
+    ctx.save();
+    if (style.shadow) {
+      ctx.shadowColor = style.shadow;
+      ctx.shadowBlur = 24;
+    }
+    ctx.textAlign = "center";
+    draw();
+    ctx.restore();
+  };
+  withShadow(() => {
+    ctx.fillStyle = style.text;
+    ctx.font = font(count >= 100 ? 290 : 320, 800);
+    ctx.fillText(String(count), W / 2, 1010);
+    ctx.font = font(64, 800);
+    ctx.fillText("DAY STREAK", W / 2, 1095);
+    ctx.fillStyle = style.subtext;
+    ctx.font = font(44, 700);
+    ctx.fillText(`${STREAK_NAMES[count] || `${count} DAYS`} · EVERY REP VERIFIED`, W / 2, 1165);
+  });
+
+  // Every day of the streak, rows of 7 / 10 / 25 to fit.
+  const cols = days.length <= 14 ? 7 : days.length <= 110 ? 10 : 25;
+  const rows = Math.ceil(days.length / cols);
+  const areaW = days.length <= 14 ? 700 : 820;
+  const areaH = 330;
+  const cell = Math.min(areaW / cols, areaH / rows, 100);
+  const size = cell * 0.84;
+  const x0 = (W - cols * cell) / 2;
+  const y0 = 1225 + (areaH - rows * cell) / 2;
+  days.forEach((kind, i) => {
+    const x = x0 + (i % cols) * cell + (cell - size) / 2;
+    const y = y0 + Math.floor(i / cols) * cell + (cell - size) / 2;
+    ctx.fillStyle = kind === "rest" ? style.rest : style.day;
+    ctx.beginPath();
+    ctx.roundRect(x, y, size, size, size * 0.18);
+    ctx.fill();
+    if (kind === "rest") drawRestMark(ctx, x, y, size, style.restMark);
+  });
+
+  withShadow(() => {
+    if (totals) {
+      [
+        [totals.pushups.toLocaleString(), "PUSH-UPS"],
+        [totals.squats.toLocaleString(), "SQUATS"],
+        [formatPlankTotal(totals.plankSeconds), "PLANK"],
+      ].forEach(([value, label], i) => {
+        const x = W / 2 + (i - 1) * 330;
+        ctx.fillStyle = style.text;
+        ctx.font = font(76, 800);
+        ctx.fillText(value, x, 1650);
+        ctx.fillStyle = style.subtext;
+        ctx.font = font(40, 700);
+        ctx.fillText(label, x, 1705);
+      });
+    }
+    if (logo) {
+      ctx.drawImage(logo, W / 2 - 150, 1750, 300, 90);
+    } else {
+      ctx.fillStyle = style.text;
+      ctx.font = font(64, 800);
+      ctx.fillText("Forja", W / 2, 1818);
+    }
+  });
+}
+
+// The History calendar's moon (style.css .calendar-day.rest::after): a 9px
+// circle in the top-right corner of a ~44px day, of which only its shadow
+// (offset -2.5, 1.5, turned -20 degrees) shows - scaled to `size`.
+function drawRestMark(ctx, x, y, size, color) {
+  const k = size / 44;
+  const r = 4.5 * k;
+  ctx.save();
+  ctx.translate(x + size - 4 * k - r, y + 4 * k + r);
+  ctx.rotate((-20 * Math.PI) / 180);
+  ctx.beginPath();
+  ctx.rect(-size, -size, size * 2, size * 2);
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.clip("evenodd");
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(-2.5 * k, 1.5 * k, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// "45m", "6h 16m".
+function formatPlankTotal(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor(seconds / 60) % 60;
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+// The streak's days, oldest first, ending today: logged days ("day") and
+// the rest days between them ("rest"), until `count` logged days.
+function streakDays(count) {
+  const logged = new Set(data.history);
+  const rest = restDaySet();
+  const days = [];
+  const day = new Date();
+  let found = 0;
+  for (let guard = 0; found < count && guard < 1000; guard++) {
+    const key = dateToString(day);
+    if (logged.has(key)) {
+      days.push("day");
+      found++;
+    } else if (rest.has(key)) {
+      days.push("rest");
+    } else if (days.length) {
+      break;
+    }
+    day.setDate(day.getDate() - 1);
+  }
+  return days.reverse();
+}
+
+// Push-ups, squats and plank seconds from every verified set since `fromDay`
+// (signed in only; the server keeps them). null when they can't be read.
+async function streakTotals(fromDay) {
+  if (!currentUserId) return null;
+  const totals = { pushups: 0, squats: 0, plankSeconds: 0 };
+  const PAGE = 1000;
+  for (let from = 0; from < 20000; from += PAGE) {
+    const { data: rows, error } = await supabaseClient
+      .from("verified_sets")
+      .select("exercise, value")
+      .eq("user_id", currentUserId)
+      .gte("day", fromDay)
+      .order("created_at")
+      .range(from, from + PAGE - 1);
+    if (error) return null;
+    for (const row of rows) {
+      if (row.exercise === "pushup") totals.pushups += Number(row.value) || 0;
+      else if (row.exercise === "squat") totals.squats += Number(row.value) || 0;
+      else if (row.exercise === "plank") totals.plankSeconds += Number(row.value) || 0;
+    }
+    if (rows.length < PAGE) break;
+  }
+  return totals;
+}
+
+// From the celebration's Share My Streak button (celebrations.js).
+async function openMilestoneShare(count) {
+  const days = streakDays(count);
+  shareRoute.kind = "streak";
+  shareRoute.streak = { count, days, totals: null };
+  setShareBack("Today", "Back to Today");
+  document.getElementById("share-route-heading").textContent = "Share streak";
+  showScreen("share-route-screen");
+  pickShareTemplate(shareRoute.template);
+  const daysBack = new Date();
+  daysBack.setDate(daysBack.getDate() - days.length + 1);
+  const totals = await streakTotals(dateToString(daysBack));
+  if (totals && shareRoute.kind === "streak" && shareRoute.streak.count === count) {
+    shareRoute.streak.totals = totals;
+    renderShareImage();
+  }
+}
+
+function setShareBack(label, ariaLabel) {
+  const back = document.getElementById("share-route-back");
+  back.lastChild.textContent = label;
+  back.setAttribute("aria-label", ariaLabel);
+}
+
 function canvasToPng(canvas) {
   return new Promise((resolve, reject) => {
     try {
@@ -5514,20 +5726,23 @@ async function renderShareImage() {
   shareRouteButtonEl.disabled = true;
   shareRouteCopyEl.disabled = true;
   const ctx = shareRouteCanvasEl.getContext("2d");
-  const logo = await shareLogoImage(style.text);
+  const isStreak = shareRoute.kind === "streak";
+  const [logo, pet] = await Promise.all([shareLogoImage(style.text), isStreak ? sharePet() : null]);
   if (drawId !== shareRoute.drawId) return;
-  drawShareImage(ctx, style, logo);
+  drawShareImage(ctx, style, logo, pet);
   let blob;
   try {
     blob = await canvasToPng(shareRouteCanvasEl);
   } catch (error) {
     // Some browsers won't export a canvas an SVG image was drawn on - then
-    // the word goes in as plain text instead.
-    drawShareImage(ctx, style, null);
+    // the word goes in as plain text instead (and the card goes without
+    // the pet).
+    drawShareImage(ctx, style, null, null);
     blob = await canvasToPng(shareRouteCanvasEl).catch(() => null);
   }
   if (drawId !== shareRoute.drawId || !blob) return;
-  shareRoute.file = new File([blob], `forja-${shareIsRun() ? "run" : "walk"}.png`, { type: "image/png" });
+  const name = isStreak ? `streak-${shareRoute.streak.count}` : shareIsRun() ? "run" : "walk";
+  shareRoute.file = new File([blob], `forja-${name}.png`, { type: "image/png" });
   shareRouteButtonEl.disabled = false;
   shareRouteCopyEl.disabled = false;
 }
@@ -5547,6 +5762,8 @@ function pickShareTemplate(template) {
 }
 
 document.getElementById("tracking-summary-share-button").addEventListener("click", () => {
+  shareRoute.kind = "route";
+  setShareBack("Route", "Back to the route");
   document.getElementById("share-route-heading").textContent = shareIsRun() ? "Share run" : "Share walk";
   showScreen("share-route-screen");
   pickShareTemplate(shareRoute.template);
@@ -5558,6 +5775,10 @@ document.getElementById("share-route-templates").addEventListener("click", (even
 });
 
 document.getElementById("share-route-back").addEventListener("click", () => {
+  if (shareRoute.kind === "streak") {
+    showScreen("app-screen");
+    return;
+  }
   showScreen("tracking-summary-screen");
   if (summaryMap) summaryMap.invalidateSize();
 });

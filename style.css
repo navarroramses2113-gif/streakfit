@@ -5781,6 +5781,19 @@ a.account-menu-item {
   max-width: 330px;
 }
 
+/* Milestone days (7, 14, 30, 60, 100, 365): Share My Streak, then Continue
+   as the quiet one. The secondary style grows in rows (flex: 1); here it
+   keeps its own height. */
+.celebrate-share {
+  max-width: 330px;
+  margin-top: 14px;
+}
+
+.celebrate-screen .tracking-cancel-button.celebrate-close {
+  flex: none;
+  width: 100%;
+}
+
 .celebrate-confetti {
   position: absolute;
   top: 38%;
