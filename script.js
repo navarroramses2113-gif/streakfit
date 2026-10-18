@@ -3635,7 +3635,8 @@ async function loadLeaderboard() {
 const FEED_DAYS_SHOWN = 14;
 const FEED_MAX_POSTS = 50;
 const STREAK_MILESTONES = [7, 14, 30, 50, 100, 150, 200, 365, 500, 1000];
-const KUDOS_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3z"/><path d="M7 10l4-7a2.5 2.5 0 0 1 3 2.6L13.5 9H19a2 2 0 0 1 2 2.3l-1.2 7.4a2 2 0 0 1-2 1.7H7"/></svg>';
+// A heart, outlined until you like the post, then filled (style.css).
+const KUDOS_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-8.5-5.1-8.5-11A4.7 4.7 0 0 1 8.2 4.8c1.6 0 2.9.8 3.8 2.1.9-1.3 2.2-2.1 3.8-2.1a4.7 4.7 0 0 1 4.7 4.7c0 5.9-8.5 11-8.5 11z"/></svg>';
 
 const feedListEl = document.getElementById("feed-list");
 const feedMessageEl = document.getElementById("feed-message");
@@ -3664,7 +3665,7 @@ function showFeedMessage(text, buttonLabel, action) {
 async function enterFeedTab() {
   if (!currentUserId) {
     feedListEl.innerHTML = "";
-    showFeedMessage("Create an account to see your friends' workouts and give them kudos.", "Create Account", () => {
+    showFeedMessage("Create an account to see your friends' workouts and like them.", "Create Account", () => {
       authMode = "signup";
       applyAuthMode();
       showAuthScreen();
@@ -3809,13 +3810,13 @@ function feedHeadline(post) {
   return `Day ${streak} of the streak`;
 }
 
-// "You and ana gave kudos", "ana, ben and 3 others gave kudos".
+// "You and ana liked this", "ana, ben and 3 others liked this".
 function kudosSummaryText(names) {
   if (names.length === 0) return "";
-  if (names.length === 1) return `${names[0]} gave kudos`;
-  if (names.length === 2) return `${names[0]} and ${names[1]} gave kudos`;
-  if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]} gave kudos`;
-  return `${names[0]}, ${names[1]} and ${names.length - 2} others gave kudos`;
+  if (names.length === 1) return `${names[0]} liked this`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} liked this`;
+  if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]} liked this`;
+  return `${names[0]}, ${names[1]} and ${names.length - 2} others liked this`;
 }
 
 // The numbers row of a post. A full day shows the three exercises (plus
@@ -3880,7 +3881,7 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
     </div>
     <div class="feed-card-stats"></div>
     <div class="feed-card-footer">
-      ${isMine ? "" : `<button class="kudos-button" aria-pressed="false">${KUDOS_ICON_SVG}<span>Kudos</span></button>`}
+      ${isMine ? "" : `<button class="kudos-button" aria-pressed="false" aria-label="Like">${KUDOS_ICON_SVG}</button>`}
       <span class="kudos-summary"></span>
     </div>
   `;

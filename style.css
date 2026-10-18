@@ -93,6 +93,7 @@ input[type="number"]::-webkit-inner-spin-button {
   --map-credit: #f4f4f580;
   --card-solid: #1c1c1f; /* Feed posts: solid, so each one stands apart */
   --card-line: #ffffff14;
+  --like: #ff5a5f; /* the Feed heart, filled (the push-up ring red) */
   --popover-bg: #2c2c31; /* raised a step above cards, for tip bubbles */
   /* Hold-to-confirm buttons (walk Finish / Cancel): the fill that sweeps
      across while held - a lighter sheen on green, a red wash on Cancel. */
@@ -146,6 +147,7 @@ input[type="number"]::-webkit-inner-spin-button {
   --map-credit: #1c1c1e99;
   --card-solid: #ffffff;
   --card-line: #3c3c4326;
+  --like: #e0393e;
   --popover-bg: #ffffff;
   --hold-fill: #ffffff52;
   --danger-tint: #d7001526;
@@ -1063,47 +1065,49 @@ body {
   border-top: 1px solid var(--border);
 }
 
+/* Like: a bare heart, 44pt square. Outlined in the text color until you
+   tap it (clearly a button, not grayed out), then filled red with a pop. */
 .kudos-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
-  padding: 7px 14px;
-  font-family: inherit;
-  font-size: var(--font-subhead);
-  font-weight: 700;
-  color: var(--text-secondary);
+  width: 44px;
+  height: 44px;
+  /* Bleed into the footer padding: the heart lines up with the text on
+     the left and sits close to the "liked this" line on the right. */
+  margin: -6px -6px -6px -10px;
+  padding: 0;
+  color: var(--text-primary);
   background: none;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  border: 0;
   cursor: pointer;
 }
 
 .kudos-button svg {
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
 }
 
 .kudos-button.is-given {
-  color: var(--orange-light);
-  background: #c0855226;
-  border-color: var(--orange);
+  color: var(--like);
 }
 
-:root[data-theme="light"] .kudos-button.is-given {
-  color: var(--orange-dark);
+.kudos-button.is-given svg {
+  fill: currentColor;
 }
 
-.kudos-button.pop {
-  animation: kudos-pop 0.3s ease;
+.kudos-button.pop svg {
+  animation: kudos-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 
 @keyframes kudos-pop {
-  40% { transform: scale(1.15); }
+  0% { transform: scale(0.8); }
+  45% { transform: scale(1.25); }
+  100% { transform: scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .kudos-button.pop {
+  .kudos-button.pop svg {
     animation: none;
   }
 }
@@ -3410,7 +3414,6 @@ a.account-menu-item {
 .link-button,
 .auth-legal a,
 .follow-stat-button,
-.kudos-button,
 .friend-request-actions button,
 .friend-search-action-button,
 .min-tag.is-link {
@@ -3422,7 +3425,6 @@ a.account-menu-item {
 .link-button::before,
 .auth-legal a::before,
 .follow-stat-button::before,
-.kudos-button::before,
 .friend-request-actions button::before,
 .friend-search-action-button::before,
 .min-tag.is-link::before {
