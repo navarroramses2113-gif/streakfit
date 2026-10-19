@@ -2,6 +2,7 @@
 //   list    { timeZone }                       -> invites, challenges, trophies
 //   create  { type, exercise | days | speed + climb, friendIds, timeZone }
 //   respond { challengeId, accept, timeZone }
+//   cancel  { challengeId }                    -> the creator calls it off before day 1
 //   seen    { challengeId }                    -> results screen shown
 // Everything a player does with a challenge goes through here; the
 // challenge tables can't be read or written from the app directly.

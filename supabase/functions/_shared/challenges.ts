@@ -321,6 +321,7 @@ export async function handle(deps: Deps, userId: string, body: Row): Promise<Rep
   if (action === "list") return listChallenges(deps, userId, body.timeZone);
   if (action === "create") return createChallenge(deps, userId, body);
   if (action === "respond") return respond(deps, userId, body);
+  if (action === "cancel") return cancelChallenge(deps, userId, body);
   if (action === "seen") return markSeen(deps, userId, body);
   return fail("bad_action");
 }
@@ -416,6 +417,41 @@ async function respond(deps: Deps, userId: string, body: Row): Promise<Reply> {
   return ok({ joined: accept, startDay });
 }
 
+// The creator calling it off before day 1 (2026-10-19). Friends who
+// already joined are told; open invites just disappear. Once anyone's day
+// 1 has begun it's too late - it's starting (or the 15-minute check is
+// about to cancel it for nobody joining).
+async function cancelChallenge(deps: Deps, userId: string, body: Row): Promise<Reply> {
+  const { admin, push, now } = deps;
+  if (typeof body.challengeId !== "string" || !UUID.test(body.challengeId)) return fail("bad_challenge");
+  const { data: row } = await admin.from("challenges").select("*").eq("id", body.challengeId).maybeSingle();
+  if (!row || row.creator_id !== userId) return fail("not_found", 404);
+  if (row.status !== "pending") return fail("closed", 409);
+  const { data: players, error } = await admin.from("challenge_players").select("*").eq("challenge_id", row.id);
+  if (error) throw new Error(error.message);
+  const joined = (players || []).filter((p: Row) => p.status === "joined");
+  const c = challengeOf(row);
+  if (rules.pendingAction(c, joined.map((p: Row) => ({ userId: p.user_id, timeZone: p.time_zone })), now) !== "wait") return fail("closed", 409);
+
+  // Claimed with the status check, so the 15-minute check can't act on it too.
+  const { data: claimed } = await admin
+    .from("challenges")
+    .update({ status: "cancelled", ended_at: iso(now) })
+    .eq("id", row.id)
+    .eq("status", "pending")
+    .select("id");
+  if (!claimed || claimed.length === 0) return fail("closed", 409);
+  // Off everyone's tab right away (see listChallenges).
+  await admin.from("challenge_players").update({ result_seen: true }).eq("challenge_id", row.id);
+
+  const friends = joined.map((p: Row) => p.user_id).filter((id: string) => id !== userId);
+  if (friends.length > 0) {
+    const names = await usernames(admin, [userId]);
+    await push(friends, pet.calledOff(names.get(userId) || "A friend", withThe(rules.challengeName(c))));
+  }
+  return ok();
+}
+
 async function markSeen(deps: Deps, userId: string, body: Row): Promise<Reply> {
   if (typeof body.challengeId !== "string" || !UUID.test(body.challengeId)) return fail("bad_challenge");
   await deps.admin.from("challenge_players").update({ result_seen: true }).eq("challenge_id", body.challengeId).eq("user_id", userId);
@@ -439,7 +475,12 @@ async function listChallenges(deps: Deps, userId: string, timeZone: unknown): Pr
     const me = meIn.get(row.id);
     if (me.status === "invited") return row.status === "pending";
     if (row.status === "pending" || row.status === "running") return true;
-    return !!row.ended_at && new Date(row.ended_at).getTime() >= shownSince;
+    const recent = !!row.ended_at && new Date(row.ended_at).getTime() >= shownSince;
+    // One nobody joined shows once ("Didn't start"), until the app marks
+    // it seen; one the creator called off is already gone (2026-10-19).
+    // The week still caps it, for app versions that never mark it seen.
+    if (row.status === "cancelled") return recent && !me.result_seen;
+    return recent;
   });
   const trophies = rows
     .filter((row) => row.status === "ended" && meIn.get(row.id).place === 1)

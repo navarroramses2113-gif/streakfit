@@ -70,6 +70,7 @@ export const passedYou = (name: string, theChallenge: string) => ({
   body: `${name} just passed you in ${theChallenge}. You gonna let that slide?`,
 });
 export const nobodyJoined = (challenge: string) => ({ title: "Forja", body: `Nobody showed up for your ${challenge}. Their loss.` });
+export const calledOff = (name: string, theChallenge: string) => ({ title: "Forja", body: `${name} called off ${theChallenge}.` });
 export const youWon = (theChallenge: string) => ({ title: "Forja", body: `You won ${theChallenge}. Never doubted you. (Okay, once.)` });
 export const challengeOver = (TheChallenge: string, place: string) => ({
   title: "Forja",

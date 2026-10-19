@@ -230,6 +230,14 @@ const Challenges = (function () {
     const onTab = !$("app-screen").classList.contains("hidden") && !$("tab-competition").classList.contains("hidden");
     const fresh = (state.list || []).find((c) => c.unseenResult && !state.opened.has(c.id));
     if (onTab && fresh) resultView(fresh);
+    // "Didn't start · Nobody joined" shows this once, then it's gone.
+    if (!onTab) return;
+    (state.list || [])
+      .filter((c) => c.status === "cancelled" && !state.opened.has(c.id))
+      .forEach((c) => {
+        state.opened.add(c.id);
+        callServerFunction("challenge", { action: "seen", challengeId: c.id });
+      });
   }
 
   // ---------- the challenge screen (one screen, redrawn per view) ----------
@@ -544,6 +552,40 @@ const Challenges = (function () {
     document.body.appendChild(scrim);
     scrim.querySelector("[data-ch-act=accept]").focus();
   }
+  // A challenge you made that hasn't started: who's in so far, and the
+  // choice to call it off (2026-10-19). Same sheet as an invite.
+  function openPending(c) {
+    const scrim = document.createElement("div");
+    scrim.className = "challenge-scrim";
+    scrim.dataset.chAct = "close-sheet";
+    const friends = c.joinedCount - 1 + c.invitedCount;
+    // Who joined by name, then a plain face per open invite.
+    const faces = [...c.players.map((p) => p.name), ...Array(c.invitedCount).fill(null)].slice(0, 6).map((name) => avatar(name)).join("");
+    scrim.innerHTML = `
+      <div class="challenge-sheet" role="dialog" aria-modal="true" aria-label="Your challenge">
+        <span class="challenge-grabber"></span>
+        ${tile(challengeColor(c), challengeIcon(c), "is-large")}
+        <p class="challenge-sheet-from"><b>${c.joinedCount - 1} of ${friends}</b> ${friends === 1 ? "friend" : "friends"} in</p>
+        <h2>${esc(nameOf(c))}</h2>
+        <div class="challenge-faces">${faces}</div>
+        <p class="challenge-sheet-meta">${c.joinedCount + c.invitedCount} players · ${esc(startsText(c))}</p>
+        <button class="auth-submit-button block-confirm-button" data-ch-act="cancel" data-ch-id="${esc(c.id)}">Cancel Challenge</button>
+        <button class="challenge-text-button is-muted" data-ch-act="keep">Keep It</button>
+      </div>`;
+    document.body.appendChild(scrim);
+    scrim.querySelector("[data-ch-act=keep]").focus();
+  }
+
+  async function cancelChallenge(id, button) {
+    if (button.disabled) return;
+    button.disabled = true;
+    const reply = await callServerFunction("challenge", { action: "cancel", challengeId: id });
+    closeInvite();
+    toast(reply.ok ? "Challenge cancelled" : errorText(reply));
+    await load();
+    renderList();
+  }
+
   // Only invite sheets: the Me tab's color sheet uses the same look and
   // lives in the page for good.
   const closeInvite = () => document.querySelectorAll('.challenge-scrim[data-ch-act="close-sheet"]').forEach((el) => el.remove());
@@ -632,7 +674,7 @@ const Challenges = (function () {
       const c = find(el.dataset.chOpen);
       if (!c) return;
       if (c.myStatus === "invited") return openInvite(c);
-      if (c.status === "pending") return toast(startsText(c));
+      if (c.status === "pending") return c.fromYou ? openPending(c) : toast(startsText(c));
       if (c.status === "cancelled") return toast("Nobody joined, so it didn't start");
       if (c.status === "ended") return resultView(c);
       return openDetail(c);
@@ -679,6 +721,10 @@ const Challenges = (function () {
         return respond(el.dataset.chId, true, el);
       case "decline":
         return respond(el.dataset.chId, false, el);
+      case "cancel":
+        return cancelChallenge(el.dataset.chId, el);
+      case "keep":
+        return closeInvite();
       case "send":
         return send();
       case "rematch": {

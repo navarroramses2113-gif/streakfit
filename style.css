@@ -1223,11 +1223,15 @@ body {
   margin-top: var(--space-sm);
 }
 
-.block-confirm-button {
+/* Red for what can't be undone (Block User, Delete My Account, Cancel
+   Challenge). Paired with .auth-submit-button so it wins over that
+   button's green further down; until 2026-10-19 it didn't, and all three
+   showed green. Disabled still turns gray. */
+.auth-submit-button.block-confirm-button {
   background-color: var(--danger);
 }
 
-.block-confirm-button:hover {
+.auth-submit-button.block-confirm-button:hover:not(:disabled) {
   background-color: var(--danger-pressed);
 }
 
