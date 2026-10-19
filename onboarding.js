@@ -184,24 +184,13 @@ const Onboarding = (function () {
       .join("")}</div>`;
   }
 
-  // Day 1 (or the test) as a short list: what each exercise asks and what's done.
-  function exerciseList(mode) {
-    const progress = data ? todayProgress() : { pushups: 0, squats: 0, planks: 0 };
+  // The "Find my level" test as a short list: each exercise and what's done.
+  function testList() {
     const rows = EXERCISES.map((e) => {
-      let value, done;
-      if (mode === "test") {
-        done = state.tested[e.key] > 0;
-        value = done ? (e.key === "planks" ? fmtTime(state.tested[e.key]) : state.tested[e.key]) : e.key === "planks" ? tr("Longest hold") : tr("Max reps");
-      } else {
-        const target = data.minimums[e.key];
-        const have = progress[e.key];
-        done = have >= target;
-        const show = (n) => (e.key === "planks" ? fmtTime(n) : n);
-        value = done || have === 0 ? show(target) : `${show(have)} / ${show(target)}`;
-      }
+      const done = state.tested[e.key] > 0;
+      const value = done ? (e.key === "planks" ? fmtTime(state.tested[e.key]) : state.tested[e.key]) : e.key === "planks" ? tr("Longest hold") : tr("Max reps");
       return `<div class="ob-row${done ? " done" : ""}"><span>${done ? "✓ " : ""}${e.title}</span><span>${value}</span></div>`;
     });
-    if (mode !== "test" && data.minimums.walkRun !== null) rows.push(`<div class="ob-row"><span>${tr("Walk or run")}</span><span>${tr("{n} min, later today", { n: data.minimums.walkRun })}</span></div>`);
     return `<div class="ob-list">${rows.join("")}</div>`;
   }
 
@@ -292,7 +281,7 @@ const Onboarding = (function () {
       footer: () => continueButton(!!state.placement),
     },
     test: {
-      body: () => coach(tr("Three quick tests. Go until you can't do another good rep.")) + exerciseList("test") + `<p class="ob-fine">${tr("Prop your phone on the floor about 2 m away, side-on, with your whole body in view.")}</p>`,
+      body: () => coach(tr("Three quick tests. Go until you can't do another good rep.")) + testList() + `<p class="ob-fine">${tr("Prop your phone on the floor about 2 m away, side-on, with your whole body in view.")}</p>`,
       footer: () => {
         const next = EXERCISES.find((e) => !(state.tested[e.key] > 0));
         return (next ? cta(tr(`Start ${next.name} test`), "camera") : continueButton(true)) + quiet(tr("Use my answer instead"), "skip-test");
@@ -359,13 +348,6 @@ const Onboarding = (function () {
       },
       footer: () => cta(tr("Looks Good"), "next"),
     },
-    day1: {
-      body: () => coach(tr("Let's do Day 1! Your streak starts when you finish all of it.")) + exerciseList("day") + `<p class="ob-fine">${tr("Prop your phone on the floor about 2 m away, side-on, with your whole body in view.")}</p>`,
-      footer: () => {
-        const next = EXERCISES.find((e) => todayProgress()[e.key] < data.minimums[e.key]);
-        return (next ? cta(tr(`Start ${next.name}`), "camera") : continueButton(true)) + quiet(tr("I'll do it later today"), "later");
-      },
-    },
     almost: {
       centered: true,
       noBack: true,
@@ -393,7 +375,7 @@ const Onboarding = (function () {
             <div class="auth-fields"><input id="ob-username" placeholder="${tr("Username")}" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20"></div>${errorLine()}`;
         }
         // Sign in with Apple goes first here once there's an Apple Developer account.
-        return `${coach(tr("Save your progress so your streak follows you, and so you can compete with friends."))}
+        return `${coach(tr("Save your plan so your streak follows you, and so you can compete with friends."))}
           <div class="auth-fields">
             <input id="ob-username" placeholder="${tr("Username")}" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20">
             <input id="ob-email" type="email" placeholder="${tr("Email")}" autocomplete="email">
@@ -445,15 +427,17 @@ const Onboarding = (function () {
   };
 
   // The screens this person will see, in order (for the progress bar).
+  // No workout before the account (2026-10-19): 3 of 4 new people skipped
+  // sign-up's Day 1 and never came back, so the first workout happens in
+  // the app. Only a finished "Find my level" test (already a full Day 1)
+  // still gets the streak screen.
   function path() {
     const test = state.placement === "test";
-    const skipDay1 = test && state.committed && exercisesMet();
     return [
       "goal", "reaction", "source", "level", "placement",
       ...(test ? ["test", "result"] : []),
       "pace", "walk", "plan",
-      ...(skipDay1 ? [] : ["day1"]),
-      state.walk === "yes" ? "almost" : "streak",
+      ...(test && exercisesMet() ? [afterDay1()] : []),
       "account",
       ...(offerHomeScreen() ? ["homescreen"] : []),
       ...(pushSupported() ? ["reminder"] : []),
@@ -473,8 +457,7 @@ const Onboarding = (function () {
       case "result": return "pace";
       case "pace": return "walk";
       case "walk": return "plan";
-      case "plan": return exercisesMet() ? afterDay1() : "day1";
-      case "day1": return afterDay1();
+      case "plan": return exercisesMet() ? afterDay1() : "account";
       case "almost":
       case "streak": return "account";
       case "account": return offerHomeScreen() ? "homescreen" : pushSupported() ? "reminder" : "friends";
@@ -541,28 +524,24 @@ const Onboarding = (function () {
   }
 
   // ---------- actions ----------
+  // The "Find my level" test, one exercise at a time. No reward screen: there's
+  // no target yet, so it just shows the number.
   function openCamera() {
-    const testing = current === "test";
-    const list = testing ? EXERCISES.filter((e) => !(state.tested[e.key] > 0)) : EXERCISES.filter((e) => todayProgress()[e.key] < data.minimums[e.key]);
-    if (!list.length) return;
-    const e = list[0];
+    const e = EXERCISES.find((x) => !(state.tested[x.key] > 0));
+    if (!e) return;
     ensureGuestData();
-    if (!testing) loadBestSet(e.exercise);
     ForjaCamera.open(
       e.exercise,
       async (set) => {
         const outcome = await saveCameraSet(set);
-        if (outcome.ok && testing) state.tested[e.key] = Math.max(state.tested[e.key] || 0, outcome.value);
+        if (outcome.ok) state.tested[e.key] = Math.max(state.tested[e.key] || 0, outcome.value);
         return outcome;
       },
       {
-        // Day 1 gets the same set reward as Today; "find my level" has no
-        // target yet, so it just shows the number.
-        reward: testing ? null : setReward,
+        reward: null,
         onClose: () => {
           showScreen("onboarding-screen");
-          if (testing && allTested()) go("result");
-          else if (!testing && exercisesMet()) go(afterDay1());
+          if (allTested()) go("result");
           else render();
         },
       }
@@ -704,7 +683,6 @@ const Onboarding = (function () {
       case "skip-test":
         state.placement = "answer";
         return go("pace");
-      case "later": return go("account");
       case "create": return createAccount();
       case "save-username": return saveUsername();
       case "remind": return remind();
