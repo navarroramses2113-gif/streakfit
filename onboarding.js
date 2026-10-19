@@ -32,11 +32,11 @@ const Onboarding = (function () {
   };
 
   const GOALS = [
-    { v: "stronger", t: tr("Get stronger"), s: tr("More push-ups, deeper squats, longer planks"), icon: ICON.dumbbell, react: tr("Strong choice. Your targets will keep climbing so you keep getting stronger."), label: tr("getting stronger") },
-    { v: "habit", t: tr("Build a daily habit"), s: tr("Show up every day, even the busy ones"), icon: ICON.calendar, react: tr("Love it. We'll keep each day small enough that you never want to skip it."), label: tr("a daily habit") },
-    { v: "weight", t: tr("Lose weight"), s: tr("Move more, every single day"), icon: ICON.flame, react: tr("Great goal. Daily strength work plus walks or runs works best, so we'll suggest both."), label: tr("losing weight") },
-    { v: "feel", t: tr("Feel better"), s: tr("More energy, better mood, better sleep"), icon: ICON.heart, react: tr("Good call. A few minutes a day is enough to feel the difference."), label: tr("feeling better") },
-    { v: "compete", t: tr("Beat my friends"), s: tr("Climb the leaderboard"), icon: ICON.trophy, react: tr("Your friends should be worried. Every rep on the leaderboard is camera-verified, so a win is a real win."), label: tr("beating your friends") },
+    { v: "stronger", t: tr("Get stronger"), s: tr("More push-ups, deeper squats, longer planks"), icon: ICON.dumbbell, label: tr("getting stronger") },
+    { v: "habit", t: tr("Build a daily habit"), s: tr("Show up every day, even the busy ones"), icon: ICON.calendar, label: tr("a daily habit") },
+    { v: "weight", t: tr("Lose weight"), s: tr("Move more, every single day"), icon: ICON.flame, label: tr("losing weight") },
+    { v: "feel", t: tr("Feel better"), s: tr("More energy, better mood, better sleep"), icon: ICON.heart, label: tr("feeling better") },
+    { v: "compete", t: tr("Beat my friends"), s: tr("Climb the leaderboard"), icon: ICON.trophy, label: tr("beating your friends") },
   ];
   const MAX_GOALS = 3;
   const SOURCES = [
@@ -88,7 +88,6 @@ const Onboarding = (function () {
   const find = (list, v) => list.find((x) => x.v === v);
   const mainGoal = () => find(GOALS, state.goals[0]) || GOALS[0];
   const recommendedPace = () => RECOMMENDED_PACE[mainGoal().v];
-  const listWords = (words) => (words.length < 2 ? words.join("") : words.slice(0, -1).join(", ") + tr(" and ") + words[words.length - 1]);
   const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   // A phone browser, not the Home Screen app: show how to add it (home-screen-guide.js).
   const offerHomeScreen = () => typeof ForjaHomeGuide !== "undefined" && ForjaHomeGuide.shouldOffer();
@@ -250,14 +249,6 @@ const Onboarding = (function () {
           }).join("")}</div>`;
       },
       footer: () => continueButton(state.goals.length > 0),
-    },
-    reaction: {
-      centered: true,
-      body: () => {
-        const others = state.goals.slice(1).map((v) => find(GOALS, v).label);
-        return `${mascot("wow")}<h1 class="ob-title">${mainGoal().react}</h1>${others.length ? `<p class="ob-lead">${tr("We'll keep {list} in mind too.", { list: listWords(others) })}</p>` : ""}`;
-      },
-      footer: () => continueButton(true),
     },
     source: {
       body: () => coach(tr("How did you hear about Forja?")) + choices(SOURCES, "source"),
@@ -434,7 +425,7 @@ const Onboarding = (function () {
   function path() {
     const test = state.placement === "test";
     return [
-      "goal", "reaction", "source", "level", "placement",
+      "goal", "source", "level", "placement",
       ...(test ? ["test", "result"] : []),
       "pace", "walk", "plan",
       ...(test && exercisesMet() ? [afterDay1()] : []),
@@ -448,8 +439,7 @@ const Onboarding = (function () {
   function nextScreen() {
     switch (current) {
       case "welcome": return "goal";
-      case "goal": return "reaction";
-      case "reaction": return "source";
+      case "goal": return "source";
       case "source": return "level";
       case "level": return "placement";
       case "placement": return state.placement === "test" ? "test" : "pace";
