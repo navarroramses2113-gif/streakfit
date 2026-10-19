@@ -529,7 +529,7 @@ const Celebrations = (function () {
       face.className = "ring-face";
       face.setAttribute("role", "button");
       face.setAttribute("tabindex", "0");
-      face.setAttribute("aria-label", "Forja pet - tap for another tip");
+      face.setAttribute("aria-label", tr("Forja pet - tap for another tip"));
       face.addEventListener("click", coachNextLine);
       face.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
@@ -617,9 +617,10 @@ const Celebrations = (function () {
   let coachIntroQueued = false;
   let coachMoveTimer = null;
 
-  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  // "{n} push-ups", "{n} more squat"...: each form is its own tr() key.
+  const plural = (n, one, many) => tr(n === 1 ? `{n} ${one}` : `{n} ${many}`, { n });
   const plankText = (seconds) => (seconds < 60 ? `${seconds}s` : formatDuration(seconds * 1000));
-  const joinList = (items) => (items.length < 2 ? items.join("") : items.slice(0, -1).join(", ") + " and " + items[items.length - 1]);
+  const joinList = (items) => (items.length < 2 ? items.join("") : items.slice(0, -1).join(", ") + tr(" and ") + items[items.length - 1]);
   const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
   function statsNow() {
@@ -640,9 +641,9 @@ const Celebrations = (function () {
     const m = data.minimums;
     const left = [];
     if (progress.pushups < m.pushups) left.push(progress.pushups > 0 ? plural(m.pushups - progress.pushups, "more push-up", "more push-ups") : plural(m.pushups, "push-up", "push-ups"));
-    if (progress.planks < m.planks) left.push(`a ${progress.planks > 0 ? "full " : ""}${plankText(m.planks)} plank`);
+    if (progress.planks < m.planks) left.push(tr(progress.planks > 0 ? "a full {time} plank" : "a {time} plank", { time: plankText(m.planks) }));
     if (progress.squats < m.squats) left.push(progress.squats > 0 ? plural(m.squats - progress.squats, "more squat", "more squats") : plural(m.squats, "squat", "squats"));
-    if (m.walkRun !== null && progress.walkRun < m.walkRun) left.push(progress.walkRun > 0 ? `${m.walkRun - progress.walkRun} more minutes of walking` : `a ${m.walkRun}-min walk or run`);
+    if (m.walkRun !== null && progress.walkRun < m.walkRun) left.push(progress.walkRun > 0 ? tr("{n} more minutes of walking", { n: m.walkRun - progress.walkRun }) : tr("a {n}-min walk or run", { n: m.walkRun }));
     return left;
   }
 
@@ -651,27 +652,27 @@ const Celebrations = (function () {
     if (done) {
       const next = (Math.floor(streak / 7) + 1) * 7;
       const days = next - streak;
-      return days === 1 ? `<b>1 more day</b> to a ${next}-day streak. Same time tomorrow?` : `<b>${days} more days</b> to a ${next}-day streak.`;
+      return days === 1 ? tr("<b>1 more day</b> to a {next}-day streak. Same time tomorrow?", { next }) : tr("<b>{n} more days</b> to a {next}-day streak.", { n: days, next });
     }
     const next = Math.ceil((streak + 1) / 7) * 7;
     const days = next - streak; // today included
-    return days === 1 ? `Today makes it a <b>${next}-day streak</b>. No pressure.` : `<b>${days} more days</b> and you hit a ${next}-day streak. Today counts.`;
+    return days === 1 ? tr("Today makes it a <b>{next}-day streak</b>. No pressure.", { next }) : tr("<b>{n} more days</b> and you hit a {next}-day streak. Today counts.", { n: days, next });
   }
 
   function doneLines() {
     const streak = data.streak;
-    let first = `Day <b>${streak}</b> done. See you tomorrow.`;
+    let first = tr("Day <b>{n}</b> done. See you tomorrow.", { n: streak });
     if (typeof serverPlan !== "undefined" && serverPlan) {
       const tomorrow = ForjaRules.addDays(todayString(), 1);
       if (isToday(LEVEL_UP_KEY)) {
         const t = ForjaRules.planOn(serverPlan, tomorrow).plan.targets;
-        first = `<b>Level up!</b> Tomorrow: ${t.pushups} push-ups · ${plankText(t.planks)} plank · ${t.squats} squats.`;
+        first = tr("<b>Level up!</b> Tomorrow: {pushups} push-ups · {plank} plank · {squats} squats.", { pushups: t.pushups, plank: plankText(t.planks), squats: t.squats });
       } else {
         const next = ForjaRules.nextLevelUp(serverPlan, tomorrow);
-        if (next) first = `Day <b>${streak}</b> done. Level up in <b>${plural(next.inDays, "day", "days")}</b>.`;
+        if (next) first = tr("Day <b>{n}</b> done. Level up in <b>{days}</b>.", { n: streak, days: plural(next.inDays, "day", "days") });
       }
     }
-    return [first, weekLine(streak, true), "That's it for today. Go brag to someone."];
+    return [first, weekLine(streak, true), tr("That's it for today. Go brag to someone.")];
   }
 
   // Friends who nudged you today (usernames, oldest first), for whose
@@ -705,15 +706,15 @@ const Celebrations = (function () {
     notifAskShown();
   }
 
-  const hourText = (h) => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
+  const hourText = (h) => `${h % 12 || 12} ${h < 12 ? tr("AM") : tr("PM")}`;
 
   function askLine() {
     const hour = hourText(data.reminderHour);
-    if (notifAsk.state === "on") return `Done. I'll ping you at <b>${hour}</b> on days you haven't trained.`;
+    if (notifAsk.state === "on") return tr("Done. I'll ping you at <b>{hour}</b> on days you haven't trained.", { hour });
     const busy = notifAsk.state === "busy";
-    const ask = notifAsk.moment === "done" ? `Day <b>${data.streak}</b> done. Want me to remind you tomorrow?` : "Turn on notifications to see nudges right away.";
-    const yes = busy ? "Turning On..." : notifAsk.moment === "done" ? `Yes, ${hour}` : "Turn On";
-    return `${ask}<span class="pet-ask-actions"><button type="button" class="pet-ask-button is-go" data-notif-ask="yes"${busy ? " disabled" : ""}>${yes}</button><button type="button" class="pet-ask-button" data-notif-ask="no"${busy ? " disabled" : ""}>No Thanks</button></span>`;
+    const ask = notifAsk.moment === "done" ? tr("Day <b>{n}</b> done. Want me to remind you tomorrow?", { n: data.streak }) : tr("Turn on notifications to see nudges right away.");
+    const yes = busy ? tr("Turning On...") : notifAsk.moment === "done" ? tr("Yes, {hour}", { hour }) : tr("Turn On");
+    return `${ask}<span class="pet-ask-actions"><button type="button" class="pet-ask-button is-go" data-notif-ask="yes"${busy ? " disabled" : ""}>${yes}</button><button type="button" class="pet-ask-button" data-notif-ask="no"${busy ? " disabled" : ""}>${tr("No Thanks")}</button></span>`;
   }
 
   // The bubble's buttons. "Yes" asks the phone right inside the tap.
@@ -744,11 +745,11 @@ const Celebrations = (function () {
   // while the pet asks about notifications, to keep the bubble short).
   function nudgeLine(names, withWhy = true) {
     const name = (n) => `<b class="pet-nudge-name">${escapeText(n)}</b>`;
-    const who = names.length === 1 ? name(names[0]) : names.length === 2 ? `${name(names[0])} and ${name(names[1])}` : `${name(names[0])} and ${names.length - 1} others`;
+    const who = names.length === 1 ? name(names[0]) : names.length === 2 ? tr("{a} and {b}", { a: name(names[0]), b: name(names[1]) }) : tr("{a} and {n} others", { a: name(names[0]), n: names.length - 1 });
     const faces = names.slice(0, 3).map((n) => avatarHtml(n, "pet-nudge-avatar")).join("");
     const streak = liveStreak();
-    const why = streak > 0 ? `Your <b>${streak}-day streak</b> is waiting. Show them!` : "One workout today and you're on the board.";
-    return `<span class="pet-nudge-from"><span class="pet-nudge-faces">${faces}</span><span>${who} nudged you</span></span>${withWhy ? why : ""}`;
+    const why = streak > 0 ? tr("Your <b>{n}-day streak</b> is waiting. Show them!", { n: streak }) : tr("One workout today and you're on the board.");
+    return `<span class="pet-nudge-from"><span class="pet-nudge-faces">${faces}</span><span>${tr("{who} nudged you", { who })}</span></span>${withWhy ? why : ""}`;
   }
 
   // { moment, lines } for the day as it stands, or null while it's saving.
@@ -777,25 +778,25 @@ const Celebrations = (function () {
       if (streakEndsTonight() && new Date().getHours() >= 20) {
         return {
           moment: "risk",
-          lines: [`<span class="warn">Your ${streak}-day streak ends at midnight.</span> There's still time.`, `It's getting late. Me and your <b>${streak}-day streak</b> are nervous.`],
+          lines: [tr('<span class="warn">Your {n}-day streak ends at midnight.</span> There\'s still time.', { n: streak }), tr("It's getting late. Me and your <b>{n}-day streak</b> are nervous.", { n: streak })],
         };
       }
-      if (streak === 0) return { moment: "newbie", lines: [`Fresh start. <b>${capital(joinList(left))}</b>. Let's go.`, "Day <b>1</b> is the hardest one. Get it over with."] };
+      if (streak === 0) return { moment: "newbie", lines: [tr("Fresh start. <b>{todo}</b>. Let's go.", { todo: capital(joinList(left)) }), tr("Day <b>1</b> is the hardest one. Get it over with.")] };
       return {
         moment: "fresh",
-        lines: [`Day <b>${streak + 1}</b> is up for grabs. Start with ${plural(data.minimums.pushups, "push-up", "push-ups")}?`, weekLine(streak, false), `${capital(joinList(left))}. Then the day logs itself.`],
+        lines: [tr("Day <b>{n}</b> is up for grabs. Start with {pushups}?", { n: streak + 1, pushups: plural(data.minimums.pushups, "push-up", "push-ups") }), weekLine(streak, false), tr("{todo}. Then the day logs itself.", { todo: capital(joinList(left)) })],
       };
     }
     if (left.length === 1) {
       return {
         moment: "close",
-        lines: [`Just <b>${left[0]}</b> between you and day <b>${streak + 1}</b>.`, `So close I can taste it. <b>${capital(left[0])}</b>.`],
+        lines: [tr("Just <b>{todo}</b> between you and day <b>{n}</b>.", { todo: left[0], n: streak + 1 }), tr("So close I can taste it. <b>{todo}</b>.", { todo: capital(left[0]) })],
       };
     }
     const doneCount = total - left.length;
     return {
       moment: "partway",
-      lines: [`Nice. Now <b>${joinList(left)}</b>.`, doneCount > 0 ? `<b>${doneCount} of ${total}</b> done. Don't get comfy.` : "You've started. That's the hard part."],
+      lines: [tr("Nice. Now <b>{todo}</b>.", { todo: joinList(left) }), doneCount > 0 ? tr("<b>{n} of {total}</b> done. Don't get comfy.", { n: doneCount, total }) : tr("You've started. That's the hard part.")],
     };
   }
 
@@ -1025,15 +1026,15 @@ const Celebrations = (function () {
   // openMilestoneShare).
   const BIG_DAYS = [30, 60, 100, 365];
   const SHARE_DAYS = [7, 14, ...BIG_DAYS];
-  const MILESTONE_LINES = { 30: "One month in a row.", 60: "Two months in a row.", 100: "100 days in a row.", 365: "A whole year in a row." };
+  const MILESTONE_LINES = { 30: tr("One month in a row."), 60: tr("Two months in a row."), 100: tr("100 days in a row."), 365: tr("A whole year in a row.") };
 
   function milestone(streak) {
     remember(MILESTONE_KEY);
     const weeks = streak / 7;
-    const line = MILESTONE_LINES[streak] || (weeks === 1 ? "A full week in a row." : `${weeks} weeks in a row.`);
+    const line = MILESTONE_LINES[streak] || (weeks === 1 ? tr("A full week in a row.") : tr("{n} weeks in a row.", { n: weeks }));
     const canShare = SHARE_DAYS.includes(streak) && typeof openMilestoneShare === "function";
-    // The last seven days, ending today.
-    const letters = ["S", "M", "T", "W", "T", "F", "S"];
+    // The last seven days, ending today (Sunday first, like getDay()).
+    const letters = tr("S M T W T F S").split(" ");
     const days = Array.from({ length: 7 }, (_, i) => letters[new Date(Date.now() - (6 - i) * 86400000).getDay()]);
     return new Promise((resolve) => {
       const screen = document.createElement("div");
@@ -1044,11 +1045,11 @@ const Celebrations = (function () {
       screen.innerHTML = `
         ${FlexPet.svg()}
         <span class="celebrate-number">${streak - 1}</span>
-        <h2 id="celebrate-title">${streak}-day streak!</h2>
+        <h2 id="celebrate-title">${tr("{n}-day streak!", { n: streak })}</h2>
         <p>${line}</p>
         <div class="celebrate-week">${days.map((d, i) => `<span class="${i === 6 ? "is-today" : ""}">${d}</span>`).join("")}</div>
-        ${canShare ? '<button class="auth-submit-button celebrate-share">Share My Streak</button>' : ""}
-        <button class="${canShare ? "tracking-cancel-button" : "auth-submit-button"} celebrate-close">Continue</button>`;
+        ${canShare ? `<button class="auth-submit-button celebrate-share">${tr("Share My Streak")}</button>` : ""}
+        <button class="${canShare ? "tracking-cancel-button" : "auth-submit-button"} celebrate-close">${tr("Continue")}</button>`;
       document.body.appendChild(screen);
       // The number and confetti go off as the pet lands in its flex.
       const pet = screen.querySelector(".flex-pet");

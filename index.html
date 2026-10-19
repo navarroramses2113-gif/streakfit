@@ -328,6 +328,16 @@
         </select>
       </div>
 
+      <!-- Language: the phone's own unless one is picked (i18n.js). -->
+      <div class="settings-row settings-checkbox-row">
+        <label for="language-select">Language</label>
+        <select id="language-select">
+          <option value="auto">Automatic</option>
+          <option value="en">English</option>
+          <option value="es">Español</option>
+        </select>
+      </div>
+
       <div class="settings-row settings-checkbox-row">
         <label for="enable-reminders">Daily Reminders</label>
         <input type="checkbox" id="enable-reminders">
@@ -926,12 +936,16 @@
        (a plain "@2" would load whatever came out last, unchecked) with
        its fingerprint, like Leaflet above. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
+  <!-- English and Spanish (i18n.js picks; i18n-es.js is the Spanish).
+       First, so every script after them can use tr(). -->
+  <script src="i18n.js?v=1"></script>
+  <script src="i18n-es.js?v=1"></script>
   <script src="supabase/functions/_shared/game-rules.js?v=10"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=12"></script>
   <script src="camera-verify.js?v=15"></script>
-  <script src="onboarding.js?v=10"></script>
-  <script src="script.js?v=35"></script>
+  <script src="onboarding.js?v=11"></script>
+  <script src="script.js?v=36"></script>
   <script src="challenges.js?v=7"></script>
-  <script src="celebrations.js?v=9"></script>
+  <script src="celebrations.js?v=10"></script>
 </body>
 </html>

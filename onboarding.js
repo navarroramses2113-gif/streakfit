@@ -32,42 +32,44 @@ const Onboarding = (function () {
   };
 
   const GOALS = [
-    { v: "stronger", t: "Get stronger", s: "More push-ups, deeper squats, longer planks", icon: ICON.dumbbell, react: "Strong choice. Your targets will keep climbing so you keep getting stronger.", label: "getting stronger" },
-    { v: "habit", t: "Build a daily habit", s: "Show up every day, even the busy ones", icon: ICON.calendar, react: "Love it. We'll keep each day small enough that you never want to skip it.", label: "a daily habit" },
-    { v: "weight", t: "Lose weight", s: "Move more, every single day", icon: ICON.flame, react: "Great goal. Daily strength work plus walks or runs works best, so we'll suggest both.", label: "losing weight" },
-    { v: "feel", t: "Feel better", s: "More energy, better mood, better sleep", icon: ICON.heart, react: "Good call. A few minutes a day is enough to feel the difference.", label: "feeling better" },
-    { v: "compete", t: "Beat my friends", s: "Climb the leaderboard", icon: ICON.trophy, react: "Your friends should be worried. Every rep on the leaderboard is camera-verified, so a win is a real win.", label: "beating your friends" },
+    { v: "stronger", t: tr("Get stronger"), s: tr("More push-ups, deeper squats, longer planks"), icon: ICON.dumbbell, react: tr("Strong choice. Your targets will keep climbing so you keep getting stronger."), label: tr("getting stronger") },
+    { v: "habit", t: tr("Build a daily habit"), s: tr("Show up every day, even the busy ones"), icon: ICON.calendar, react: tr("Love it. We'll keep each day small enough that you never want to skip it."), label: tr("a daily habit") },
+    { v: "weight", t: tr("Lose weight"), s: tr("Move more, every single day"), icon: ICON.flame, react: tr("Great goal. Daily strength work plus walks or runs works best, so we'll suggest both."), label: tr("losing weight") },
+    { v: "feel", t: tr("Feel better"), s: tr("More energy, better mood, better sleep"), icon: ICON.heart, react: tr("Good call. A few minutes a day is enough to feel the difference."), label: tr("feeling better") },
+    { v: "compete", t: tr("Beat my friends"), s: tr("Climb the leaderboard"), icon: ICON.trophy, react: tr("Your friends should be worried. Every rep on the leaderboard is camera-verified, so a win is a real win."), label: tr("beating your friends") },
   ];
   const MAX_GOALS = 3;
   const SOURCES = [
-    { v: "friend", t: "A friend or family member", icon: ICON.people },
+    { v: "friend", t: tr("A friend or family member"), icon: ICON.people },
     { v: "tiktok", t: "TikTok", icon: ICON.play },
     { v: "instagram", t: "Instagram", icon: ICON.camera },
     { v: "youtube", t: "YouTube", icon: ICON.play },
-    { v: "appstore", t: "Searching the App Store", icon: ICON.search },
-    { v: "other", t: "Somewhere else", icon: ICON.dots },
+    { v: "appstore", t: tr("Searching the App Store"), icon: ICON.search },
+    { v: "other", t: tr("Somewhere else"), icon: ICON.dots },
   ];
   // "How many push-ups in a row?" -> where the plan starts (never below the
   // server's floors). The camera test replaces this with real numbers.
   const LEVELS = [
-    { v: "l0", t: "0 to 5", s: "A fine place to start", targets: { pushups: 5, squats: 10, planks: 20 } },
-    { v: "l1", t: "6 to 15", s: "A solid base", targets: { pushups: 8, squats: 15, planks: 30 } },
-    { v: "l2", t: "16 to 30", s: "You're strong already", targets: { pushups: 15, squats: 25, planks: 45 } },
-    { v: "l3", t: "More than 30", s: "Impressive", targets: { pushups: 25, squats: 40, planks: 60 } },
+    { v: "l0", t: tr("0 to 5"), s: tr("A fine place to start"), targets: { pushups: 5, squats: 10, planks: 20 } },
+    { v: "l1", t: tr("6 to 15"), s: tr("A solid base"), targets: { pushups: 8, squats: 15, planks: 30 } },
+    { v: "l2", t: tr("16 to 30"), s: tr("You're strong already"), targets: { pushups: 15, squats: 25, planks: 45 } },
+    { v: "l3", t: tr("More than 30"), s: tr("Impressive"), targets: { pushups: 25, squats: 40, planks: 60 } },
   ];
   const PACES = [
-    { v: "easy", t: "Easy", bars: 1 },
-    { v: "regular", t: "Regular", bars: 2 },
-    { v: "serious", t: "Serious", bars: 3 },
-    { v: "intense", t: "Intense", bars: 4 },
+    { v: "easy", t: tr("Easy"), bars: 1 },
+    { v: "regular", t: tr("Regular"), bars: 2 },
+    { v: "serious", t: tr("Serious"), bars: 3 },
+    { v: "intense", t: tr("Intense"), bars: 4 },
   ];
   // The main goal picks the recommended pace.
   const RECOMMENDED_PACE = { stronger: "serious", habit: "easy", weight: "regular", feel: "easy", compete: "serious" };
+  // `name` stays English: "Start {name} test" is one tr() key per exercise.
   const EXERCISES = [
-    { exercise: "pushup", key: "pushups", title: "Push-ups", name: "push-ups" },
-    { exercise: "squat", key: "squats", title: "Squats", name: "squats" },
-    { exercise: "plank", key: "planks", title: "Plank", name: "plank" },
+    { exercise: "pushup", key: "pushups", title: tr("Push-ups"), name: "push-ups" },
+    { exercise: "squat", key: "squats", title: tr("Squats"), name: "squats" },
+    { exercise: "plank", key: "planks", title: tr("Plank"), name: "plank" },
   ];
+  const WEEK_LETTERS = tr("M T W T F S S").split(" ");
   const REMINDER_HOURS = [7, 12, 18, 20];
   // Minimums nobody can reach, used only while the "Find my level" test runs
   // (before there's a plan), so a test set can't complete the day early.
@@ -86,7 +88,7 @@ const Onboarding = (function () {
   const find = (list, v) => list.find((x) => x.v === v);
   const mainGoal = () => find(GOALS, state.goals[0]) || GOALS[0];
   const recommendedPace = () => RECOMMENDED_PACE[mainGoal().v];
-  const listWords = (words) => (words.length < 2 ? words.join("") : words.slice(0, -1).join(", ") + " and " + words[words.length - 1]);
+  const listWords = (words) => (words.length < 2 ? words.join("") : words.slice(0, -1).join(", ") + tr(" and ") + words[words.length - 1]);
   const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   const allTested = () => EXERCISES.every((e) => state.tested[e.key] > 0);
 
@@ -187,7 +189,7 @@ const Onboarding = (function () {
       let value, done;
       if (mode === "test") {
         done = state.tested[e.key] > 0;
-        value = done ? (e.key === "planks" ? fmtTime(state.tested[e.key]) : state.tested[e.key]) : e.key === "planks" ? "Longest hold" : "Max reps";
+        value = done ? (e.key === "planks" ? fmtTime(state.tested[e.key]) : state.tested[e.key]) : e.key === "planks" ? tr("Longest hold") : tr("Max reps");
       } else {
         const target = data.minimums[e.key];
         const have = progress[e.key];
@@ -197,7 +199,7 @@ const Onboarding = (function () {
       }
       return `<div class="ob-row${done ? " done" : ""}"><span>${done ? "✓ " : ""}${e.title}</span><span>${value}</span></div>`;
     });
-    if (mode !== "test" && data.minimums.walkRun !== null) rows.push(`<div class="ob-row"><span>Walk or run</span><span>${data.minimums.walkRun} min, later today</span></div>`);
+    if (mode !== "test" && data.minimums.walkRun !== null) rows.push(`<div class="ob-row"><span>${tr("Walk or run")}</span><span>${tr("{n} min, later today", { n: data.minimums.walkRun })}</span></div>`);
     return `<div class="ob-list">${rows.join("")}</div>`;
   }
 
@@ -209,21 +211,21 @@ const Onboarding = (function () {
     const y = (v) => H - 20 - ((H - 48) * (v - lo)) / Math.max(1, hi - lo);
     let path = `M${x(0)},${y(values[0])}`;
     for (let i = 1; i < values.length; i++) path += ` H${x(i)} V${y(values[i])}`;
-    return `<div class="ob-chart"><p class="ob-chart-label">Push-ups a day</p>
-      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Push-ups go from ${lo} to ${hi} over 30 days">
+    return `<div class="ob-chart"><p class="ob-chart-label">${tr("Push-ups a day")}</p>
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${tr("Push-ups go from {lo} to {hi} over 30 days", { lo, hi })}">
         <line x1="${pad}" y1="${H - 20}" x2="${W - pad}" y2="${H - 20}" stroke="var(--border)" stroke-width="1"/>
         <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>
         <circle cx="${x(0)}" cy="${y(lo)}" r="4.5" fill="var(--accent)"/><circle cx="${x(values.length - 1)}" cy="${y(hi)}" r="5.5" fill="var(--accent)"/>
         <text x="${x(0)}" y="${y(lo) - 10}" fill="var(--text-secondary)" font-size="12" font-weight="600">${lo}</text>
         <text x="${x(values.length - 1)}" y="${y(hi) - 12}" fill="var(--text-primary)" font-size="13" font-weight="700" text-anchor="end">${hi}</text>
-        <text x="${x(0)}" y="${H - 4}" fill="var(--text-muted)" font-size="11">Today</text>
-        <text x="${x(values.length - 1)}" y="${H - 4}" fill="var(--text-muted)" font-size="11" text-anchor="end">Day 30</text>
+        <text x="${x(0)}" y="${H - 4}" fill="var(--text-muted)" font-size="11">${tr("Today")}</text>
+        <text x="${x(values.length - 1)}" y="${H - 4}" fill="var(--text-muted)" font-size="11" text-anchor="end">${tr("Day 30")}</text>
       </svg></div>`;
   }
 
   const cta = (label, action, disabled) => `<button class="auth-submit-button" data-action="${action}"${disabled ? " disabled" : ""}>${label}</button>`;
   const quiet = (label, action) => `<button class="auth-skip" data-action="${action}">${label}</button>`;
-  const continueButton = (ready) => cta("Continue", "next", !ready);
+  const continueButton = (ready) => cta(tr("Continue"), "next", !ready);
   const errorLine = () => (state.error ? `<p class="error${state.errorIsInfo ? " success" : ""}" role="alert">${esc(state.error)}</p>` : "");
 
   // Came from someone's invite link (script.js peekInvite): say who, and
@@ -231,7 +233,7 @@ const Onboarding = (function () {
   function invitedBanner() {
     if (typeof inviteFrom === "undefined" || !inviteFrom) return "";
     const name = String(inviteFrom.name).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-    return `<div class="ob-invited">${avatarHtml(inviteFrom.name, "ob-invited-avatar")}<p><b>${name}</b> invited you<span>You'll be friends as soon as you sign up</span></p></div>`;
+    return `<div class="ob-invited">${avatarHtml(inviteFrom.name, "ob-invited-avatar")}<p>${tr("{name} invited you", { name: `<b>${name}</b>` })}<span>${tr("You'll be friends as soon as you sign up")}</span></p></div>`;
   }
 
   // ---------- the screens ----------
@@ -241,18 +243,18 @@ const Onboarding = (function () {
     welcome: {
       centered: true,
       noBack: true,
-      body: () => `<svg class="ob-logo-ring" viewBox="0 0 84 84" aria-hidden="true"><use href="#forja-ring"></use></svg><svg class="ob-logo-word" viewBox="0 0 233 92.1" role="img" aria-label="Forja"><use href="#forja-word"></use></svg><p class="ob-lead">Show up every day. The camera counts your reps, so every streak is real.</p>${invitedBanner()}`,
-      footer: () => cta("Get Started", "next") + quiet("I already have an account", "login"),
+      body: () => `<svg class="ob-logo-ring" viewBox="0 0 84 84" aria-hidden="true"><use href="#forja-ring"></use></svg><svg class="ob-logo-word" viewBox="0 0 233 92.1" role="img" aria-label="Forja"><use href="#forja-word"></use></svg><p class="ob-lead">${tr("Show up every day. The camera counts your reps, so every streak is real.")}</p>${invitedBanner()}`,
+      footer: () => cta(tr("Get Started"), "next") + quiet(tr("I already have an account"), "login"),
     },
     goal: {
       body: () => {
         const full = state.goals.length >= MAX_GOALS;
-        return `${coach("Hi! Why do you want to work out? Pick up to 3.")}
+        return `${coach(tr("Hi! Why do you want to work out? Pick up to 3."))}
           <div class="ob-options" role="group">${GOALS.map((o) => {
             const at = state.goals.indexOf(o.v);
             return `<button class="ob-option${full && at < 0 ? " dimmed" : ""}" role="checkbox" aria-checked="${at >= 0}" data-goal="${o.v}">
               <span class="ob-option-icon">${o.icon}</span>
-              <span class="ob-option-text"><b>${o.t}${at === 0 && state.goals.length > 1 ? ` <span class="ob-tag">Main</span>` : ""}</b><small>${o.s}</small></span>
+              <span class="ob-option-text"><b>${o.t}${at === 0 && state.goals.length > 1 ? ` <span class="ob-tag">${tr("Main")}</span>` : ""}</b><small>${o.s}</small></span>
             </button>`;
           }).join("")}</div>`;
       },
@@ -262,43 +264,43 @@ const Onboarding = (function () {
       centered: true,
       body: () => {
         const others = state.goals.slice(1).map((v) => find(GOALS, v).label);
-        return `${mascot("wow")}<h1 class="ob-title">${mainGoal().react}</h1>${others.length ? `<p class="ob-lead">We'll keep ${listWords(others)} in mind too.</p>` : ""}`;
+        return `${mascot("wow")}<h1 class="ob-title">${mainGoal().react}</h1>${others.length ? `<p class="ob-lead">${tr("We'll keep {list} in mind too.", { list: listWords(others) })}</p>` : ""}`;
       },
       footer: () => continueButton(true),
     },
     source: {
-      body: () => coach("How did you hear about Forja?") + choices(SOURCES, "source"),
+      body: () => coach(tr("How did you hear about Forja?")) + choices(SOURCES, "source"),
       footer: () => continueButton(!!state.source),
     },
     level: {
-      body: () => coach("How many push-ups can you do in a row?") + choices(LEVELS, "level") + `<p class="ob-fine">A rough guess is fine.</p>`,
+      body: () => coach(tr("How many push-ups can you do in a row?")) + choices(LEVELS, "level") + `<p class="ob-fine">${tr("A rough guess is fine.")}</p>`,
       footer: () => continueButton(!!state.level),
     },
     placement: {
       body: () =>
-        coach("Where should we start?") +
+        coach(tr("Where should we start?")) +
         choices(
           [
-            { v: "answer", t: "Start from my answer", s: "Begin right away", icon: ICON.seedling },
-            { v: "test", t: "Find my level", s: "Max push-ups, max squats, longest plank. Counts as Day 1.", icon: ICON.target },
+            { v: "answer", t: tr("Start from my answer"), s: tr("Begin right away"), icon: ICON.seedling },
+            { v: "test", t: tr("Find my level"), s: tr("Max push-ups, max squats, longest plank. Counts as Day 1."), icon: ICON.target },
           ],
           "placement",
-          { tag: (o) => (o.v === "test" ? "Most accurate" : "") }
+          { tag: (o) => (o.v === "test" ? tr("Most accurate") : "") }
         ),
       footer: () => continueButton(!!state.placement),
     },
     test: {
-      body: () => coach("Three quick tests. Go until you can't do another good rep.") + exerciseList("test") + `<p class="ob-fine">Prop your phone on the floor about 2 m away, side-on, with your whole body in view.</p>`,
+      body: () => coach(tr("Three quick tests. Go until you can't do another good rep.")) + exerciseList("test") + `<p class="ob-fine">${tr("Prop your phone on the floor about 2 m away, side-on, with your whole body in view.")}</p>`,
       footer: () => {
         const next = EXERCISES.find((e) => !(state.tested[e.key] > 0));
-        return (next ? cta(`Start ${next.name} test`, "camera") : continueButton(true)) + quiet("Use my answer instead", "skip-test");
+        return (next ? cta(tr(`Start ${next.name} test`), "camera") : continueButton(true)) + quiet(tr("Use my answer instead"), "skip-test");
       },
     },
     result: {
       centered: true,
-      body: () => `${mascot("wow")}<h1 class="ob-title">Here's your level</h1>
+      body: () => `${mascot("wow")}<h1 class="ob-title">${tr("Here's your level")}</h1>
         <div class="ob-list">${EXERCISES.map((e) => `<div class="ob-row"><span>${e.title}</span><span>${e.key === "planks" ? fmtTime(state.tested[e.key]) : state.tested[e.key]}</span></div>`).join("")}</div>
-        <p class="ob-fine">Your daily targets start a little below these.</p>`,
+        <p class="ob-fine">${tr("Your daily targets start a little below these.")}</p>`,
       footer: () => continueButton(true),
     },
     pace: {
@@ -306,10 +308,10 @@ const Onboarding = (function () {
         if (!state.pace) state.pace = recommendedPace();
         const start = startingTargets();
         return (
-          coach(`For ${mainGoal().label}, we recommend <span class="ob-em">${find(PACES, recommendedPace()).t}</span>. Pick your pace:`) +
+          coach(tr("For {goal}, we recommend {pace}. Pick your pace:", { goal: mainGoal().label, pace: `<span class="ob-em">${find(PACES, recommendedPace()).t}</span>` })) +
           choices(PACES, "pace", {
-            sub: (o) => `${start.pushups} → ${planDays(start, o.v, 30)[29].pushups} push-ups in 30 days`,
-            tag: (o) => (o.v === recommendedPace() ? "For you" : ""),
+            sub: (o) => tr("{from} → {to} push-ups in 30 days", { from: start.pushups, to: planDays(start, o.v, 30)[29].pushups }),
+            tag: (o) => (o.v === recommendedPace() ? tr("For you") : ""),
           })
         );
       },
@@ -323,17 +325,17 @@ const Onboarding = (function () {
         const losingWeight = state.goals.includes("weight");
         if (losingWeight && !state.walk) state.walk = "yes";
         return (
-          coach(losingWeight ? "Since one of your goals is losing weight, we strongly suggest adding walks or runs." : "Want walks or runs as part of your day?") +
+          coach(losingWeight ? tr("Since one of your goals is losing weight, we strongly suggest adding walks or runs.") : tr("Want walks or runs as part of your day?")) +
           choices(
             [
-              { v: "yes", t: "Yes, add cardio", s: "Tracked with GPS", icon: ICON.walk },
-              { v: "no", t: "Not now", s: "You can add it any time", icon: ICON.close },
+              { v: "yes", t: tr("Yes, add cardio"), s: tr("Tracked with GPS"), icon: ICON.walk },
+              { v: "no", t: tr("Not now"), s: tr("You can add it any time"), icon: ICON.close },
             ],
             "walk",
-            { tag: (o) => (losingWeight && o.v === "yes" ? "For you" : "") }
+            { tag: (o) => (losingWeight && o.v === "yes" ? tr("For you") : "") }
           ) +
           (state.walk === "yes"
-            ? `<p class="ob-label">Minutes a day</p><div class="ob-chips" role="radiogroup">${[10, 15, 20, 30]
+            ? `<p class="ob-label">${tr("Minutes a day")}</p><div class="ob-chips" role="radiogroup">${[10, 15, 20, 30]
                 .map((m) => `<button role="radio" aria-checked="${state.walkMinutes === m}" data-pick="walkMinutes" data-value="${m}">${m} min</button>`)
                 .join("")}</div>`
             : "")
@@ -346,27 +348,27 @@ const Onboarding = (function () {
         const days = planDays(startingTargets(), state.pace, 30);
         const first = days[0], last = days[29];
         const row = (name, a, b) => `<div class="ob-row"><span>${name}</span><span>${a}</span><span class="ob-goal">${b}</span></div>`;
-        return `${coach("Here's your plan. This is where you'll be in 30 days:")}
+        return `${coach(tr("Here's your plan. This is where you'll be in 30 days:"))}
           <div class="ob-list ob-plan">
-            <div class="ob-row ob-head"><span></span><span>Today</span><span>Day 30</span></div>
-            ${row("Push-ups", first.pushups, last.pushups)}${row("Squats", first.squats, last.squats)}${row("Plank", fmtTime(first.planks), fmtTime(last.planks))}
-            ${state.walk === "yes" ? row("Walk or run", `${state.walkMinutes} min`, `${state.walkMinutes} min`) : ""}
+            <div class="ob-row ob-head"><span></span><span>${tr("Today")}</span><span>${tr("Day 30")}</span></div>
+            ${row(tr("Push-ups"), first.pushups, last.pushups)}${row(tr("Squats"), first.squats, last.squats)}${row(tr("Plank"), fmtTime(first.planks), fmtTime(last.planks))}
+            ${state.walk === "yes" ? row(tr("Walk or run"), `${state.walkMinutes} min`, `${state.walkMinutes} min`) : ""}
           </div>${planChart(days)}`;
       },
-      footer: () => cta("Looks Good", "next"),
+      footer: () => cta(tr("Looks Good"), "next"),
     },
     day1: {
-      body: () => coach("Let's do Day 1! Your streak starts when you finish all of it.") + exerciseList("day") + `<p class="ob-fine">Prop your phone on the floor about 2 m away, side-on, with your whole body in view.</p>`,
+      body: () => coach(tr("Let's do Day 1! Your streak starts when you finish all of it.")) + exerciseList("day") + `<p class="ob-fine">${tr("Prop your phone on the floor about 2 m away, side-on, with your whole body in view.")}</p>`,
       footer: () => {
         const next = EXERCISES.find((e) => todayProgress()[e.key] < data.minimums[e.key]);
-        return (next ? cta(`Start ${next.name}`, "camera") : continueButton(true)) + quiet("I'll do it later today", "later");
+        return (next ? cta(tr(`Start ${next.name}`), "camera") : continueButton(true)) + quiet(tr("I'll do it later today"), "later");
       },
     },
     almost: {
       centered: true,
       noBack: true,
-      body: () => `${mascot("wow")}<h1 class="ob-title">3 of 4 done!</h1><p class="ob-lead">Finish your ${data.minimums.walkRun}-minute walk or run today and Day 1 is complete.</p>`,
-      footer: () => cta("Got It", "next"),
+      body: () => `${mascot("wow")}<h1 class="ob-title">${tr("3 of 4 done!")}</h1><p class="ob-lead">${tr("Finish your {n}-minute walk or run today and Day 1 is complete.", { n: data.minimums.walkRun })}</p>`,
+      footer: () => cta(tr("Got It"), "next"),
     },
     streak: {
       centered: true,
@@ -376,8 +378,8 @@ const Onboarding = (function () {
         return `<div class="ob-flame ob-pop"><svg viewBox="0 0 100 112" aria-hidden="true"><defs><linearGradient id="ob-flame-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--ember-light)"/><stop offset="1" stop-color="var(--ember)"/></linearGradient></defs>
             <path d="M50 4 C60 26 86 38 86 68 C86 92 70 108 50 108 C30 108 14 92 14 68 C14 50 26 42 32 24 C38 34 44 36 50 4 Z" fill="url(#ob-flame-fill)"/></svg>
             <span class="ob-flame-number">${data.streak}</span></div>
-          <h1 class="ob-title">Your streak has started!</h1><p class="ob-lead">Show up tomorrow to make it ${data.streak + 1}.</p>
-          <div class="ob-week" aria-hidden="true">${["M", "T", "W", "T", "F", "S", "S"].map((d, i) => `<span class="${i === today ? "done" : ""}">${d}</span>`).join("")}</div>`;
+          <h1 class="ob-title">${tr("Your streak has started!")}</h1><p class="ob-lead">${tr("Show up tomorrow to make it {n}.", { n: data.streak + 1 })}</p>
+          <div class="ob-week" aria-hidden="true">${WEEK_LETTERS.map((d, i) => `<span class="${i === today ? "done" : ""}">${d}</span>`).join("")}</div>`;
       },
       footer: () => continueButton(true),
     },
@@ -385,47 +387,47 @@ const Onboarding = (function () {
       noBack: true,
       body: () => {
         if (state.usernameOnly) {
-          return `${coach("Your account is ready. Pick a username so friends can find you.")}
-            <div class="auth-fields"><input id="ob-username" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20"></div>${errorLine()}`;
+          return `${coach(tr("Your account is ready. Pick a username so friends can find you."))}
+            <div class="auth-fields"><input id="ob-username" placeholder="${tr("Username")}" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20"></div>${errorLine()}`;
         }
         // Sign in with Apple goes first here once there's an Apple Developer account.
-        return `${coach("Save your progress so your streak follows you, and so you can compete with friends.")}
+        return `${coach(tr("Save your progress so your streak follows you, and so you can compete with friends."))}
           <div class="auth-fields">
-            <input id="ob-username" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20">
-            <input id="ob-email" type="email" placeholder="Email" autocomplete="email">
+            <input id="ob-username" placeholder="${tr("Username")}" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20">
+            <input id="ob-email" type="email" placeholder="${tr("Email")}" autocomplete="email">
             <div class="password-field">
-              <input id="ob-password" type="password" placeholder="Password (8+ characters)" autocomplete="new-password">
-              <button type="button" class="password-eye" aria-label="Show password"><svg class="eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-6.5 0-10-7-10-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg></button>
+              <input id="ob-password" type="password" placeholder="${tr("Password (8+ characters)")}" autocomplete="new-password">
+              <button type="button" class="password-eye" aria-label="${tr("Show password")}"><svg class="eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-6.5 0-10-7-10-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg></button>
             </div>
           </div>${errorLine()}
-          ${state.showLogin ? `<button class="link-button ob-login" data-action="login">Log in instead</button>` : ""}
-          <p class="auth-legal">By creating an account you agree to our <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>`;
+          ${state.showLogin ? `<button class="link-button ob-login" data-action="login">${tr("Log in instead")}</button>` : ""}
+          <p class="auth-legal">${tr("By creating an account you agree to our")} <a href="privacy.html" target="_blank" rel="noopener">${tr("Privacy Policy")}</a>.</p>`;
       },
       footer: () =>
         state.usernameOnly
-          ? cta(state.busy ? "Saving..." : "Save Username", "save-username", state.busy || !accountReady())
-          : cta(state.busy ? "Creating..." : "Create Account", "create", state.busy || !accountReady()) + quiet("Later", "finish"),
+          ? cta(state.busy ? tr("Saving...") : tr("Save Username"), "save-username", state.busy || !accountReady())
+          : cta(state.busy ? tr("Creating...") : tr("Create Account"), "create", state.busy || !accountReady()) + quiet(tr("Later"), "finish"),
     },
     reminder: {
       noBack: true,
       // Four common times, or "Pick a time" for any other hour. Reminders go
       // out once an hour, so it's whole hours, the same as in Settings.
       body: () => {
-        const label = (h) => `${h % 12 || 12}:00 ${h < 12 ? "AM" : "PM"}`;
+        const label = (h) => `${h % 12 || 12}:00 ${h < 12 ? tr("AM") : tr("PM")}`;
         const custom = state.customReminder;
         const hours = Array.from({ length: 24 }, (_, h) => `<option value="${h}"${h === state.reminderHour ? " selected" : ""}>${label(h)}</option>`).join("");
-        return `${coach("Your streak is on the line every day. When should we remind you?")}
-          <div class="ob-chips" role="radiogroup">${REMINDER_HOURS.map((h) => `<button role="radio" aria-checked="${!custom && state.reminderHour === h}" data-pick="reminderHour" data-value="${h}">${label(h)}</button>`).join("")}<button role="radio" aria-checked="${custom}" data-action="custom-time">${custom ? label(state.reminderHour) : "Pick a time"}</button></div>
-          ${custom ? `<label class="ob-label" for="ob-reminder-hour">Remind me at</label><select id="ob-reminder-hour" class="ob-select">${hours}</select>` : ""}
-          <p class="ob-fine">Only on days you haven't finished yet.</p>${errorLine()}`;
+        return `${coach(tr("Your streak is on the line every day. When should we remind you?"))}
+          <div class="ob-chips" role="radiogroup">${REMINDER_HOURS.map((h) => `<button role="radio" aria-checked="${!custom && state.reminderHour === h}" data-pick="reminderHour" data-value="${h}">${label(h)}</button>`).join("")}<button role="radio" aria-checked="${custom}" data-action="custom-time">${custom ? label(state.reminderHour) : tr("Pick a time")}</button></div>
+          ${custom ? `<label class="ob-label" for="ob-reminder-hour">${tr("Remind me at")}</label><select id="ob-reminder-hour" class="ob-select">${hours}</select>` : ""}
+          <p class="ob-fine">${tr("Only on days you haven't finished yet.")}</p>${errorLine()}`;
       },
-      footer: () => cta(state.busy ? "Turning On..." : "Remind Me", "remind", state.busy || state.reminderHour === null) + quiet("Not now", "next"),
+      footer: () => cta(state.busy ? tr("Turning On...") : tr("Remind Me"), "remind", state.busy || state.reminderHour === null) + quiet(tr("Not now"), "next"),
     },
     friends: {
       centered: true,
       noBack: true,
-      body: () => `${mascot("happy")}<h1 class="ob-title">Forja is better with friends</h1><p class="ob-lead">Send your link: whoever joins from it is your friend right away.</p>`,
-      footer: () => cta("Invite Friends", "invite") + quiet("Not now", "finish"),
+      body: () => `${mascot("happy")}<h1 class="ob-title">${tr("Forja is better with friends")}</h1><p class="ob-lead">${tr("Send your link: whoever joins from it is your friend right away.")}</p>`,
+      footer: () => cta(tr("Invite Friends"), "invite") + quiet(tr("Not now"), "finish"),
     },
   };
 
@@ -568,14 +570,14 @@ const Onboarding = (function () {
     if (error) {
       localStorage.removeItem("forja-pending-username");
       if (/already registered|already exists/i.test(error.message)) {
-        state.error = "This email already has an account.";
+        state.error = tr("This email already has an account.");
         state.showLogin = true;
       } else {
-        state.error = error.message;
+        state.error = tr(error.message);
       }
     } else if (!reply.session) {
       // Only if the project still asks people to confirm their email.
-      state.error = "Check your email to confirm your account, then log in.";
+      state.error = tr("Check your email to confirm your account, then log in.");
       state.errorIsInfo = true;
     } else {
       // Signed in: showApp() loads the new account, then calls accountReady()
@@ -594,7 +596,7 @@ const Onboarding = (function () {
     const { error } = await supabaseClient.from("profiles").insert({ user_id: currentUserId, username });
     state.busy = false;
     if (error) {
-      state.error = error.code === "23505" ? "That username is taken. Try another." : "Couldn't save your username. Try again.";
+      state.error = error.code === "23505" ? tr("That username is taken. Try another.") : tr("Couldn't save your username. Try again.");
       render();
       return;
     }
@@ -611,7 +613,7 @@ const Onboarding = (function () {
     const ok = await enableReminderNotifications().catch(() => false);
     state.busy = false;
     if (!ok) {
-      state.error = "Couldn't turn on reminders. You can do it later in Settings.";
+      state.error = tr("Couldn't turn on reminders. You can do it later in Settings.");
       render();
       return;
     }
@@ -736,7 +738,7 @@ const Onboarding = (function () {
       if (!isNewAccount) return finish();
       if (usernameTaken) {
         state.usernameOnly = true;
-        state.error = "That username is taken. Try another.";
+        state.error = tr("That username is taken. Try another.");
         return render();
       }
       state.accountDone = true;

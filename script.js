@@ -212,7 +212,7 @@ function showLoadError(retry) {
     screen.className = "load-error-screen";
     screen.setAttribute("role", "alertdialog");
     screen.setAttribute("aria-labelledby", "load-error-text");
-    screen.innerHTML = `<p id="load-error-text">Couldn't load your account. Check your connection.</p><button class="auth-submit-button">Try Again</button>`;
+    screen.innerHTML = `<p id="load-error-text">${tr("Couldn't load your account. Check your connection.")}</p><button class="auth-submit-button">${tr("Try Again")}</button>`;
     document.body.appendChild(screen);
   }
   const button = screen.querySelector("button");
@@ -434,7 +434,7 @@ themeSelectEl.value = document.documentElement.getAttribute("data-theme") === "l
 // confirms it.
 function showSettingSaved() {
   const statusEl = document.getElementById("settings-status");
-  statusEl.textContent = "Saved.";
+  statusEl.textContent = tr("Saved.");
   statusEl.classList.add("success");
 }
 
@@ -448,6 +448,23 @@ themeSelectEl.addEventListener("change", () => {
   }
   showSettingSaved();
 });
+
+// Language: the phone's own, unless one is picked here (i18n.js). Changing
+// it reloads the app, so every screen is drawn in the new language.
+const languageSelectEl = document.getElementById("language-select");
+languageSelectEl.value = ForjaI18n.choice();
+languageSelectEl.addEventListener("change", () => ForjaI18n.setLanguage(languageSelectEl.value));
+
+// The server writes push notifications in the language this account uses
+// (send-reminders, nudges...), so it's kept with the account's data. Only
+// written when it changes - an account that never picked Spanish has none
+// and keeps getting English.
+function syncLanguage() {
+  if (!currentUserId || !data) return;
+  if ((data.language || "en") === ForjaI18n.lang) return;
+  data.language = ForjaI18n.lang;
+  saveData(data);
+}
 
 // Units change how every distance reads - your walks, your charts, and
 // friends' runs in the Feed - so redraw what shows distances right away.
@@ -525,7 +542,7 @@ document.getElementById("save-profile-button").addEventListener("click", async (
   errorEl.classList.remove("success");
 
   if (!USERNAME_PATTERN.test(newUsername)) {
-    errorEl.textContent = "Username must be 3-20 characters: letters, numbers, underscores only.";
+    errorEl.textContent = tr("Username must be 3-20 characters: letters, numbers, underscores only.");
     return;
   }
 
@@ -540,7 +557,7 @@ document.getElementById("save-profile-button").addEventListener("click", async (
       .upsert({ user_id: currentUserId, username: newUsername });
 
     if (error) {
-      errorEl.textContent = error.code === "23505" ? "That username is already taken." : "Couldn't save your profile. Try again.";
+      errorEl.textContent = error.code === "23505" ? tr("That username is already taken.") : tr("Couldn't save your profile. Try again.");
       return;
     }
     myUsername = newUsername;
@@ -559,22 +576,22 @@ document.getElementById("save-profile-button").addEventListener("click", async (
   if (user && newEmail !== user.email) {
     const { error } = await supabaseClient.auth.updateUser({ email: newEmail });
     if (error) {
-      errorEl.textContent = error.message;
+      errorEl.textContent = tr(error.message);
       return;
     }
-    errorEl.textContent = "Profile saved. Check your new email to confirm the email change.";
+    errorEl.textContent = tr("Profile saved. Check your new email to confirm the email change.");
     errorEl.classList.add("success");
     return;
   }
 
-  errorEl.textContent = "Profile saved.";
+  errorEl.textContent = tr("Profile saved.");
   errorEl.classList.add("success");
 });
 
 document.getElementById("share-profile-button").addEventListener("click", async () => {
   const shareText = myUsername
-    ? `Add me on Forja! My username is ${myUsername}`
-    : "Check out Forja - a daily workout streak tracker!";
+    ? tr("Add me on Forja! My username is {name}", { name: myUsername })
+    : tr("Check out Forja - a daily workout streak tracker!");
 
   // Web Share API opens the phone's native share sheet (Messages, etc.)
   // where supported; otherwise fall back to copying the text so it can
@@ -588,17 +605,17 @@ document.getElementById("share-profile-button").addEventListener("click", async 
     }
   } else {
     await navigator.clipboard.writeText(shareText);
-    alert("Copied to clipboard!");
+    alert(tr("Copied to clipboard!"));
   }
 });
 
 // Shows the current minimums next to each exercise (e.g. "min 15").
 function renderMinTags() {
-  pushupsMinTagEl.textContent = `min ${data.minimums.pushups}`;
-  planksMinTagEl.textContent = `min ${data.minimums.planks}s`;
-  squatsMinTagEl.textContent = `min ${data.minimums.squats}`;
+  pushupsMinTagEl.textContent = tr("min {n}", { n: data.minimums.pushups });
+  planksMinTagEl.textContent = tr("min {n}s", { n: data.minimums.planks });
+  squatsMinTagEl.textContent = tr("min {n}", { n: data.minimums.squats });
   if (data.minimums.walkRun !== null) {
-    walkrunMinTagEl.textContent = `min ${data.minimums.walkRun}`;
+    walkrunMinTagEl.textContent = tr("min {n}", { n: data.minimums.walkRun });
   }
   // Signed in, the targets come from My Plan - tapping one opens it.
   [pushupsMinTagEl, planksMinTagEl, squatsMinTagEl].forEach((tag) => {
@@ -655,7 +672,7 @@ function bodyWeightKg() {
 
 function renderBodyWeightInput() {
   const inPounds = data.units !== "km";
-  document.getElementById("body-weight-label").textContent = inPounds ? "Weight (lb)" : "Weight (kg)";
+  document.getElementById("body-weight-label").textContent = inPounds ? tr("Weight (lb)") : tr("Weight (kg)");
   const kg = bodyWeightKg();
   bodyWeightEl.value = kg === null ? "" : String(Math.round(inPounds ? kg / KG_PER_LB : kg));
 }
@@ -671,7 +688,7 @@ bodyWeightEl.addEventListener("change", () => {
     const kg = Number(typed) * (data.units === "km" ? 1 : KG_PER_LB);
     const [lightest, heaviest] = ForjaRules.ESTIMATES.WEIGHT_KG;
     if (!(kg >= lightest && kg <= heaviest)) {
-      statusEl.textContent = `Enter your weight as a number, like ${data.units === "km" ? 70 : 160}.`;
+      statusEl.textContent = tr("Enter your weight as a number, like {n}.", { n: data.units === "km" ? 70 : 160 });
       statusEl.classList.remove("success");
       renderBodyWeightInput();
       return;
@@ -708,8 +725,8 @@ saveMinimumsEl.addEventListener("click", () => {
   render();
 
   minimumsStatusEl.textContent = raised
-    ? `Minimums saved. They can't go below ${floors.pushups} push-ups, a ${floors.planks}s plank and ${floors.squats} squats, so yours were raised to fit.`
-    : "Minimums saved.";
+    ? tr("Minimums saved. They can't go below {pushups} push-ups, a {planks}s plank and {squats} squats, so yours were raised to fit.", floors)
+    : tr("Minimums saved.");
   minimumsStatusEl.classList.add("success");
 
   // Lowering a minimum (or turning walk/run off) can complete today.
@@ -729,40 +746,40 @@ minimumsPanelEl.addEventListener("input", () => {
 // Each ⓘ opens one short tip; any tap closes it.
 
 const PACE_LINES = {
-  easy: "Levels up every 4th day",
-  regular: "Levels up every 3rd day",
-  serious: "Levels up every 2nd day",
-  intense: "Levels up 2 of every 3 days",
+  easy: tr("Levels up every 4th day"),
+  regular: tr("Levels up every 3rd day"),
+  serious: tr("Levels up every 2nd day"),
+  intense: tr("Levels up 2 of every 3 days"),
 };
 // What the level-up tip says depends on the player's own pace - and only
 // mentions a held exercise when one is actually showing in amber.
 const LEVEL_UP_TIP = {
-  easy: "On Easy, your targets go up every 4th day you complete.",
-  regular: "On Regular, your targets go up every 3rd day you complete.",
-  serious: "On Serious, your targets go up every 2nd day you complete.",
-  intense: "On Intense, your targets go up on 2 of every 3 days you complete.",
+  easy: tr("On Easy, your targets go up every 4th day you complete."),
+  regular: tr("On Regular, your targets go up every 3rd day you complete."),
+  serious: tr("On Serious, your targets go up every 2nd day you complete."),
+  intense: tr("On Intense, your targets go up on 2 of every 3 days you complete."),
 };
 function levelUpTip() {
-  let text = (LEVEL_UP_TIP[serverPlan && serverPlan.pace] || LEVEL_UP_TIP.regular) + " This comes from the pace you picked below.";
+  let text = (LEVEL_UP_TIP[serverPlan && serverPlan.pace] || LEVEL_UP_TIP.regular) + tr(" This comes from the pace you picked below.");
   const next = serverPlan && ForjaRules.nextLevelUp(serverPlan, myPlanDay());
   if (next && next.held.length) {
     const names = PLAN_EXERCISES.filter((ex) => next.held.includes(ex.key)).map((ex) => ex.name);
-    const list = names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
-    text += ` <span class="amber">${list}</span> ${names.length === 1 ? "stays" : "stay"} the same this time because ${names.length === 1 ? "it" : "they"} took 3+ sets.`;
+    const list = names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + tr(" and ") + names[names.length - 1];
+    text += " " + tr(names.length === 1 ? "{list} stays the same this time because it took 3+ sets." : "{list} stay the same this time because they took 3+ sets.", { list: `<span class="amber">${list}</span>` });
   }
   return text;
 }
 // The paces as a short list, with the player's own in bold.
 const PACE_TIP_LINES = [
-  ["easy", "Easy: every 4th day"],
-  ["regular", "Regular: every 3rd day"],
-  ["serious", "Serious: every 2nd day"],
-  ["intense", "Intense: 2 of every 3 days"],
+  ["easy", tr("Easy: every 4th day")],
+  ["regular", tr("Regular: every 3rd day")],
+  ["serious", tr("Serious: every 2nd day")],
+  ["intense", tr("Intense: 2 of every 3 days")],
 ];
 function paceTip() {
   const mine = serverPlan && serverPlan.pace;
   const items = PACE_TIP_LINES.map(([pace, line]) => `<li${pace === mine ? ' class="mine"' : ""}>${line}</li>`).join("");
-  return `How often you level up:<ul>${items}</ul><span class="tip-note">Today's targets don't change.</span>`;
+  return `${tr("How often you level up:")}<ul>${items}</ul><span class="tip-note">${tr("Today's targets don't change.")}</span>`;
 }
 
 // The day My Plan shows: today, or tomorrow once today is logged.
@@ -772,15 +789,15 @@ function myPlanDay() {
 }
 
 const PLAN_TIPS = {
-  today: "Set by your plan. Reps add up across all your sets; the plank is your best single hold.",
+  today: tr("Set by your plan. Reps add up across all your sets; the plank is your best single hold."),
   levelup: levelUpTip,
   pace: paceTip,
-  walk: "Track it on the Record tab. Minutes stay the same; they don't level up.",
+  walk: tr("Track it on the Record tab. Minutes stay the same; they don't level up."),
 };
 const PLAN_EXERCISES = [
-  { key: "pushups", name: "Push-ups", color: "var(--ring-pushups)" },
-  { key: "squats", name: "Squats", color: "var(--ring-squats)" },
-  { key: "planks", name: "Plank", color: "var(--ring-planks)" },
+  { key: "pushups", name: tr("Push-ups"), color: "var(--ring-pushups)" },
+  { key: "squats", name: tr("Squats"), color: "var(--ring-squats)" },
+  { key: "planks", name: tr("Plank"), color: "var(--ring-planks)" },
 ];
 const planValue = (key, value) => (key === "planks" ? formatDuration(value * 1000) : String(value));
 let paceMessageTimer = null;
@@ -831,9 +848,9 @@ function renderMyPlan() {
   barEl.classList.toggle("hidden", !next);
   nextEl.classList.toggle("hidden", !next);
   if (!next) {
-    titleEl.textContent = "Maintaining your level";
+    titleEl.textContent = tr("Maintaining your level");
   } else {
-    titleEl.textContent = next.inDays > 1 ? `Level up in ${next.inDays} days` : doneToday ? "Level up after tomorrow" : "Level up after today";
+    titleEl.textContent = next.inDays > 1 ? tr("Level up in {n} days", { n: next.inDays }) : doneToday ? tr("Level up after tomorrow") : tr("Level up after today");
     const percent = Math.round(Math.min(1, on.plan.credit) * 100);
     barEl.setAttribute("aria-valuenow", String(percent));
     barEl.querySelector("i").style.width = `${percent}%`;
@@ -885,10 +902,10 @@ document.getElementById("plan-pace").addEventListener("click", async (event) => 
   const reply = await callServerFunction("plan", { pace: button.dataset.pace });
   if (reply.ok && reply.plan) {
     serverPlan = reply.plan;
-    showPaceMessage("Pace saved.");
+    showPaceMessage(tr("Pace saved."));
   } else {
     serverPlan = previous;
-    showPaceMessage("Couldn't change your pace. Try again.");
+    showPaceMessage(tr("Couldn't change your pace. Try again."));
   }
   renderMyPlan();
 });
@@ -978,7 +995,7 @@ for (let hour = 0; hour < 24; hour++) {
   const option = document.createElement("option");
   option.value = hour;
   const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-  option.textContent = `${displayHour}:00 ${hour < 12 ? "AM" : "PM"}`;
+  option.textContent = `${displayHour}:00 ${hour < 12 ? tr("AM") : tr("PM")}`;
   reminderHourEl.appendChild(option);
 }
 
@@ -1044,7 +1061,7 @@ async function refreshRemindersToggle() {
     enableRemindersEl.checked = false;
     enableRemindersEl.disabled = true;
     reminderHourRowEl.classList.add("hidden");
-    remindersStatusEl.textContent = "Sign in to enable reminders.";
+    remindersStatusEl.textContent = tr("Sign in to enable reminders.");
     return;
   }
 
@@ -1052,7 +1069,7 @@ async function refreshRemindersToggle() {
     enableRemindersEl.checked = false;
     enableRemindersEl.disabled = true;
     reminderHourRowEl.classList.add("hidden");
-    remindersStatusEl.textContent = "Reminders aren't supported in this browser. On iPhone, add Forja to your Home Screen first.";
+    remindersStatusEl.textContent = tr("Reminders aren't supported in this browser. On iPhone, add Forja to your Home Screen first.");
     return;
   }
 
@@ -1074,17 +1091,17 @@ enableRemindersEl.addEventListener("change", async () => {
     const success = await enableReminderNotifications();
     if (!success) {
       enableRemindersEl.checked = false;
-      remindersStatusEl.textContent = "Couldn't enable reminders. Try again.";
+      remindersStatusEl.textContent = tr("Couldn't enable reminders. Try again.");
       return;
     }
     reminderHourEl.value = data.reminderHour;
     reminderHourRowEl.classList.remove("hidden");
-    remindersStatusEl.textContent = "Reminders enabled.";
+    remindersStatusEl.textContent = tr("Reminders enabled.");
     remindersStatusEl.classList.add("success");
   } else {
     await disableReminderNotifications();
     reminderHourRowEl.classList.add("hidden");
-    remindersStatusEl.textContent = "Reminders turned off.";
+    remindersStatusEl.textContent = tr("Reminders turned off.");
   }
   refreshNotifAskMode();
 });
@@ -1172,7 +1189,7 @@ async function turnOnRemindersFromAsk() {
     notifAskMode = null;
     writeNotifAsk({ done: true });
   }
-  if (!on) showToast(refused ? "No problem. You can turn them on later in Settings." : "Couldn't turn on reminders. Try again in Settings.");
+  if (!on) showToast(refused ? tr("No problem. You can turn them on later in Settings.") : tr("Couldn't turn on reminders. Try again in Settings."));
   return on;
 }
 
@@ -1193,15 +1210,15 @@ function openHomeScreenSheet(moment) {
     <div class="challenge-sheet notif-sheet" role="dialog" aria-modal="true" aria-labelledby="notif-sheet-title">
       <span class="challenge-grabber"></span>
       <span class="notif-sheet-pet">${Onboarding.mascot("happy")}</span>
-      <h2 id="notif-sheet-title">${moment === "done" ? "Keep your streak going tomorrow" : "Never miss a nudge"}</h2>
-      <p class="notif-sheet-sub">iPhone only sends reminders to apps on your Home Screen. Takes 20 seconds:</p>
+      <h2 id="notif-sheet-title">${moment === "done" ? tr("Keep your streak going tomorrow") : tr("Never miss a nudge")}</h2>
+      <p class="notif-sheet-sub">${tr("iPhone only sends reminders to apps on your Home Screen. Takes 20 seconds:")}</p>
       <ol class="notif-steps">
-        <li><span class="notif-step-n">1</span><span>Tap <span class="notif-step-icon">${SHARE_ICON_SVG}</span> Share in Safari<small>Don't see it? Tap ••• first.</small></span></li>
-        <li><span class="notif-step-n">2</span><span>Tap <span class="notif-step-icon">${ADD_SQUARE_ICON_SVG}</span> Add to Home Screen</span></li>
-        <li><span class="notif-step-n">3</span><span>Open Forja from your Home Screen<small>Log in once more, then turn on reminders.</small></span></li>
+        <li><span class="notif-step-n">1</span><span>${tr("Tap {icon} Share in Safari", { icon: `<span class="notif-step-icon">${SHARE_ICON_SVG}</span>` })}<small>${tr("Don't see it? Tap ••• first.")}</small></span></li>
+        <li><span class="notif-step-n">2</span><span>${tr("Tap {icon} Add to Home Screen", { icon: `<span class="notif-step-icon">${ADD_SQUARE_ICON_SVG}</span>` })}</span></li>
+        <li><span class="notif-step-n">3</span><span>${tr("Open Forja from your Home Screen")}<small>${tr("Log in once more, then turn on reminders.")}</small></span></li>
       </ol>
-      <button class="auth-submit-button" data-notif-sheet="ok">Got It</button>
-      <button class="challenge-text-button is-muted" data-notif-sheet="later">Not Now</button>
+      <button class="auth-submit-button" data-notif-sheet="ok">${tr("Got It")}</button>
+      <button class="challenge-text-button is-muted" data-notif-sheet="later">${tr("Not Now")}</button>
     </div>`;
   scrim.addEventListener("click", (event) => {
     const button = event.target.closest("[data-notif-sheet]");
@@ -1227,7 +1244,7 @@ document.getElementById("reminder-setup-enable-button").addEventListener("click"
   const statusEl = document.getElementById("reminder-setup-status");
   const success = await enableReminderNotifications();
   if (!success) {
-    statusEl.textContent = "Couldn't enable reminders. You can try again anytime in Settings.";
+    statusEl.textContent = tr("Couldn't enable reminders. You can try again anytime in Settings.");
     return;
   }
   showScreen("app-screen");
@@ -1559,7 +1576,7 @@ async function recoverUnsavedSet() {
       reward: (exercise, value) => {
         const reward = setReward(exercise, value);
         if (reward) {
-          reward.line = `The app closed mid-set, but <b>I kept your ${value}${exercise === "plank" ? "s" : ""}</b>. Save it?`;
+          reward.line = tr("The app closed mid-set, but <b>I kept your {value}</b>. Save it?", { value: `${value}${exercise === "plank" ? "s" : ""}` });
           reward.face = "happy";
         }
         return reward;
@@ -1620,9 +1637,10 @@ function setReward(exercise, value) {
   const dayNumber = dayDone ? ForjaRules.nextStats({ streak: data.streak, bestStreak: data.bestStreak, lastLoggedDate: data.lastLoggedDate, restDaysUsed: data.restDaysUsed, weekStartDate: data.weekStartDate }, todayString()).streak : 0;
 
   const badges = [];
-  if (newBest) badges.push({ kind: "best", text: `New best set · ${value}${unit}` });
-  if (dayDone) badges.push({ kind: "day", text: `Day ${dayNumber} done!` });
-  else if (finishesIt) badges.push({ kind: "done", text: `${SET_NAMES[key]} done` });
+  // (SET_NAMES stay English here: each finished sentence is one tr() key.)
+  if (newBest) badges.push({ kind: "best", text: tr("New best set · {value}", { value: `${value}${unit}` }) });
+  if (dayDone) badges.push({ kind: "day", text: tr("Day {n} done!", { n: dayNumber }) });
+  else if (finishesIt) badges.push({ kind: "done", text: tr(`${SET_NAMES[key]} done`) });
 
   // What's still left today after this set, for "Next: ...".
   const left = DAY_KEYS.filter((k) => totalOf(k) < m[k]).map((k) => (k === "planks" ? "plank" : SET_NAMES[k].toLowerCase()));
@@ -1632,22 +1650,22 @@ function setReward(exercise, value) {
   let face = "happy";
   if (value <= 0) {
     face = "worried";
-    line = key === "planks" ? "Didn't catch a hold. <b>Side-on, whole body</b> in frame." : "Didn't catch any reps. <b>Side-on, whole body</b> in frame.";
+    line = key === "planks" ? tr("Didn't catch a hold. <b>Side-on, whole body</b> in frame.") : tr("Didn't catch any reps. <b>Side-on, whole body</b> in frame.");
   } else if (dayDone) {
     face = "wow";
-    line = `That's the day! <b>Day ${dayNumber}</b> is yours.`;
+    line = tr("That's the day! <b>Day {n}</b> is yours.", { n: dayNumber });
   } else if (newBest) {
     face = "wow";
-    line = key === "planks" ? `<b>${value}s</b> without stopping. <span class="gold">New record.</span>` : `<b>${value}</b> in one go. <span class="gold">New record.</span> I felt that.`;
+    line = key === "planks" ? tr('<b>{n}s</b> without stopping. <span class="gold">New record.</span>', { n: value }) : tr('<b>{n}</b> in one go. <span class="gold">New record.</span> I felt that.', { n: value });
   } else if (finishesIt) {
-    line = key === "planks" ? `${value} seconds of not quitting. Plank's done.` : `That's ${lower} done for today.`;
-    if (left.length) line += ` Next: <b>${left[0]}</b>.`;
+    line = key === "planks" ? tr("{n} seconds of not quitting. Plank's done.", { n: value }) : tr(`That's ${lower} done for today.`);
+    if (left.length) line += " " + tr("Next: <b>{what}</b>.", { what: tr(left[0]) });
   } else if (before >= m[key]) {
-    line = `Extra credit. ${SET_NAMES[key]} ${was} already done.`;
+    line = tr(`Extra credit. ${SET_NAMES[key]} ${was} already done.`);
   } else if (key === "planks") {
-    line = value > before ? `${value}s. You need one <b>${m.planks}s</b> hold.` : `${value}s. Your best today is still <b>${before}s</b>.`;
+    line = value > before ? tr("{n}s. You need one <b>{target}s</b> hold.", { n: value, target: m.planks }) : tr("{n}s. Your best today is still <b>{best}s</b>.", { n: value, best: before });
   } else {
-    line = `+${value}. <b>${m[key] - total} more</b> and ${lower} are done.`;
+    line = tr(`+{n}. <b>{more} more</b> and ${lower} are done.`, { n: value, more: m[key] - total });
   }
 
   return {
@@ -1659,7 +1677,7 @@ function setReward(exercise, value) {
     badges,
     line,
     face,
-    day: DAY_KEYS.map((k) => ({ key: k, name: SET_NAMES[k], done: totalOf(k) >= m[k] })),
+    day: DAY_KEYS.map((k) => ({ key: k, name: tr(SET_NAMES[k]), done: totalOf(k) >= m[k] })),
   };
 }
 
@@ -1712,7 +1730,7 @@ function renderHeatmap() {
     }
 
     // The "title" attribute shows as a small tooltip when you hover.
-    cell.title = rested.has(dateStr) ? `${dateStr} · rest day` : dateStr;
+    cell.title = rested.has(dateStr) ? tr("{date} · rest day", { date: dateStr }) : dateStr;
 
     heatmapEl.appendChild(cell);
   }
@@ -1745,7 +1763,7 @@ function plusDays(date, n) {
   return next;
 }
 
-const shortDate = (date, extra = {}) => date.toLocaleDateString(undefined, { month: "short", day: "numeric", ...extra });
+const shortDate = (date, extra = {}) => date.toLocaleDateString(trLocale(undefined), { month: "short", day: "numeric", ...extra });
 
 // One bucket per bar: its first and last day, the label under it, what the
 // headline says when it's tapped, and the distance walked/run in it.
@@ -1757,26 +1775,26 @@ function buildDistanceBuckets(range) {
     const monday = startOfWeek(today);
     for (let i = 0; i < 7; i++) {
       const day = plusDays(monday, i);
-      buckets.push({ start: day, end: day, label: ["M", "T", "W", "T", "F", "S", "S"][i], title: day.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) });
+      buckets.push({ start: day, end: day, label: DAY_LETTERS[i], title: day.toLocaleDateString(trLocale(undefined), { weekday: "short", month: "short", day: "numeric" }) });
     }
   } else if (range === "M") {
     const first = new Date(today.getFullYear(), today.getMonth(), 1);
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     for (let i = 0; i < daysInMonth; i++) {
       const day = plusDays(first, i);
-      buckets.push({ start: day, end: day, label: [1, 8, 15, 22, 29].includes(i + 1) ? String(i + 1) : "", title: day.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) });
+      buckets.push({ start: day, end: day, label: [1, 8, 15, 22, 29].includes(i + 1) ? String(i + 1) : "", title: day.toLocaleDateString(trLocale(undefined), { weekday: "short", month: "short", day: "numeric" }) });
     }
   } else if (range === "6M") {
     const thisWeek = startOfWeek(today);
     for (let i = 25; i >= 0; i--) {
       const start = plusDays(thisWeek, -7 * i);
       const newMonth = i === 25 || start.getMonth() !== plusDays(start, -7).getMonth();
-      buckets.push({ start, end: plusDays(start, 6), label: newMonth ? start.toLocaleDateString(undefined, { month: "narrow" }) : "", title: "Week of " + shortDate(start) });
+      buckets.push({ start, end: plusDays(start, 6), label: newMonth ? start.toLocaleDateString(trLocale(undefined), { month: "narrow" }) : "", title: tr("Week of {date}", { date: shortDate(start) }) });
     }
   } else {
     for (let month = 0; month < 12; month++) {
       const start = new Date(today.getFullYear(), month, 1);
-      buckets.push({ start, end: new Date(today.getFullYear(), month + 1, 0), label: start.toLocaleDateString(undefined, { month: "narrow" }), title: start.toLocaleDateString(undefined, { month: "long" }) });
+      buckets.push({ start, end: new Date(today.getFullYear(), month + 1, 0), label: start.toLocaleDateString(trLocale(undefined), { month: "narrow" }), title: start.toLocaleDateString(trLocale(undefined), { month: "long" }) });
     }
   }
 
@@ -1797,12 +1815,12 @@ function distanceRangeText(range, buckets) {
   const first = buckets[0].start;
   const last = buckets[buckets.length - 1].end;
   if (range === "W") {
-    const format = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const format = new Intl.DateTimeFormat(trLocale(undefined), { month: "short", day: "numeric", year: "numeric" });
     // formatRange writes it the way the phone does ("Oct 5 – 11, 2026").
     return format.formatRange ? format.formatRange(first, last) : `${shortDate(first)} – ${shortDate(last, { year: "numeric" })}`;
   }
-  if (range === "M") return first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  if (range === "6M") return `${first.toLocaleDateString(undefined, { month: "short" })} – ${new Date().toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
+  if (range === "M") return first.toLocaleDateString(trLocale(undefined), { month: "long", year: "numeric" });
+  if (range === "6M") return `${first.toLocaleDateString(trLocale(undefined), { month: "short" })} – ${new Date().toLocaleDateString(trLocale(undefined), { month: "short", year: "numeric" })}`;
   return String(first.getFullYear());
 }
 
@@ -1856,16 +1874,16 @@ function updateDistanceSummary() {
   const total = distanceBuckets.reduce((sum, bucket) => sum + bucket.value, 0);
   const picked = distanceSelected === null ? null : distanceBuckets[distanceSelected];
 
-  document.getElementById("distance-summary-label").textContent = picked ? picked.title : "Total";
+  document.getElementById("distance-summary-label").textContent = picked ? picked.title : tr("Total");
   document.getElementById("distance-summary-value").textContent = formatChartDistance(picked ? picked.value : total);
   document.getElementById("distance-summary-unit").textContent = unit;
   document.getElementById("distance-summary-sub").textContent = picked
-    ? picked.count === 1 ? "1 walk or run" : `${picked.count} walks or runs`
+    ? picked.count === 1 ? tr("1 walk or run") : tr("{n} walks or runs", { n: picked.count })
     : distanceRangeText(distanceRange, distanceBuckets);
 
   chart.classList.toggle("has-selection", !!picked);
   chart.querySelectorAll(".dc-slot").forEach((slot, i) => slot.classList.toggle("selected", i === distanceSelected));
-  chart.setAttribute("aria-label", `Distance, ${distanceRangeText(distanceRange, distanceBuckets)}: ${formatChartDistance(total)} ${unit}`);
+  chart.setAttribute("aria-label", tr("Distance, {range}: {total} {unit}", { range: distanceRangeText(distanceRange, distanceBuckets), total: formatChartDistance(total), unit }));
 }
 
 function selectDistanceBar(index) {
@@ -1957,7 +1975,7 @@ document.querySelectorAll("#distance-range button").forEach((button) => {
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
-];
+].map((name) => tr(name));
 
 // Which month is currently being viewed - reset to today's month every
 // time the calendar is opened.
@@ -1967,7 +1985,7 @@ function renderCalendarMonth() {
   const year = calendarViewDate.getFullYear();
   const month = calendarViewDate.getMonth();
 
-  document.getElementById("calendar-month-label").textContent = `${MONTH_NAMES[month]} ${year}`;
+  document.getElementById("calendar-month-label").textContent = tr("{month} {year}", { month: MONTH_NAMES[month], year });
 
   const gridEl = document.getElementById("calendar-grid");
   gridEl.innerHTML = "";
@@ -1995,7 +2013,7 @@ function renderCalendarMonth() {
       cell.classList.add("completed");
     } else if (rested.has(dateStr)) {
       cell.classList.add("rest");
-      cell.title = "Rest day";
+      cell.title = tr("Rest day");
     }
     if (dateStr === todayStr) {
       cell.classList.add("is-today");
@@ -2113,6 +2131,7 @@ async function showApp(userId) {
   loadReceivedNudges();
   refreshMyColor();
   syncTimeZone();
+  syncLanguage();
   acceptPendingInvite();
   loadWeekRecap();
 
@@ -2271,7 +2290,7 @@ function showAppAsGuest() {
 // Shows/hides the right button at the bottom of the Me tab depending on
 // whether you're logged in or just browsing as a guest.
 function updateMeTabAuthSection() {
-  document.querySelector("#open-minimums-button span").textContent = currentUserId ? "My Plan" : "Daily Minimums";
+  document.querySelector("#open-minimums-button span").textContent = currentUserId ? tr("My Plan") : tr("Daily Minimums");
   document.getElementById("log-out-button").classList.toggle("hidden", !currentUserId);
   document.getElementById("guest-signup-button").classList.toggle("hidden", !!currentUserId);
   // Editing/sharing a profile only makes sense for a real account - a
@@ -2356,7 +2375,7 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     resetLinkFailed = false;
     showForgotPasswordScreen();
     forgotPasswordErrorEl.classList.remove("success");
-    forgotPasswordErrorEl.textContent = "That reset link has expired or was already used. Send yourself a new one.";
+    forgotPasswordErrorEl.textContent = tr("That reset link has expired or was already used. Send yourself a new one.");
     return;
   }
 
@@ -2403,22 +2422,22 @@ async function callServerFunction(name, body) {
 function serverErrorMessage(reply) {
   switch (reply.error) {
     case "below_minimum":
-      return "The server doesn't have enough verified sets for today yet.";
+      return tr("The server doesn't have enough verified sets for today yet.");
     case "already_logged":
-      return "Today is already logged.";
+      return tr("Today is already logged.");
     case "bad_day":
-      return "Your phone's date looks wrong - check it and try again.";
+      return tr("Your phone's date looks wrong - check it and try again.");
     case "too_many_sets":
     case "daily_limit":
-      return "You've hit today's limit for verified sets.";
+      return tr("You've hit today's limit for verified sets.");
     case "implausible":
-      return "That set didn't look like real reps, so it wasn't counted.";
+      return tr("That set didn't look like real reps, so it wasn't counted.");
     case "bad_trace":
-      return "That recording couldn't be verified. Try the set again.";
+      return tr("That recording couldn't be verified. Try the set again.");
     case "unauthorized":
-      return "Please log in again.";
+      return tr("Please log in again.");
     default:
-      return "Couldn't reach the server. Check your connection and try again.";
+      return tr("Couldn't reach the server. Check your connection and try again.");
   }
 }
 
@@ -2524,7 +2543,7 @@ function inviteGuestToSignUp() {
   setTimeout(() => {
     authMode = "signup";
     applyAuthMode();
-    authSubtitleEl.textContent = "Day 1 complete! Create an account today to keep your streak and compete with friends.";
+    authSubtitleEl.textContent = tr("Day 1 complete! Create an account today to keep your streak and compete with friends.");
     showAuthScreen();
   }, 1800);
 }
@@ -2684,11 +2703,11 @@ function buildLeaderboardRow({ name, streak, isYou, userId, doneToday, nudged },
     ${avatarHtml(name)}
     <span class="leaderboard-who">
       <span class="leaderboard-name"></span>
-      <span class="leaderboard-today ${doneToday ? "is-done" : ""}">${doneToday ? "Done today" : "Not yet today"}</span>
+      <span class="leaderboard-today ${doneToday ? "is-done" : ""}">${doneToday ? tr("Done today") : tr("Not yet today")}</span>
     </span>
     ${isYou || doneToday ? "" : `<button class="nudge-button"></button>`}
     <span class="leaderboard-streak">${Number(streak) || 0} ${STREAK_RING_SVG}</span>
-    ${isYou ? '<span class="row-options-spacer" aria-hidden="true"></span>' : '<button class="row-options-button" aria-label="More options">&#8942;</button>'}
+    ${isYou ? '<span class="row-options-spacer" aria-hidden="true"></span>' : `<button class="row-options-button" aria-label="${tr("More options")}">&#8942;</button>`}
   `;
   row.querySelector(".leaderboard-name").textContent = name;
 
@@ -2713,8 +2732,8 @@ function buildLeaderboardRow({ name, streak, isYou, userId, doneToday, nudged },
 function drawNudgeButton(button, name, nudged) {
   button.disabled = nudged;
   button.classList.toggle("is-sent", nudged);
-  button.innerHTML = nudged ? CHECK_SMALL_SVG + "Nudged" : "Nudge";
-  button.setAttribute("aria-label", nudged ? `Nudged ${name}` : `Nudge ${name}`);
+  button.innerHTML = nudged ? CHECK_SMALL_SVG + tr("Nudged") : tr("Nudge");
+  button.setAttribute("aria-label", nudged ? tr("Nudged {name}", { name }) : tr("Nudge {name}", { name }));
 }
 
 // A short message at the top of the screen (same look as challenges').
@@ -2736,20 +2755,20 @@ async function sendNudge(button, row, friendId, name) {
   if (reply.ok || reply.error === "already_nudged") {
     drawNudgeButton(button, name, true);
     button.classList.add("pop");
-    if (reply.ok) showToast(`Nudge sent to ${name}`);
+    if (reply.ok) showToast(tr("Nudge sent to {name}", { name }));
     return;
   }
   if (reply.error === "already_done") {
     // They trained in the meantime (or it's already tomorrow where they are).
     button.remove();
     const today = row.querySelector(".leaderboard-today");
-    today.textContent = "Done today";
+    today.textContent = tr("Done today");
     today.classList.add("is-done");
-    showToast(`${name} already trained today`);
+    showToast(tr("{name} already trained today", { name }));
     return;
   }
   button.disabled = false;
-  showToast(reply.error === "not_friends" ? "You can only nudge friends" : "Couldn't send the nudge. Try again.");
+  showToast(reply.error === "not_friends" ? tr("You can only nudge friends") : tr("Couldn't send the nudge. Try again."));
 }
 
 // ---------- invite links ----------
@@ -2806,7 +2825,7 @@ async function acceptPendingInvite() {
   if (viewerId !== currentUserId) return;
   if (!reply.ok && ["no_username", "network", "server_error"].includes(reply.error)) return;
   dropPendingInvite();
-  if (reply.ok && !reply.already) showToast(`You and ${reply.name} are friends now`);
+  if (reply.ok && !reply.already) showToast(tr("You and {name} are friends now", { name: reply.name }));
 }
 
 // A brand new account remembers where it came from (a video's ?src=, an
@@ -2842,15 +2861,15 @@ async function loadInviteLink() {
 function inviteText() {
   const streak = data ? currentStreak() : 0;
   return streak > 1
-    ? `I'm on a ${streak}-day streak on Forja. Every rep is checked by the camera. Think you can keep up?`
-    : "Join me on Forja. Every rep is checked by the camera, so every streak is real.";
+    ? tr("I'm on a {n}-day streak on Forja. Every rep is checked by the camera. Think you can keep up?", { n: streak })
+    : tr("Join me on Forja. Every rep is checked by the camera, so every streak is real.");
 }
 
 // True once the link went somewhere (shared or copied).
 async function shareInviteLink() {
   const url = cachedInviteLink() || (await loadInviteLink());
   if (!url) {
-    showToast("Couldn't get your link. Try again.");
+    showToast(tr("Couldn't get your link. Try again."));
     return false;
   }
   if (navigator.share) {
@@ -2863,10 +2882,10 @@ async function shareInviteLink() {
   }
   try {
     await navigator.clipboard.writeText(`${inviteText()} ${url}`);
-    showToast("Invite link copied");
+    showToast(tr("Invite link copied"));
     return true;
   } catch (error) {
-    showToast("Couldn't share your link. Try again.");
+    showToast(tr("Couldn't share your link. Try again."));
     return false;
   }
 }
@@ -2917,7 +2936,7 @@ showInLeaguesEl.addEventListener("change", async () => {
   const { error } = await supabaseClient.from("profiles").update({ show_in_leagues: want }).eq("user_id", currentUserId);
   if (error) {
     showInLeaguesEl.checked = !want;
-    showToast("Couldn't save. Try again.");
+    showToast(tr("Couldn't save. Try again."));
     return;
   }
   showSettingSaved();
@@ -2951,7 +2970,7 @@ function leagueTimeLeft() {
   const now = new Date();
   const nextMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - daysIntoWeek()));
   const hours = Math.max(0, Math.floor((nextMonday - now) / 3600000));
-  return hours >= 24 ? `${Math.floor(hours / 24)}d ${hours % 24}h left` : `${hours}h left`;
+  return hours >= 24 ? tr("{d}d {h}h left", { d: Math.floor(hours / 24), h: hours % 24 }) : tr("{h}h left", { h: hours });
 }
 
 async function loadLeague() {
@@ -2985,18 +3004,18 @@ function drawLeagueResult(rows) {
   const winner = rows.find((r) => r.place === 1 && !r.is_you);
   el.className = `league-result${medal ? ` is-${medal.toLowerCase()}` : ""}`;
   el.innerHTML = `${medal ? MEDAL_ICON_SVG : TROPHY_ICON_SVG}<p><b class="league-result-title"></b><span class="league-result-sub"></span></p>`;
-  el.querySelector(".league-result-title").textContent = medal ? `${medal}! #${me.place} in last week's league` : `#${me.place} of ${rows.length} in last week's league`;
+  el.querySelector(".league-result-title").textContent = medal ? tr(`${medal}! #{place} in last week's league`, { place: me.place }) : tr("#{place} of {of} in last week's league", { place: me.place, of: rows.length });
   el.querySelector(".league-result-sub").textContent =
-    `${me.points} points, ${me.days} ${me.days === 1 ? "day" : "days"}.` + (winner && me.place !== 1 ? ` ${winner.username} took first with ${winner.points}.` : "");
+    tr(me.days === 1 ? "{points} points, {days} day." : "{points} points, {days} days.", { points: me.points, days: me.days }) + (winner && me.place !== 1 ? " " + tr("{name} took first with {points}.", { name: winner.username, points: winner.points }) : "");
 }
 
 function drawLeagueCard(rows) {
   const me = rows.find((r) => r.is_you);
-  const name = rows.length ? rows[0].league : "Forja League";
+  const name = tr(rows.length ? rows[0].league : "Forja League");
   let sub;
-  if (!me) sub = "You're hidden from leagues. Change it in Settings.";
-  else if (me.points === 0) sub = rows.length > 1 ? `${rows.length - 1} ${rows.length === 2 ? "person has" : "people have"} points. Train today to join them.` : "Train today to start the board.";
-  else sub = `${rows.length} ${rows.length === 1 ? "person" : "people"} this week`;
+  if (!me) sub = tr("You're hidden from leagues. Change it in Settings.");
+  else if (me.points === 0) sub = rows.length > 1 ? trn(rows.length - 1, "{n} person has points. Train today to join them.", "{n} people have points. Train today to join them.") : tr("Train today to start the board.");
+  else sub = trn(rows.length, "{n} person this week", "{n} people this week");
   const el = document.getElementById("league-card");
   el.innerHTML = `<span class="league-badge">${TROPHY_ICON_SVG}</span><div class="league-card-text"><p class="league-card-name"></p><p class="league-card-sub"></p></div><span class="league-time-left"></span>`;
   el.querySelector(".league-card-name").textContent = name;
@@ -3017,12 +3036,12 @@ function buildLeagueRow(row) {
       <span class="leaderboard-name"></span>
       <span class="leaderboard-today ${row.is_friend ? "is-friend" : ""}"></span>
     </span>
-    <span class="league-points">${Number(row.points) || 0}<small>pts</small></span>
-    ${row.is_you ? '<span class="row-options-spacer" aria-hidden="true"></span>' : '<button class="row-options-button" aria-label="More options">&#8942;</button>'}
+    <span class="league-points">${Number(row.points) || 0}<small>${tr("pts")}</small></span>
+    ${row.is_you ? '<span class="row-options-spacer" aria-hidden="true"></span>' : `<button class="row-options-button" aria-label="${tr("More options")}">&#8942;</button>`}
   `;
   el.querySelector(".leaderboard-name").textContent = row.username;
-  const days = `${Number(row.days) || 0} ${row.days === 1 ? "day" : "days"}`;
-  el.querySelector(".leaderboard-today").textContent = `${row.is_you ? "You" : row.is_friend ? "Friend" : row.region} · ${days}`;
+  const days = tr(row.days === 1 ? "{n} day" : "{n} days", { n: Number(row.days) || 0 });
+  el.querySelector(".leaderboard-today").textContent = `${row.is_you ? tr("You") : row.is_friend ? tr("Friend") : tr(row.region)} · ${days}`;
   if (!row.is_you) el.querySelector(".row-options-button").addEventListener("click", () => openUserActions(row.user_id, row.username, "app-screen", null));
   return el;
 }
@@ -3036,7 +3055,7 @@ function drawLeagueList(rows) {
   if (me && !shown.includes(me)) {
     const gap = document.createElement("p");
     gap.className = "league-gap";
-    gap.textContent = `${rows.indexOf(me) - shown.length} more`;
+    gap.textContent = tr("{n} more", { n: rows.indexOf(me) - shown.length });
     listEl.appendChild(gap);
     listEl.appendChild(buildLeagueRow(me));
   }
@@ -3049,7 +3068,7 @@ function drawLeagueList(rows) {
 const RECAP_HIDDEN_KEY = "forja-recap-hidden";
 const recapShare = { file: null };
 let recapLoadNumber = 0;
-const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
+const DAY_LETTERS = tr("M T W T F S S").split(" ");
 const CHECK_SMALL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const MOON_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
 
@@ -3074,7 +3093,7 @@ function hideRecap() {
   }
 }
 
-const dayLabel = (day) => new Date(`${day}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const dayLabel = (day) => new Date(`${day}T12:00:00`).toLocaleDateString(trLocale("en-US"), { month: "short", day: "numeric" });
 const plankWords = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 const distanceWords = (km) => `${(data.units === "km" ? km : milesFromKm(km)).toFixed(1)} ${distanceUnitLabel()}`;
 
@@ -3136,32 +3155,33 @@ async function loadWeekRecap() {
 
 function bestSetWords(best) {
   if (!best) return "";
-  const what = best.exercise === "plank" ? `${plankWords(best.value)} plank` : `${best.value} ${best.exercise === "pushup" ? "push-ups" : "squats"}`;
-  const weekday = new Date(`${best.day}T12:00:00`).toLocaleDateString("en-US", { weekday: "short" });
+  const what = best.exercise === "plank" ? tr("{time} plank", { time: plankWords(best.value) }) : tr(best.exercise === "pushup" ? "{n} push-ups" : "{n} squats", { n: best.value });
+  const weekday = new Date(`${best.day}T12:00:00`).toLocaleDateString(trLocale("en-US"), { weekday: "short" });
   return `${what} (${weekday})`;
 }
 
 function drawWeekRecap(recap) {
   const el = document.getElementById("week-recap");
-  const days = `${recap.trainedCount} ${recap.trainedCount === 1 ? "day" : "days"}`;
-  const rest = recap.restCount ? ` · ${recap.restCount} rest ${recap.restCount === 1 ? "day" : "days"}` : "";
-  const highlights = [recap.best ? `Best set: <b>${bestSetWords(recap.best)}</b>` : "", recap.place ? `<b>#${recap.place}</b> in your league` : ""].filter(Boolean).join(" · ");
+  const days = tr(recap.trainedCount === 1 ? "{n} day" : "{n} days", { n: recap.trainedCount });
+  const rest = recap.restCount ? " · " + tr(recap.restCount === 1 ? "{n} rest day" : "{n} rest days", { n: recap.restCount }) : "";
+  const highlights = [recap.best ? tr("Best set: <b>{what}</b>", { what: bestSetWords(recap.best) }) : "", recap.place ? tr("<b>#{place}</b> in your league", { place: recap.place }) : ""].filter(Boolean).join(" · ");
+  const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => tr(day));
   el.innerHTML = `
-    <div class="week-recap-top"><h2 id="week-recap-title">Your Week</h2><span>${dayLabel(recap.week)} – ${dayLabel(recap.end)}</span></div>
-    <ol class="week-recap-days" aria-label="Days trained last week">
-      ${recap.days.map((state, i) => `<li><span class="week-recap-dot ${state ? `is-${state}` : ""}" aria-label="${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][i]}: ${state === "on" ? "trained" : state === "rest" ? "rest day" : "missed"}">${state === "on" ? CHECK_SMALL_SVG : state === "rest" ? MOON_SVG : ""}</span><span aria-hidden="true">${DAY_LETTERS[i]}</span></li>`).join("")}
+    <div class="week-recap-top"><h2 id="week-recap-title">${tr("Your Week")}</h2><span>${dayLabel(recap.week)} – ${dayLabel(recap.end)}</span></div>
+    <ol class="week-recap-days" aria-label="${tr("Days trained last week")}">
+      ${recap.days.map((state, i) => `<li><span class="week-recap-dot ${state ? `is-${state}` : ""}" aria-label="${weekdays[i]}: ${state === "on" ? tr("trained") : state === "rest" ? tr("rest day") : tr("missed")}">${state === "on" ? CHECK_SMALL_SVG : state === "rest" ? MOON_SVG : ""}</span><span aria-hidden="true">${DAY_LETTERS[i]}</span></li>`).join("")}
     </ol>
-    <p class="week-recap-count"><b>${days}</b> trained${rest} · streak <b>${currentStreak()}</b></p>
+    <p class="week-recap-count">${tr("<b>{days}</b> trained{rest} · streak <b>{streak}</b>", { days, rest, streak: currentStreak() })}</p>
     <div class="week-recap-stats">
-      <div><b>${recap.pushups}</b><span><i style="--dot: var(--ring-pushups)"></i>push-ups</span></div>
-      <div><b>${recap.squats}</b><span><i style="--dot: var(--ring-squats)"></i>squats</span></div>
-      <div><b>${plankWords(recap.plank)}</b><span><i style="--dot: var(--ring-planks)"></i>plank</span></div>
-      <div><b>${(data.units === "km" ? recap.km : milesFromKm(recap.km)).toFixed(1)}</b><span><i style="--dot: var(--ring-walkrun)"></i>${distanceUnitLabel()} walked</span></div>
+      <div><b>${recap.pushups}</b><span><i style="--dot: var(--ring-pushups)"></i>${tr("push-ups")}</span></div>
+      <div><b>${recap.squats}</b><span><i style="--dot: var(--ring-squats)"></i>${tr("squats")}</span></div>
+      <div><b>${plankWords(recap.plank)}</b><span><i style="--dot: var(--ring-planks)"></i>${tr("plank")}</span></div>
+      <div><b>${(data.units === "km" ? recap.km : milesFromKm(recap.km)).toFixed(1)}</b><span><i style="--dot: var(--ring-walkrun)"></i>${tr("{unit} walked", { unit: distanceUnitLabel() })}</span></div>
     </div>
     ${highlights ? `<p class="week-recap-best">${highlights}</p>` : ""}
     <div class="week-recap-actions">
-      <button class="week-recap-hide" data-recap="hide">Hide</button>
-      <button class="week-recap-share" data-recap="share" disabled>${SHARE_ICON_SVG}Share My Week</button>
+      <button class="week-recap-hide" data-recap="hide">${tr("Hide")}</button>
+      <button class="week-recap-share" data-recap="share" disabled>${SHARE_ICON_SVG}${tr("Share My Week")}</button>
     </div>`;
   el.classList.remove("hidden");
 }
@@ -3185,12 +3205,12 @@ function drawRecapImage(ctx, recap, logo) {
   ctx.textAlign = "left";
   ctx.fillStyle = "#9a9a96";
   ctx.font = font(44, 700);
-  ctx.fillText(`MY WEEK · ${dayLabel(recap.week).toUpperCase()} – ${dayLabel(recap.end).toUpperCase()}`, 90, 330);
+  ctx.fillText(tr("MY WEEK · {from} – {to}", { from: dayLabel(recap.week).toUpperCase(), to: dayLabel(recap.end).toUpperCase() }), 90, 330);
   ctx.fillStyle = "#ffffff";
   ctx.font = font(150, 900);
-  ctx.fillText(`${recap.trainedCount} ${recap.trainedCount === 1 ? "day." : "days."}`, 84, 500);
+  ctx.fillText(tr(recap.trainedCount === 1 ? "{n} day." : "{n} days.", { n: recap.trainedCount }), 84, 500);
   ctx.font = font(84, 800);
-  ctx.fillText("Every rep verified.", 90, 610);
+  ctx.fillText(tr("Every rep verified."), 90, 610);
   // The 7 days.
   recap.days.forEach((state, i) => {
     const x = 90 + 60 + i * 135;
@@ -3205,13 +3225,13 @@ function drawRecapImage(ctx, recap, logo) {
   });
   // The numbers.
   const lines = [
-    ["Push-ups", String(recap.pushups)],
-    ["Squats", String(recap.squats)],
-    ["Plank", plankWords(recap.plank)],
-    ["Walked", distanceWords(recap.km)],
-    ["Streak", `${currentStreak()} days`],
+    [tr("Push-ups"), String(recap.pushups)],
+    [tr("Squats"), String(recap.squats)],
+    [tr("Plank"), plankWords(recap.plank)],
+    [tr("Walked"), distanceWords(recap.km)],
+    [tr("Streak"), tr("{n} days", { n: currentStreak() })],
   ];
-  if (recap.place) lines.push(["League", `#${recap.place} of ${recap.of}`]);
+  if (recap.place) lines.push([tr("League"), tr("#{place} of {of}", { place: recap.place, of: recap.of })]);
   lines.forEach(([label, value], i) => {
     const y = 1010 + i * 120;
     ctx.textAlign = "left";
@@ -3228,7 +3248,7 @@ function drawRecapImage(ctx, recap, logo) {
   ctx.textAlign = "center";
   ctx.fillStyle = "#8e8e93";
   ctx.font = font(46, 600);
-  ctx.fillText("Can you keep up?", W / 2, 1780);
+  ctx.fillText(tr("Can you keep up?"), W / 2, 1780);
   const link = cachedInviteLink();
   if (link) {
     ctx.fillStyle = "#22c55e";
@@ -3291,10 +3311,10 @@ function buildFriendRequestRow(friendshipId, requesterName, requesterId) {
     ${avatarHtml(requesterName)}
     <span class="leaderboard-name"></span>
     <span class="friend-request-actions">
-      <button class="accept-request-button">Accept</button>
-      <button class="decline-request-button">Decline</button>
+      <button class="accept-request-button">${tr("Accept")}</button>
+      <button class="decline-request-button">${tr("Decline")}</button>
     </span>
-    <button class="row-options-button" aria-label="More options">&#8942;</button>
+    <button class="row-options-button" aria-label="${tr("More options")}">&#8942;</button>
   `;
   row.querySelector(".leaderboard-name").textContent = requesterName;
   row.querySelector(".accept-request-button").addEventListener("click", () => respondToRequest(friendshipId, true));
@@ -3356,14 +3376,14 @@ document.getElementById("save-username-button").addEventListener("click", async 
   errorEl.textContent = "";
 
   if (!USERNAME_PATTERN.test(username)) {
-    errorEl.textContent = "Username must be 3-20 characters: letters, numbers, underscores only.";
+    errorEl.textContent = tr("Username must be 3-20 characters: letters, numbers, underscores only.");
     return;
   }
 
   const { error } = await supabaseClient.from("profiles").insert({ user_id: currentUserId, username });
 
   if (error) {
-    errorEl.textContent = error.code === "23505" ? "That username is already taken." : "Something went wrong. Try again.";
+    errorEl.textContent = error.code === "23505" ? tr("That username is already taken.") : tr("Something went wrong. Try again.");
     return;
   }
 
@@ -3387,7 +3407,7 @@ let friendSearchDebounceTimer = null;
 function createAddButton(userId) {
   const addButton = document.createElement("button");
   addButton.className = "friend-search-action-button friend-search-add-button";
-  addButton.textContent = "Add";
+  addButton.textContent = tr("Add");
   addButton.addEventListener("click", async () => {
     addButton.disabled = true;
     const { data: inserted, error } = await supabaseClient
@@ -3398,7 +3418,7 @@ function createAddButton(userId) {
 
     if (error) {
       addButton.disabled = false;
-      document.getElementById("friend-add-error").textContent = "Couldn't send the request. Try again.";
+      document.getElementById("friend-add-error").textContent = tr("Couldn't send the request. Try again.");
       return;
     }
 
@@ -3410,14 +3430,14 @@ function createAddButton(userId) {
 function createRequestedButton(userId, friendshipId) {
   const button = document.createElement("button");
   button.className = "friend-search-action-button friend-search-requested-button";
-  button.textContent = "Requested";
+  button.textContent = tr("Requested");
   button.addEventListener("click", async () => {
     button.disabled = true;
     const { error } = await supabaseClient.from("friendships").delete().eq("id", friendshipId);
 
     if (error) {
       button.disabled = false;
-      document.getElementById("friend-add-error").textContent = "Couldn't cancel the request. Try again.";
+      document.getElementById("friend-add-error").textContent = tr("Couldn't cancel the request. Try again.");
       return;
     }
 
@@ -3439,7 +3459,7 @@ function buildFriendSearchRow(userId, username, statusInfo) {
   if (statusInfo.type === "friends" || statusInfo.type === "pending-received") {
     const label = document.createElement("span");
     label.className = "friend-status-label";
-    label.textContent = statusInfo.type === "friends" ? "Friends" : "Pending";
+    label.textContent = statusInfo.type === "friends" ? tr("Friends") : tr("Pending");
     row.appendChild(label);
   } else if (statusInfo.type === "pending-sent") {
     row.appendChild(createRequestedButton(userId, statusInfo.friendshipId));
@@ -3469,7 +3489,7 @@ async function runFriendSearch(query) {
   if (!matches || matches.length === 0) {
     const empty = document.createElement("p");
     empty.className = "preview-note";
-    empty.textContent = "No users found.";
+    empty.textContent = tr("No users found.");
     resultsEl.appendChild(empty);
     return;
   }
@@ -3552,7 +3572,7 @@ async function loadFriendRequests() {
 
   listEl.innerHTML = "";
   requests.forEach((request) => {
-    const name = usernameByUserId[request.requester_id] || "Unknown";
+    const name = usernameByUserId[request.requester_id] || tr("Unknown");
     listEl.appendChild(buildFriendRequestRow(request.id, name, request.requester_id));
   });
 
@@ -3618,7 +3638,7 @@ async function loadLeaderboard() {
     friendIds.forEach((id) => {
       const stats = statsByUserId[id];
       combined.push({
-        name: usernameByUserId[id] || "Unknown",
+        name: usernameByUserId[id] || tr("Unknown"),
         streak: friendStreak(stats),
         isYou: false,
         userId: id,
@@ -3674,7 +3694,7 @@ function showFeedMessage(text, buttonLabel, action) {
 async function enterFeedTab() {
   if (!currentUserId) {
     feedListEl.innerHTML = "";
-    showFeedMessage("Create an account to see your friends' workouts and like them.", "Create Account", () => {
+    showFeedMessage(tr("Create an account to see your friends' workouts and like them."), tr("Create Account"), () => {
       authMode = "signup";
       applyAuthMode();
       showAuthScreen();
@@ -3686,7 +3706,7 @@ async function enterFeedTab() {
   document.getElementById("feed-tab-badge").classList.add("hidden");
   // First visit: say something while it loads. Later visits keep showing
   // the last posts while the fresh ones arrive.
-  if (!feedListEl.hasChildNodes()) showFeedMessage("Loading...");
+  if (!feedListEl.hasChildNodes()) showFeedMessage(tr("Loading..."));
   try {
     await loadFeed();
   } finally {
@@ -3701,7 +3721,7 @@ async function loadFeed() {
   const stillCurrent = () => thisLoad === feedLoadNumber && viewerId === currentUserId;
   const loadFailed = () => {
     if (!stillCurrent()) return;
-    showFeedMessage("Couldn't load the Feed. Check your connection.", "Try Again", () => enterFeedTab());
+    showFeedMessage(tr("Couldn't load the Feed. Check your connection."), tr("Try Again"), () => enterFeedTab());
   };
 
   const { data: friendships, error: friendsError } = await supabaseClient
@@ -3753,9 +3773,9 @@ async function loadFeed() {
   feedListEl.innerHTML = "";
   if (posts.length === 0) {
     if (feedFriendIds.length === 0) {
-      showFeedMessage("Your friends' workouts show up here. Add some friends to get started.", "Find Friends", () => showTab("competition"));
+      showFeedMessage(tr("Your friends' workouts show up here. Add some friends to get started."), tr("Find Friends"), () => showTab("competition"));
     } else {
-      showFeedMessage(`Nothing in the last ${FEED_DAYS_SHOWN} days yet. When you or a friend logs a workout, it shows up here.`);
+      showFeedMessage(tr("Nothing in the last {n} days yet. When you or a friend logs a workout, it shows up here.", { n: FEED_DAYS_SHOWN }));
     }
     return;
   }
@@ -3781,11 +3801,17 @@ function feedDayHeading(day) {
   const [year, month, date] = day.split("-").map(Number);
   const when = new Date(year, month - 1, date);
   const daysAgo = daysBetween(day, todayString());
-  const short = when.toLocaleDateString([], { month: "short", day: "numeric" });
-  if (daysAgo === 0) return { title: "Today", note: when.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) };
-  if (daysAgo === 1) return { title: "Yesterday", note: when.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) };
-  if (daysAgo > 1 && daysAgo < 7) return { title: when.toLocaleDateString([], { weekday: "long" }), note: short };
-  return { title: when.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }), note: "" };
+  const locale = trLocale([]);
+  const short = when.toLocaleDateString(locale, { month: "short", day: "numeric" });
+  if (daysAgo === 0) return { title: tr("Today"), note: when.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" }) };
+  if (daysAgo === 1) return { title: tr("Yesterday"), note: when.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" }) };
+  if (daysAgo > 1 && daysAgo < 7) return { title: capitalFirst(when.toLocaleDateString(locale, { weekday: "long" })), note: short };
+  return { title: capitalFirst(when.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" })), note: "" };
+}
+
+// Spanish writes weekdays in lowercase ("lunes"); a heading starts with a capital.
+function capitalFirst(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function buildFeedDayHeading(day) {
@@ -3806,26 +3832,26 @@ const isChallengePost = (post) => post.kind === "challenge";
 const challengePostName = (post) => ForjaRules.challengeName({ type: post.challenge_type, exercise: post.challenge_exercise });
 
 function feedHeadline(post) {
-  if (post.kind === "run") return "Went for a run";
-  if (post.kind === "walk") return "Went for a walk";
+  if (post.kind === "run") return tr("Went for a run");
+  if (post.kind === "walk") return tr("Went for a walk");
   if (isChallengePost(post)) {
     const name = challengePostName(post);
-    return name === "Last One Standing" ? "Won Last One Standing" : `Won the ${name}`;
+    return name === "Last One Standing" ? tr("Won Last One Standing") : tr("Won the {name}", { name: tr(name) });
   }
   const streak = Number(post.streak) || 0;
-  if (STREAK_MILESTONES.includes(streak)) return `Hit a ${streak}-day streak`;
-  if (post.new_best) return `New personal best: ${streak} days`;
-  if (streak === 1) return "Started a new streak";
-  return `Day ${streak} of the streak`;
+  if (STREAK_MILESTONES.includes(streak)) return tr("Hit a {n}-day streak", { n: streak });
+  if (post.new_best) return tr("New personal best: {n} days", { n: streak });
+  if (streak === 1) return tr("Started a new streak");
+  return tr("Day {n} of the streak", { n: streak });
 }
 
 // "You and ana liked this", "ana, ben and 3 others liked this".
 function kudosSummaryText(names) {
   if (names.length === 0) return "";
-  if (names.length === 1) return `${names[0]} liked this`;
-  if (names.length === 2) return `${names[0]} and ${names[1]} liked this`;
-  if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]} liked this`;
-  return `${names[0]}, ${names[1]} and ${names.length - 2} others liked this`;
+  if (names.length === 1) return tr("{a} liked this", { a: names[0] });
+  if (names.length === 2) return tr("{a} and {b} liked this", { a: names[0], b: names[1] });
+  if (names.length === 3) return tr("{a}, {b} and {c} liked this", { a: names[0], b: names[1], c: names[2] });
+  return tr("{a}, {b} and {n} others liked this", { a: names[0], b: names[1], n: names.length - 2 });
 }
 
 // The numbers row of a post. A full day shows the three exercises (plus
@@ -3834,16 +3860,16 @@ function kudosSummaryText(names) {
 function feedStats(post) {
   if (isChallengePost(post)) {
     const value = Number(post.challenge_value) || 0;
-    const days = { value: Number(post.challenge_days) || 0, label: "days" };
-    const beaten = { value: Number(post.challenge_beaten) || 0, label: "friends beaten" };
+    const days = { value: Number(post.challenge_days) || 0, label: tr("days") };
+    const beaten = { value: Number(post.challenge_beaten) || 0, label: tr("friends beaten") };
     if (post.challenge_type === "dist") return [{ value: displayDistance(value / 1000), label: distanceUnitLabel() }, days, beaten];
     if (post.challenge_type === "rep") {
       const exercise = post.challenge_exercise;
-      const total = exercise === "planks" ? { value: formatDuration(value * 1000), label: "plank" } : { value, label: exercise === "squats" ? "squats" : "push-ups" };
+      const total = exercise === "planks" ? { value: formatDuration(value * 1000), label: tr("plank") } : { value, label: exercise === "squats" ? tr("squats") : tr("push-ups") };
       return [total, days, beaten];
     }
     // Last One Standing and Climb: how many days the winner lasted.
-    return [{ value, label: "days lasted" }, beaten];
+    return [{ value, label: tr("days lasted") }, beaten];
   }
   if (isActivityPost(post)) {
     const km = (Number(post.distance_m) || 0) / 1000;
@@ -3851,20 +3877,20 @@ function feedStats(post) {
     const inUnits = data.units === "km" ? km : milesFromKm(km);
     return [
       { value: displayDistance(km), label: distanceUnitLabel() },
-      { value: formatDuration(ms), label: "time" },
-      { value: inUnits > 0.01 ? formatDuration(ms / inUnits) : "--", label: `pace /${distanceUnitLabel()}` },
+      { value: formatDuration(ms), label: tr("time") },
+      { value: inUnits > 0.01 ? formatDuration(ms / inUnits) : "--", label: tr("pace /{unit}", { unit: distanceUnitLabel() }) },
     ];
   }
   const stats = [
-    { value: Number(post.pushups) || 0, label: "push-ups" },
-    { value: Number(post.squats) || 0, label: "squats" },
-    { value: formatDuration((Number(post.plank_seconds) || 0) * 1000), label: "plank" },
+    { value: Number(post.pushups) || 0, label: tr("push-ups") },
+    { value: Number(post.squats) || 0, label: tr("squats") },
+    { value: formatDuration((Number(post.plank_seconds) || 0) * 1000), label: tr("plank") },
   ];
-  if (Number(post.cardio_minutes) > 0) stats.push({ value: `${Number(post.cardio_minutes)}`, label: "cardio min" });
+  if (Number(post.cardio_minutes) > 0) stats.push({ value: `${Number(post.cardio_minutes)}`, label: tr("cardio min") });
   return stats;
 }
 
-const FEED_KIND_LABELS = { day: "Full day", walk: "Walk", run: "Run", challenge: "Challenge won" };
+const FEED_KIND_LABELS = { day: tr("Full day"), walk: tr("Walk"), run: tr("Run"), challenge: tr("Challenge won") };
 
 // Usernames come from other people, so - like the leaderboard - every bit of
 // text goes in through textContent, and only fixed markup goes in innerHTML.
@@ -3890,12 +3916,12 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
     </div>
     <div class="feed-card-stats"></div>
     <div class="feed-card-footer">
-      ${isMine ? "" : `<button class="kudos-button" aria-pressed="false" aria-label="Like">${KUDOS_ICON_SVG}</button>`}
+      ${isMine ? "" : `<button class="kudos-button" aria-pressed="false" aria-label="${tr("Like")}">${KUDOS_ICON_SVG}</button>`}
       <span class="kudos-summary"></span>
     </div>
   `;
-  card.querySelector(".feed-card-name").textContent = isMine ? "You" : usernameByUserId[post.user_id] || "Unknown";
-  card.querySelector(".feed-card-time").textContent = new Date(post.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  card.querySelector(".feed-card-name").textContent = isMine ? tr("You") : usernameByUserId[post.user_id] || tr("Unknown");
+  card.querySelector(".feed-card-time").textContent = new Date(post.created_at).toLocaleTimeString(trLocale([]), { hour: "numeric", minute: "2-digit" });
   card.querySelector(".feed-card-headline").textContent = feedHeadline(post);
   const kind = FEED_KIND_LABELS[post.kind] ? post.kind : "day";
   const kindEl = card.querySelector(".feed-card-kind");
@@ -3930,7 +3956,7 @@ function buildFeedCard(post, giverIds, usernameByUserId) {
   const summaryEl = card.querySelector(".kudos-summary");
 
   const drawKudos = () => {
-    const names = [...(kudos.iGave ? ["You"] : []), ...kudos.others.map((id) => usernameByUserId[id] || "Someone")];
+    const names = [...(kudos.iGave ? [tr("You")] : []), ...kudos.others.map((id) => usernameByUserId[id] || tr("Someone"))];
     summaryEl.textContent = kudosSummaryText(names);
     // Your own post has no button, so with no kudos yet the row would be empty.
     summaryEl.parentElement.classList.toggle("hidden", !button && names.length === 0);
@@ -4052,7 +4078,7 @@ function drawColorSheet() {
   document.getElementById("color-sheet-preview").innerHTML = avatarHtml(myUsername, "profile-avatar");
   document.getElementById("color-sheet-handle").textContent = `@${myUsername}`;
   document.getElementById("color-sheet-swatches").innerHTML = Object.entries(AVATAR_COLORS)
-    .map(([key, shade]) => `<button class="color-swatch" role="radio" aria-checked="${key === current}" aria-label="${key}" data-color="${key}" style="--avatar: ${shade}">${CHECK_ICON_SVG}</button>`)
+    .map(([key, shade]) => `<button class="color-swatch" role="radio" aria-checked="${key === current}" aria-label="${tr(key)}" data-color="${key}" style="--avatar: ${shade}">${CHECK_ICON_SVG}</button>`)
     .join("");
 }
 
@@ -4091,11 +4117,11 @@ async function pickAvatarColor(key) {
     else avatarColorByName.delete(name);
     drawColorSheet();
     drawMyAvatar();
-    setColorStatus("Couldn't save your color. Check your connection.", true);
+    setColorStatus(tr("Couldn't save your color. Check your connection."), true);
     return;
   }
   saveAvatarColors();
-  setColorStatus("Saved");
+  setColorStatus(tr("Saved"));
 }
 
 document.getElementById("profile-avatar-button").addEventListener("click", openColorSheet);
@@ -4125,14 +4151,14 @@ async function loadFollowCounts() {
 }
 
 async function showFriendsList() {
-  document.getElementById("follow-list-title").textContent = "Friends";
+  document.getElementById("follow-list-title").textContent = tr("Friends");
   const listEl = document.getElementById("follow-list");
   listEl.innerHTML = "";
 
   if (friendIds.length === 0) {
     const empty = document.createElement("p");
     empty.className = "preview-note";
-    empty.textContent = "Nobody here yet.";
+    empty.textContent = tr("Nobody here yet.");
     listEl.appendChild(empty);
   } else {
     const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", friendIds);
@@ -4143,7 +4169,7 @@ async function showFriendsList() {
       row.innerHTML = `
         ${avatarHtml(profile.username)}
         <span class="leaderboard-name"></span>
-        <button class="row-options-button" aria-label="More options">&#8942;</button>
+        <button class="row-options-button" aria-label="${tr("More options")}">&#8942;</button>
       `;
       row.querySelector(".leaderboard-name").textContent = profile.username;
       row.querySelector(".row-options-button").addEventListener("click", () =>
@@ -4226,12 +4252,12 @@ document.getElementById("submit-report-button").addEventListener("click", async 
   });
 
   if (error) {
-    statusEl.textContent = "Something went wrong. Try again.";
+    statusEl.textContent = tr("Something went wrong. Try again.");
     statusEl.classList.remove("success");
     return;
   }
 
-  statusEl.textContent = "Report submitted. Thank you.";
+  statusEl.textContent = tr("Report submitted. Thank you.");
   statusEl.classList.add("success");
   reasonInput.value = "";
 });
@@ -4274,7 +4300,7 @@ document.addEventListener("click", (event) => {
   const field = eye.closest(".password-field");
   const showing = field.classList.toggle("showing");
   field.querySelector("input").type = showing ? "text" : "password";
-  eye.setAttribute("aria-label", showing ? "Hide password" : "Show password");
+  eye.setAttribute("aria-label", showing ? tr("Hide password") : tr("Show password"));
 });
 
 // The form has two modes that share the same email/password fields.
@@ -4288,16 +4314,16 @@ function applyAuthMode() {
   authErrorEl.classList.remove("success");
 
   if (authMode === "signup") {
-    authSubtitleEl.textContent = "Create an account to save your streak";
-    authSubmitEl.textContent = "Sign Up";
-    authToggleTextEl.textContent = "Already have an account?";
-    authToggleModeEl.textContent = "Log In";
+    authSubtitleEl.textContent = tr("Create an account to save your streak");
+    authSubmitEl.textContent = tr("Sign Up");
+    authToggleTextEl.textContent = tr("Already have an account?");
+    authToggleModeEl.textContent = tr("Log In");
     authForgotPasswordEl.classList.add("hidden");
   } else {
-    authSubtitleEl.textContent = "Log in to track your streak";
-    authSubmitEl.textContent = "Log In";
-    authToggleTextEl.textContent = "Don't have an account?";
-    authToggleModeEl.textContent = "Sign Up";
+    authSubtitleEl.textContent = tr("Log in to track your streak");
+    authSubmitEl.textContent = tr("Log In");
+    authToggleTextEl.textContent = tr("Don't have an account?");
+    authToggleModeEl.textContent = tr("Sign Up");
     authForgotPasswordEl.classList.remove("hidden");
   }
 }
@@ -4315,7 +4341,7 @@ authSubmitEl.addEventListener("click", async () => {
   authErrorEl.classList.remove("success");
 
   if (!email || !password) {
-    authErrorEl.textContent = "Enter both an email and password.";
+    authErrorEl.textContent = tr("Enter both an email and password.");
     return;
   }
 
@@ -4333,15 +4359,15 @@ authSubmitEl.addEventListener("click", async () => {
       // case gets the SAME response a real new signup gets instead of
       // its own distinct message.
       if (error.message.toLowerCase().includes("already registered")) {
-        authErrorEl.textContent = "Check your email to confirm your account, then log in.";
+        authErrorEl.textContent = tr("Check your email to confirm your account, then log in.");
         authErrorEl.classList.add("success");
       } else {
-        authErrorEl.textContent = error.message;
+        authErrorEl.textContent = tr(error.message);
       }
     } else if (!signUpData.session) {
       // Supabase requires confirming your email before you can log in -
       // there's no session yet, so onAuthStateChange won't fire.
-      authErrorEl.textContent = "Check your email to confirm your account, then log in.";
+      authErrorEl.textContent = tr("Check your email to confirm your account, then log in.");
       authErrorEl.classList.add("success");
     }
     // If a session WAS returned, onAuthStateChange fires on its own and
@@ -4349,7 +4375,7 @@ authSubmitEl.addEventListener("click", async () => {
   } else {
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) {
-      authErrorEl.textContent = error.message;
+      authErrorEl.textContent = tr(error.message);
     }
   }
 
@@ -4374,7 +4400,7 @@ forgotPasswordSubmitEl.addEventListener("click", async () => {
   forgotPasswordErrorEl.classList.remove("success");
 
   if (!email) {
-    forgotPasswordErrorEl.textContent = "Enter your email address.";
+    forgotPasswordErrorEl.textContent = tr("Enter your email address.");
     return;
   }
 
@@ -4389,9 +4415,9 @@ forgotPasswordSubmitEl.addEventListener("click", async () => {
   });
 
   if (error) {
-    forgotPasswordErrorEl.textContent = error.message;
+    forgotPasswordErrorEl.textContent = tr(error.message);
   } else {
-    forgotPasswordErrorEl.textContent = "Check your email for a password reset link.";
+    forgotPasswordErrorEl.textContent = tr("Check your email for a password reset link.");
     forgotPasswordErrorEl.classList.add("success");
   }
 
@@ -4415,7 +4441,7 @@ resetPasswordSubmitEl.addEventListener("click", async () => {
   resetPasswordErrorEl.textContent = "";
 
   if (!newPassword || newPassword.length < 6) {
-    resetPasswordErrorEl.textContent = "Password must be at least 6 characters.";
+    resetPasswordErrorEl.textContent = tr("Password must be at least 6 characters.");
     return;
   }
 
@@ -4424,7 +4450,7 @@ resetPasswordSubmitEl.addEventListener("click", async () => {
   const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
 
   if (error) {
-    resetPasswordErrorEl.textContent = error.message;
+    resetPasswordErrorEl.textContent = tr(error.message);
     resetPasswordSubmitEl.disabled = false;
     return;
   }
@@ -4468,19 +4494,21 @@ deleteAccountButtonEl.addEventListener("click", () => {
 });
 
 deleteConfirmInputEl.addEventListener("input", () => {
-  confirmDeleteButtonEl.disabled = deleteConfirmInputEl.value.trim() !== "DELETE";
+  // The word to type is in the app's language ("BORRAR" in Spanish); the
+  // server is always sent "DELETE".
+  confirmDeleteButtonEl.disabled = deleteConfirmInputEl.value.trim() !== tr("DELETE");
 });
 
 confirmDeleteButtonEl.addEventListener("click", async () => {
   confirmDeleteButtonEl.disabled = true;
-  confirmDeleteButtonEl.textContent = "Deleting...";
+  confirmDeleteButtonEl.textContent = tr("Deleting...");
   deleteAccountErrorEl.textContent = "";
 
   const reply = await callServerFunction("delete-account", { confirm: "DELETE" });
-  confirmDeleteButtonEl.textContent = "Delete My Account";
+  confirmDeleteButtonEl.textContent = tr("Delete My Account");
 
   if (!reply.ok) {
-    deleteAccountErrorEl.textContent = "Couldn't delete your account. Check your connection and try again.";
+    deleteAccountErrorEl.textContent = tr("Couldn't delete your account. Check your connection and try again.");
     confirmDeleteButtonEl.disabled = false;
     return;
   }
@@ -4500,7 +4528,7 @@ confirmDeleteButtonEl.addEventListener("click", async () => {
   // "local": the server-side session is already gone with the account, so
   // asking the server to revoke it would just fail.
   await supabaseClient.auth.signOut({ scope: "local" });
-  authErrorEl.textContent = "Your account and all its data were deleted.";
+  authErrorEl.textContent = tr("Your account and all its data were deleted.");
   authErrorEl.classList.add("success");
   deleteAccountPanelEl.classList.add("hidden");
 });
@@ -4650,7 +4678,7 @@ function routeShapeSvg(encoded) {
   svg.setAttribute("class", "feed-route");
   svg.setAttribute("viewBox", "0 0 320 200");
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", "Route shape");
+  svg.setAttribute("aria-label", tr("Route shape"));
   const line = document.createElementNS(SVG_NS, "path");
   line.setAttribute("class", "feed-route-line");
   line.setAttribute("d", placed.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)} ${py.toFixed(1)}`).join(""));
@@ -4838,7 +4866,7 @@ async function showRouteMap(post, lineEl) {
   const box = document.createElement("div");
   box.className = "feed-route feed-route-map";
   box.setAttribute("role", "img");
-  box.setAttribute("aria-label", "Route on a map");
+  box.setAttribute("aria-label", tr("Route on a map"));
   const img = document.createElement("img");
   img.alt = "";
   const url = URL.createObjectURL(blob);
@@ -4879,7 +4907,7 @@ function metersToFeet(meters) {
 }
 
 function elevationUnitLabel() {
-  return data.units === "km" ? "m gain" : "ft gain";
+  return data.units === "km" ? tr("m gain") : tr("ft gain");
 }
 
 function displayElevation(meters) {
@@ -5024,14 +5052,14 @@ document.addEventListener("visibilitychange", () => {
   }
   keepScreenOn();
   if (session.hiddenAt && Date.now() - session.hiddenAt >= TRACKING_GAP_WARN_MS) {
-    trackingErrorEl.textContent = "Keep Forja open on screen - distance isn't tracked while it's closed.";
+    trackingErrorEl.textContent = tr("Keep Forja open on screen - distance isn't tracked while it's closed.");
   }
   session.hiddenAt = null;
 });
 
 function startTracking() {
   if (!("geolocation" in navigator)) {
-    trackingErrorEl.textContent = "GPS isn't available on this device/browser.";
+    trackingErrorEl.textContent = tr("GPS isn't available on this device/browser.");
     return;
   }
 
@@ -5059,7 +5087,7 @@ function startTracking() {
   trackingPaceLabelEl.textContent = `/${distanceUnitLabel()}`;
   trackingElevationEl.textContent = "0";
   trackingElevationLabelEl.textContent = elevationUnitLabel();
-  trackingPauseEl.textContent = "Pause";
+  trackingPauseEl.textContent = tr("Pause");
 
   recordIdlePanelEl.classList.add("hidden");
   recordActivePanelEl.classList.remove("hidden");
@@ -5083,12 +5111,12 @@ trackingPauseEl.addEventListener("click", () => {
     // jumping forward by the length of the pause.
     session.totalPausedMs += Date.now() - session.pausedAt;
     session.isPaused = false;
-    trackingPauseEl.textContent = "Pause";
+    trackingPauseEl.textContent = tr("Pause");
     startWatchingPosition();
   } else {
     session.isPaused = true;
     session.pausedAt = Date.now();
-    trackingPauseEl.textContent = "Resume";
+    trackingPauseEl.textContent = tr("Resume");
     navigator.geolocation.clearWatch(session.watchId);
     clearInterval(session.timerId);
     letScreenSleep();
@@ -5136,8 +5164,8 @@ function onTrackingPosition(position) {
 function onTrackingError(error) {
   trackingErrorEl.textContent =
     error.code === error.PERMISSION_DENIED
-      ? "Location permission denied - allow it in your browser settings to track a route."
-      : "Couldn't get your location. Check your GPS/location settings.";
+      ? tr("Location permission denied - allow it in your browser settings to track a route.")
+      : tr("Couldn't get your location. Check your GPS/location settings.");
 }
 
 // Stops watching GPS and the timer, but keeps `session`'s data around so
@@ -5308,7 +5336,7 @@ async function finishTracking() {
   showTrackingSummary(route, distanceKm, durationMs, elevationGainM, "new");
   if (!countsTowardToday && data.lastLoggedDate !== todayString()) {
     const note = document.getElementById("tracking-summary-note");
-    note.textContent = "Too slow to count toward today. Walk/run minutes need real movement.";
+    note.textContent = tr("Too slow to count toward today. Walk/run minutes need real movement.");
     note.classList.remove("hidden");
   }
 
@@ -5319,8 +5347,8 @@ async function finishTracking() {
   maybeCompleteDay();
 }
 
-setupHoldButton(trackingCancelEl, "Hold to cancel", cancelTracking);
-setupHoldButton(trackingFinishEl, "Hold to finish", finishTracking);
+setupHoldButton(trackingCancelEl, tr("Hold to cancel"), cancelTracking);
+setupHoldButton(trackingFinishEl, tr("Hold to finish"), finishTracking);
 
 // Posts a finished walk/run to the Feed. The server works out distance,
 // pace and walk-vs-run from the GPS points itself. If it fails (no signal)
@@ -5334,9 +5362,9 @@ async function shareActivity(route, durationMs) {
 // mode is "new" (just finished tracking - already saved, so just "Done")
 // or "view" (browsing a saved route from Past Routes - "Close").
 function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode) {
-  document.getElementById("tracking-summary-heading").textContent = mode === "view" ? "Route Detail" : "Nice work!";
+  document.getElementById("tracking-summary-heading").textContent = mode === "view" ? tr("Route Detail") : tr("Nice work!");
   document.getElementById("tracking-summary-note").classList.add("hidden");
-  document.getElementById("tracking-summary-close-button").textContent = mode === "view" ? "Close" : "Done";
+  document.getElementById("tracking-summary-close-button").textContent = mode === "view" ? tr("Close") : tr("Done");
 
   summaryTimeEl.textContent = formatDuration(durationMs);
   summaryDistanceEl.textContent = displayDistance(distanceKm);
@@ -5353,8 +5381,8 @@ function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode
 
   document.getElementById("summary-elevation").textContent = String(displayElevation(elevationGainM || 0));
   document.getElementById("summary-elevation-label").textContent = elevationUnitLabel();
-  document.getElementById("summary-steps").textContent = ForjaRules.estimateSteps(distanceKm, durationMs).toLocaleString();
-  document.getElementById("summary-calories").textContent = ForjaRules.activeCalories(distanceKm, durationMs, elevationGainM || 0, bodyWeightKg()).toLocaleString();
+  document.getElementById("summary-steps").textContent = ForjaRules.estimateSteps(distanceKm, durationMs).toLocaleString(trLocale(undefined));
+  document.getElementById("summary-calories").textContent = ForjaRules.activeCalories(distanceKm, durationMs, elevationGainM || 0, bodyWeightKg()).toLocaleString(trLocale(undefined));
 
   // Share needs something left once the first and last 200 m are cut.
   shareRoute.points = ForjaRules.trimRouteEnds(route, ForjaRules.ROUTE_PRIVACY_M);
@@ -5483,14 +5511,15 @@ function drawShareImage(ctx, style, logo, pet) {
   ctx.fillText(displayDistance(shareRoute.distanceKm), W / 2, 520);
   ctx.fillStyle = style.subtext;
   ctx.font = font(64, 700);
-  ctx.fillText(`${unitWord} ${isRun ? "RUN" : "WALKED"}`, W / 2, 610);
+  // One phrase per case (Spanish puts the word order and endings its own way).
+  ctx.fillText(tr(`${unitWord} ${isRun ? "RUN" : "WALKED"}`), W / 2, 610);
   // Pace, time and steps in a row. (No calories: with the distance and time
   // right here, they'd give away the weight they're worked out from.) A
   // value too wide for its third, like 1:05:30 or 12,345, shrinks to fit.
   const columns = [
-    [distanceInUnits > 0 ? formatDuration(shareRoute.durationMs / distanceInUnits) : "--", `PACE /${distanceUnitLabel().toUpperCase()}`],
-    [formatDuration(shareRoute.durationMs), "TIME"],
-    [ForjaRules.estimateSteps(shareRoute.distanceKm, shareRoute.durationMs).toLocaleString(), "STEPS"],
+    [distanceInUnits > 0 ? formatDuration(shareRoute.durationMs / distanceInUnits) : "--", tr("PACE /{unit}", { unit: distanceUnitLabel().toUpperCase() })],
+    [formatDuration(shareRoute.durationMs), tr("TIME")],
+    [ForjaRules.estimateSteps(shareRoute.distanceKm, shareRoute.durationMs).toLocaleString(trLocale(undefined)), tr("STEPS")],
   ];
   columns.forEach(([value, label], i) => {
     const x = W / 2 + (i - 1) * 330;
@@ -5566,10 +5595,10 @@ function drawStreakImage(ctx, style, logo, pet) {
     ctx.font = font(count >= 100 ? 290 : 320, 800);
     ctx.fillText(String(count), W / 2, 1010);
     ctx.font = font(64, 800);
-    ctx.fillText("DAY STREAK", W / 2, 1095);
+    ctx.fillText(tr("DAY STREAK"), W / 2, 1095);
     ctx.fillStyle = style.subtext;
     ctx.font = font(44, 700);
-    ctx.fillText(`${STREAK_NAMES[count] || `${count} DAYS`} · EVERY REP VERIFIED`, W / 2, 1165);
+    ctx.fillText(tr("{name} · EVERY REP VERIFIED", { name: STREAK_NAMES[count] ? tr(STREAK_NAMES[count]) : tr("{n} DAYS", { n: count }) }), W / 2, 1165);
   });
 
   // Every day of the streak, rows of 7 / 10 / 25 to fit.
@@ -5594,9 +5623,9 @@ function drawStreakImage(ctx, style, logo, pet) {
   withShadow(() => {
     if (totals) {
       [
-        [totals.pushups.toLocaleString(), "PUSH-UPS"],
-        [totals.squats.toLocaleString(), "SQUATS"],
-        [formatPlankTotal(totals.plankSeconds), "PLANK"],
+        [totals.pushups.toLocaleString(trLocale(undefined)), tr("PUSH-UPS")],
+        [totals.squats.toLocaleString(trLocale(undefined)), tr("SQUATS")],
+        [formatPlankTotal(totals.plankSeconds), tr("PLANK")],
       ].forEach(([value, label], i) => {
         const x = W / 2 + (i - 1) * 330;
         ctx.fillStyle = style.text;
@@ -5697,8 +5726,8 @@ async function openMilestoneShare(count) {
   const days = streakDays(count);
   shareRoute.kind = "streak";
   shareRoute.streak = { count, days, totals: null };
-  setShareBack("Today", "Back to Today");
-  document.getElementById("share-route-heading").textContent = "Share streak";
+  setShareBack(tr("Today"), tr("Back to Today"));
+  document.getElementById("share-route-heading").textContent = tr("Share streak");
   showScreen("share-route-screen");
   pickShareTemplate(shareRoute.template);
   const daysBack = new Date();
@@ -5765,15 +5794,15 @@ function pickShareTemplate(template) {
   const sticker = template === "sticker";
   shareRouteCopyEl.classList.toggle("hidden", !(sticker && canCopyImage));
   const note = document.getElementById("share-route-note");
-  note.textContent = canCopyImage ? "Copy, then paste it on your photo in an Instagram story." : "See-through: save it, then add it over a photo in Instagram.";
+  note.textContent = canCopyImage ? tr("Copy, then paste it on your photo in an Instagram story.") : tr("See-through: save it, then add it over a photo in Instagram.");
   note.classList.toggle("invisible", !sticker);
   renderShareImage();
 }
 
 document.getElementById("tracking-summary-share-button").addEventListener("click", () => {
   shareRoute.kind = "route";
-  setShareBack("Route", "Back to the route");
-  document.getElementById("share-route-heading").textContent = shareIsRun() ? "Share run" : "Share walk";
+  setShareBack(tr("Route"), tr("Back to the route"));
+  document.getElementById("share-route-heading").textContent = shareIsRun() ? tr("Share run") : tr("Share walk");
   showScreen("share-route-screen");
   pickShareTemplate(shareRoute.template);
 });
@@ -5821,12 +5850,12 @@ shareRouteCopyEl.addEventListener("click", async () => {
   const label = shareRouteCopyEl.querySelector("span");
   try {
     await navigator.clipboard.write([new ClipboardItem({ "image/png": file })]);
-    label.textContent = "Copied";
+    label.textContent = tr("Copied");
   } catch (error) {
-    label.textContent = "Couldn't copy";
+    label.textContent = tr("Couldn't copy");
   }
   clearTimeout(shareCopyResetTimer);
-  shareCopyResetTimer = setTimeout(() => (label.textContent = "Copy"), 2000);
+  shareCopyResetTimer = setTimeout(() => (label.textContent = tr("Copy")), 2000);
 });
 
 // The Today tab's small GPS button just takes you to the Record tab,
@@ -5843,10 +5872,10 @@ function friendlyRouteDate(dateStr) {
   const [year, month, day] = dateStr.split("-").map(Number);
   const date = new Date(year, month - 1, day);
   const daysAgo = daysBetween(dateStr, todayString());
-  if (daysAgo === 0) return "Today";
-  if (daysAgo === 1) return "Yesterday";
+  if (daysAgo === 0) return tr("Today");
+  if (daysAgo === 1) return tr("Yesterday");
   const thisYear = year === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, thisYear ? { weekday: "short", month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString(trLocale(undefined), thisYear ? { weekday: "short", month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
 }
 
 function buildPastRouteRow(route) {

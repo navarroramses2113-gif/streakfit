@@ -13,7 +13,7 @@
 import "../_shared/game-rules.js";
 import { createAdminClient, isInternalCall } from "../_shared/http.ts";
 import * as pet from "../_shared/pet-voice.ts";
-import { sendPushToSubscriptions } from "../_shared/push.ts";
+import { inLanguage, sendPushToSubscriptions } from "../_shared/push.ts";
 
 // deno-lint-ignore no-explicit-any
 const rules = (globalThis as any).ForjaRules;
@@ -49,8 +49,11 @@ Deno.serve(async (req) => {
   // user_id -> that user's local date and hour, for everyone due a reminder now.
   const dueDateByUser = new Map<string, string>();
   const dueHourByUser = new Map<string, number>();
+  // The app's language for each person ("es" = Spanish; anything else, English).
+  const languageByUser = new Map<string, unknown>();
   for (const row of progressRows || []) {
     const d = row.data || {};
+    languageByUser.set(row.user_id, d.language);
     // Never turned reminders on - nothing to send.
     if (typeof d.reminderTimezone !== "string") continue;
     const local = localNow(d.reminderTimezone, now);
@@ -103,7 +106,7 @@ Deno.serve(async (req) => {
   // One message per person (each gets their own line), sent to all their devices.
   const result = { sent: 0, sentEndpoints: [] as string[], expiredRemoved: 0 };
   for (const userId of new Set(pending.map((sub) => sub.user_id))) {
-    const message = pet.reminder(userId, dueDateByUser.get(userId)!, liveStreak.get(userId) ?? 0);
+    const message = inLanguage(pet.reminder(userId, dueDateByUser.get(userId)!, liveStreak.get(userId) ?? 0), languageByUser.get(userId));
     const sent = await sendPushToSubscriptions(supabaseAdmin, pending.filter((sub) => sub.user_id === userId), message);
     result.sent += sent.sent;
     result.sentEndpoints.push(...sent.sentEndpoints);
