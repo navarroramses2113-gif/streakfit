@@ -406,8 +406,22 @@ function showOnlyPanel(panelToShow) {
 }
 
 document.getElementById("open-account-screen-button").addEventListener("click", () => {
+  // Add to Home Screen: only in a phone browser, not once Forja is there.
+  document.getElementById("open-home-guide-button").classList.toggle("hidden", !ForjaHomeGuide.shouldOffer());
   showScreen("account-screen");
 });
+
+// Account > Add to Home Screen: the same guide as sign-up (home-screen-guide.js).
+function renderHomeGuide() {
+  document.getElementById("home-guide-body").innerHTML = ForjaHomeGuide.html();
+}
+document.getElementById("open-home-guide-button").addEventListener("click", () => {
+  renderHomeGuide();
+  showScreen("home-guide-screen");
+  window.scrollTo(0, 0);
+});
+document.getElementById("home-guide-body").addEventListener("click", (event) => ForjaHomeGuide.click(event, renderHomeGuide));
+["home-guide-back", "home-guide-done"].forEach((id) => document.getElementById(id).addEventListener("click", () => showScreen("account-screen")));
 
 document.getElementById("account-screen-close-button").addEventListener("click", () => {
   showScreen("app-screen");
@@ -1194,7 +1208,6 @@ async function turnOnRemindersFromAsk() {
 }
 
 const SHARE_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
-const ADD_SQUARE_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
 
 // iPhone Safari: how to get Forja onto the Home Screen. Only over Today.
 // "Got It" isn't a no (they may be about to do it); Not Now or a tap
@@ -1212,11 +1225,7 @@ function openHomeScreenSheet(moment) {
       <span class="notif-sheet-pet">${Onboarding.mascot("happy")}</span>
       <h2 id="notif-sheet-title">${moment === "done" ? tr("Keep your streak going tomorrow") : tr("Never miss a nudge")}</h2>
       <p class="notif-sheet-sub">${tr("iPhone only sends reminders to apps on your Home Screen. Takes 20 seconds:")}</p>
-      <ol class="notif-steps">
-        <li><span class="notif-step-n">1</span><span>${tr("Tap {icon} Share in Safari", { icon: `<span class="notif-step-icon">${SHARE_ICON_SVG}</span>` })}<small>${tr("Don't see it? Tap ••• first.")}</small></span></li>
-        <li><span class="notif-step-n">2</span><span>${tr("Tap {icon} Add to Home Screen", { icon: `<span class="notif-step-icon">${ADD_SQUARE_ICON_SVG}</span>` })}</span></li>
-        <li><span class="notif-step-n">3</span><span>${tr("Open Forja from your Home Screen")}<small>${tr("Log in once more, then turn on reminders.")}</small></span></li>
-      </ol>
+      <ol class="notif-steps">${ForjaHomeGuide.steps("iphone")}</ol>
       <button class="auth-submit-button" data-notif-sheet="ok">${tr("Got It")}</button>
       <button class="challenge-text-button is-muted" data-notif-sheet="later">${tr("Not Now")}</button>
     </div>`;
@@ -2067,7 +2076,7 @@ function hideSplash() {
 // "hide this one" line added into every other show-a-different-screen
 // function (which is exactly how the reset-password screen almost got
 // left out of revealApp() below).
-const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "share-route-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "my-plan-screen", "challenge-screen", "reminder-setup-screen", "camera-screen"];
+const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "share-route-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "my-plan-screen", "challenge-screen", "reminder-setup-screen", "camera-screen", "home-guide-screen"];
 
 function showScreen(idToShow) {
   SCREEN_IDS.forEach((id) => {

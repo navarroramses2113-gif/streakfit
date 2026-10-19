@@ -90,6 +90,8 @@ const Onboarding = (function () {
   const recommendedPace = () => RECOMMENDED_PACE[mainGoal().v];
   const listWords = (words) => (words.length < 2 ? words.join("") : words.slice(0, -1).join(", ") + tr(" and ") + words[words.length - 1]);
   const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  // A phone browser, not the Home Screen app: show how to add it (home-screen-guide.js).
+  const offerHomeScreen = () => typeof ForjaHomeGuide !== "undefined" && ForjaHomeGuide.shouldOffer();
   const allTested = () => EXERCISES.every((e) => state.tested[e.key] > 0);
 
   // ---------- the plan ----------
@@ -423,6 +425,17 @@ const Onboarding = (function () {
       },
       footer: () => cta(state.busy ? tr("Turning On...") : tr("Remind Me"), "remind", state.busy || state.reminderHour === null) + quiet(tr("Not now"), "next"),
     },
+    // Right after the account is made, on a phone browser (2026-10-19):
+    // iPhone only sends reminders to the Home Screen app, and new people
+    // never saw how to add it. Both buttons go on - it's advice, not a gate.
+    homescreen: {
+      centered: true,
+      noBack: true,
+      body: () => ForjaHomeGuide.html({ top: mascot("happy") }),
+      footer: () =>
+        cta(tr("Done"), "next") +
+        quiet(ForjaHomeGuide.inAppBrowser() ? tr("Not now") : tr("Keep using {browser}", { browser: ForjaHomeGuide.browserName() }), "next"),
+    },
     friends: {
       centered: true,
       noBack: true,
@@ -442,6 +455,7 @@ const Onboarding = (function () {
       ...(skipDay1 ? [] : ["day1"]),
       state.walk === "yes" ? "almost" : "streak",
       "account",
+      ...(offerHomeScreen() ? ["homescreen"] : []),
       ...(pushSupported() ? ["reminder"] : []),
       "friends",
     ];
@@ -463,7 +477,8 @@ const Onboarding = (function () {
       case "day1": return afterDay1();
       case "almost":
       case "streak": return "account";
-      case "account": return pushSupported() ? "reminder" : "friends";
+      case "account": return offerHomeScreen() ? "homescreen" : pushSupported() ? "reminder" : "friends";
+      case "homescreen": return pushSupported() ? "reminder" : "friends";
       case "reminder": return "friends";
       default: return null;
     }
@@ -670,6 +685,8 @@ const Onboarding = (function () {
       if (key === "reminderHour") state.customReminder = false;
       return render();
     }
+
+    if (current === "homescreen" && ForjaHomeGuide.click(event, render)) return;
 
     const button = event.target.closest("[data-action]");
     if (!button || button.disabled) return;

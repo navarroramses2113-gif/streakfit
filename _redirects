@@ -44,3 +44,6 @@
 # script).
 /  i=:code  /index.html  200!
 /           /landing.html  200!
+
+# getforja.app/install: the Home Screen steps as a page to send (install.html).
+/install    /install.html  200

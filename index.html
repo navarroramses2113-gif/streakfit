@@ -29,7 +29,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=36">
+  <link rel="stylesheet" href="style.css?v=37">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. integrity = the file's
@@ -167,6 +167,16 @@
     <button id="reset-password-submit" class="auth-submit-button">Update Password</button>
   </main>
 
+  <!-- How to put Forja on the Home Screen, from Account. Drawn by
+       home-screen-guide.js (the same steps as sign-up and /install). -->
+  <main id="home-guide-screen" class="card hidden">
+    <button id="home-guide-back" class="nav-back" aria-label="Back to Account">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Account
+    </button>
+    <div id="home-guide-body"></div>
+    <button id="home-guide-done" class="auth-submit-button">Done</button>
+  </main>
+
   <!-- Full calendar view, opened by tapping the small heatmap. -->
   <main id="calendar-screen" class="card hidden">
     <button id="calendar-close-button" class="nav-back" aria-label="Back to Me">
@@ -259,6 +269,11 @@
       </button>
       <button id="open-minimums-button" class="account-menu-item">
         <span>Daily Minimums</span>
+        <span class="account-menu-chevron">›</span>
+      </button>
+      <!-- Only in a phone browser (not the Home Screen app): home-screen-guide.js. -->
+      <button id="open-home-guide-button" class="account-menu-item hidden">
+        <span>Add to Home Screen</span>
         <span class="account-menu-chevron">›</span>
       </button>
       <button id="open-settings-button" class="account-menu-item">
@@ -939,12 +954,14 @@
   <!-- English and Spanish (i18n.js picks; i18n-es.js is the Spanish).
        First, so every script after them can use tr(). -->
   <script src="i18n.js?v=1"></script>
-  <script src="i18n-es.js?v=1"></script>
+  <script src="i18n-guide-es.js?v=1"></script>
+  <script src="i18n-es.js?v=2"></script>
   <script src="supabase/functions/_shared/game-rules.js?v=10"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=12"></script>
   <script src="camera-verify.js?v=15"></script>
-  <script src="onboarding.js?v=11"></script>
-  <script src="script.js?v=36"></script>
+  <script src="home-screen-guide.js?v=1"></script>
+  <script src="onboarding.js?v=12"></script>
+  <script src="script.js?v=37"></script>
   <script src="challenges.js?v=7"></script>
   <script src="celebrations.js?v=10"></script>
 </body>

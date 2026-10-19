@@ -5508,6 +5508,166 @@ a.account-menu-item {
   width: 100%;
 }
 
+/* The full Home Screen guide (home-screen-guide.js): after sign-up,
+   Account > Add to Home Screen, and getforja.app/install. Same steps
+   look as the sheet above, a little roomier. */
+.home-guide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  text-align: center;
+}
+
+.home-guide .ob-mascot {
+  width: 72px;
+  height: 81px;
+}
+
+.guide-title {
+  margin: 10px 0 4px;
+  font-size: var(--font-title1);
+  font-weight: 700;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.guide-lead {
+  max-width: 300px;
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-subhead);
+  line-height: 1.35;
+  color: var(--text-secondary);
+  text-wrap: balance;
+}
+
+.guide-os {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  max-width: 260px;
+  margin: 0 0 var(--space-md);
+  padding: 2px;
+  background: var(--control-bg);
+  border-radius: 9px;
+}
+
+.guide-os button {
+  position: relative;
+  min-height: 32px;
+  font-family: inherit;
+  font-size: var(--font-footnote);
+  font-weight: 600;
+  color: var(--text-primary);
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+/* The 32pt segment sits in a 44pt touch area. */
+.guide-os button::before {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+
+.guide-os button[aria-checked="true"] {
+  background: var(--surface-solid);
+  box-shadow: 0 1px 3px #0000002e;
+}
+
+.guide-steps {
+  margin-bottom: var(--space-lg);
+}
+
+.guide-steps li {
+  min-height: 60px;
+  padding: 12px;
+  font-size: var(--font-body);
+}
+
+.notif-step-icon.is-app {
+  background: none;
+}
+
+.notif-step-icon.is-app img {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+
+/* Opened inside TikTok / Instagram: their browser can't add apps. */
+.guide-heads-up {
+  width: 100%;
+  margin: 0 0 var(--space-sm);
+  padding: 12px;
+  font-size: var(--font-subhead);
+  line-height: 1.35;
+  text-align: left;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.guide-heads-up b {
+  color: var(--warning);
+}
+
+.guide-copy-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 var(--space-md);
+}
+
+.guide-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: var(--font-subhead);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+  background: var(--surface-solid);
+  border-radius: var(--radius-md);
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.guide-copy {
+  min-height: 44px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: var(--font-subhead);
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--control-bg);
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+#home-guide-screen .home-guide {
+  margin-top: var(--space-sm);
+}
+
+/* getforja.app/install (install.html) */
+.install-card .brand {
+  margin-bottom: var(--space-xs);
+}
+
+.install-open-app {
+  text-decoration: none;
+}
+
 /* "Ramsesn nudged you": their faces and name on a line of its own. */
 .pet-nudge-from {
   display: flex;

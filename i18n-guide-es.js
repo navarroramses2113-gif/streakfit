@@ -1,0 +1,36 @@
+// The Home Screen guide's Spanish (home-screen-guide.js), read by i18n.js
+// like the app's (i18n-es.js). Its own small file, so getforja.app/install
+// doesn't load the whole app's. Button names match what iPhone and Android
+// show in Spanish (Compartir, Ver más, Agregar a inicio, Instalar app).
+window.FORJA_ES = Object.assign(window.FORJA_ES || {}, {
+  "Put Forja on your Home Screen": "Pon Forja en tu pantalla de inicio",
+  "Reminders only reach you from the Home Screen app. Takes 20 seconds.": "Los recordatorios solo te llegan desde la app en tu pantalla de inicio. Toma 20 segundos.",
+  "Opens full screen, like a real app. Takes 20 seconds.": "Se abre en pantalla completa, como una app de verdad. Toma 20 segundos.",
+  "Phone": "Teléfono",
+  "iPhone": "iPhone",
+  "Android": "Android",
+  "Menu": "Menú",
+  "More": "Más",
+  "Tap {dots} then {share} Share": "Toca {dots} y luego {share} Compartir",
+  "At the bottom of Safari. Some iPhones show Share right away.": "Abajo en Safari. Algunos iPhone muestran Compartir directamente.",
+  "Tap View More, then {add} Add to Home Screen": "Toca Ver más y luego {add} Agregar a inicio",
+  "View More is in the row under the apps.": "Ver más está en la fila debajo de las apps.",
+  "Tap Add, then open {app} Forja": "Toca Agregar y luego abre {app} Forja",
+  "Log in once more. That's it.": "Inicia sesión una vez más. Listo.",
+  "Tap {dots} in Chrome": "Toca {dots} en Chrome",
+  "Top right corner.": "Esquina superior derecha.",
+  "Tap Add to Home screen": "Toca Agregar a la pantalla principal",
+  "Or Install app.": "O Instalar app.",
+  "Tap Install, then open {app} Forja": "Toca Instalar y luego abre {app} Forja",
+  "From your Home screen.": "Desde tu pantalla principal.",
+  "You're inside {app}.": "Estás dentro de {app}.",
+  "Its browser can't add apps. Tap {dots} at the top, then {open}.": "Su navegador no puede agregar apps. Toca {dots} arriba y luego {open}.",
+  "Open in browser": "Abrir en el navegador",
+  "Copy": "Copiar",
+  "Copied": "Copiado",
+  "Keep using {browser}": "Seguir en {browser}",
+  "Open Forja in {browser} instead": "Mejor abrir Forja en {browser}",
+  "Add to Home Screen": "Agregar a inicio",
+  "Forja: add it to your Home Screen": "Forja: agrégala a tu pantalla de inicio",
+  "How to put Forja on your iPhone or Android Home Screen, in 20 seconds.": "Cómo poner Forja en la pantalla de inicio de tu iPhone o Android, en 20 segundos.",
+});

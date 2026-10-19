@@ -3,7 +3,8 @@
 // "tú", in the same voice as the English: short, blunt, friendly.
 // {n}, {name}... are filled in by tr(); keep them in the Spanish too.
 // A key must match the English in the code exactly, spaces and dots included.
-window.FORJA_ES = {
+// Added to, not replaced: smaller files (i18n-guide-es.js) may load first.
+window.FORJA_ES = Object.assign(window.FORJA_ES || {}, {
   // ---------- index.html ----------
   "Back": "Atrás",
   "Back to the start": "Volver al inicio",
@@ -244,11 +245,6 @@ window.FORJA_ES = {
   "Keep your streak going tomorrow": "Que tu racha siga mañana",
   "Never miss a nudge": "No te pierdas ningún empujón",
   "iPhone only sends reminders to apps on your Home Screen. Takes 20 seconds:": "El iPhone solo envía recordatorios a apps en tu pantalla de inicio. Toma 20 segundos:",
-  "Tap {icon} Share in Safari": "Toca {icon} Compartir en Safari",
-  "Don't see it? Tap ••• first.": "¿No lo ves? Toca ••• primero.",
-  "Tap {icon} Add to Home Screen": "Toca {icon} Agregar a inicio",
-  "Open Forja from your Home Screen": "Abre Forja desde tu pantalla de inicio",
-  "Log in once more, then turn on reminders.": "Inicia sesión una vez más y activa los recordatorios.",
   "Got It": "Entendido",
   "Not Now": "Ahora no",
   "Couldn't enable reminders. You can try again anytime in Settings.": "No pudimos activar los recordatorios. Puedes intentarlo cuando quieras en Ajustes.",
@@ -855,7 +851,7 @@ window.FORJA_ES = {
   "Get down into a plank - your body should be roughly horizontal": "Bájate a plancha: tu cuerpo debe estar casi horizontal",
   "Straighten your body - hips in line with shoulders and ankles": "Endereza el cuerpo: cadera en línea con hombros y tobillos",
   "Straighten your arms to start": "Estira los brazos para empezar",
-};
+});
 
 // The page's own words, now that both files are here.
 if (window.ForjaI18n) ForjaI18n.translatePage(document.body);
