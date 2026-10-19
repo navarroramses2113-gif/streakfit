@@ -273,11 +273,38 @@ const ForjaCamera = (function () {
       stream = await navigator.mediaDevices.getUserMedia(constraints);
     }
     const video = $("camera-video");
+    $("camera-stage").classList.add("is-starting");
     video.srcObject = stream;
     await video.play();
+    await settledSize(video);
+    $("camera-stage").classList.remove("is-starting");
     $("camera-overlay").width = video.videoWidth;
     $("camera-overlay").height = video.videoHeight;
     $("camera-stage").classList.toggle("mirrored", facing === "user");
+  }
+
+  // iPhones can hand over the first frames in another shape (sideways)
+  // before the real one, and with the picture filling the screen that
+  // looks like a sudden zoom as the camera opens (2026-10-19). So the
+  // picture stays hidden (.is-starting) until its size has held still for
+  // a moment, then fades in.
+  function settledSize(video) {
+    return new Promise((resolve) => {
+      let quiet = null;
+      const done = () => {
+        clearTimeout(quiet);
+        clearTimeout(cap);
+        video.removeEventListener("resize", restart);
+        resolve();
+      };
+      const restart = () => {
+        clearTimeout(quiet);
+        quiet = setTimeout(done, 350);
+      };
+      const cap = setTimeout(done, 1500); // never wait longer than this
+      video.addEventListener("resize", restart);
+      restart();
+    });
   }
 
   function stopStream() {
@@ -484,11 +511,11 @@ const ForjaCamera = (function () {
       const partial = landmarks ? missingParts(landmarks) : null;
       if (partial && partial.missing.length < exercise.needs.length) {
         drawPartial(landmarks, partial.idx);
-        say(missingHint(partial.missing), true);
+        coach(missingHint(partial.missing), true);
       } else {
         const overlay = $("camera-overlay");
         overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
-        say(lyingInUprightFrame() ? "Can't see you - turn the phone sideways, whole body in frame" : exercise.lost, true);
+        coach(lyingInUprightFrame() ? "Can't see you - turn the phone sideways, whole body in frame" : exercise.lost, true);
       }
       $("camera-live").textContent = "";
       return;
@@ -516,9 +543,9 @@ const ForjaCamera = (function () {
               ? "Straighten your body - hips level with shoulders and ankles"
               : "Get into plank position";
       if (r.state === "holding") {
-        say(r.paused ? "Paused - " + fix.charAt(0).toLowerCase() + fix.slice(1) : "Holding - keep it straight", r.paused);
+        coach(r.paused ? "Paused - " + fix.charAt(0).toLowerCase() + fix.slice(1) : "Holding - keep it straight", r.paused);
       } else {
-        say(fix, true);
+        coach(fix, true);
       }
       setFeedback(r.bestMs > 0 ? "Best hold: " + (r.bestMs / 1000).toFixed(1) + "s" : "", r.bestMs > 0 ? "good" : "");
       return;
@@ -531,7 +558,7 @@ const ForjaCamera = (function () {
     // "get in position" - the start position has several conditions and
     // any one failing looks the same from outside.
     const hint = r.state === "waiting" && exercise.waitingHint ? exercise.waitingHint(m) : null;
-    say(hint || exercise.states[r.state] || "", !!hint);
+    coach(hint || exercise.states[r.state] || "", !!hint);
     $("camera-live").textContent =
       Debug.isOn() && r.drop !== null ? exercise.dropName + " down " + pct(r.drop) + "  ·  " + exercise.anchorName + " moved " + pct(r.anchorMove) : "";
 
@@ -639,6 +666,33 @@ const ForjaCamera = (function () {
     const el = $("camera-state");
     el.textContent = text;
     el.classList.toggle("is-hint", hint);
+    shownLine = { text, hint, at: performance.now() };
+    otherSince = null;
+  }
+
+  // The pill during a set, held steady. The pose model's guess wobbles
+  // from frame to frame, and words changing several times a second make
+  // the app look like it's glitching (2026-10-19). So a new line has to be
+  // asked for COACH_SETTLE_MS in a row before it shows, and a hint stays up
+  // at least COACH_MIN_SHOW_MS. Except the rep going right ("Ready - lower
+  // yourself" -> "Down - now push all the way up"): that follows the
+  // person's movement, so it switches at once.
+  const COACH_SETTLE_MS = 500;
+  const COACH_MIN_SHOW_MS = 1500;
+  let shownLine = { text: "", hint: false, at: -Infinity };
+  let otherSince = null; // since when the frames have wanted something else on the pill
+  function coach(text, hint) {
+    if (text === shownLine.text && hint === shownLine.hint) {
+      otherSince = null;
+      return;
+    }
+    const now = performance.now();
+    if (otherSince === null) otherSince = now;
+    if (hint || shownLine.hint) {
+      if (now - otherSince < COACH_SETTLE_MS) return;
+      if (shownLine.hint && now - shownLine.at < COACH_MIN_SHOW_MS) return;
+    }
+    say(text, hint);
   }
 
   // Today's ring for this exercise, as this set adds to it: reps add up

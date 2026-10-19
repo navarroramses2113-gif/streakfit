@@ -2482,6 +2482,23 @@ body {
   object-fit: cover;
 }
 
+/* Hidden while the camera settles on its size, then faded in - the first
+   frames can come in another shape, which looked like a zoom (camera-verify.js). */
+.camera-stage video {
+  transition: opacity 0.25s ease-out;
+}
+
+.camera-stage.is-starting video {
+  opacity: 0;
+  transition: none; /* hides at once, fades only on the way in */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-stage video {
+    transition: none;
+  }
+}
+
 /* The front camera is shown mirrored (like a mirror) so moving your
    left side moves the left side of the screen. */
 .camera-stage.mirrored video,
