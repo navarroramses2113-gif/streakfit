@@ -3490,6 +3490,85 @@ a.account-menu-item {
   margin-bottom: var(--space-lg);
 }
 
+/* The summary's "..." (top right, level with the title): Delete Route. */
+.summary-more-button {
+  position: absolute;
+  top: calc(var(--space-xl) - 4px);
+  right: var(--space-sm);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--text-secondary);
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.summary-more-button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.summary-more-button:focus-visible,
+.summary-menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* An iOS-style menu under the button; tapping anywhere else closes it. */
+.summary-menu-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+}
+
+.summary-menu {
+  position: absolute;
+  min-width: 220px;
+  padding: 4px 0;
+  background: var(--popover-bg);
+  border: 1px solid var(--card-line);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px #00000059;
+  animation: challenge-fade 0.15s ease;
+}
+
+.summary-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  font-family: inherit;
+  font-size: var(--font-body);
+  text-align: left;
+  color: var(--text-primary);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.summary-menu-item.is-danger {
+  color: var(--danger);
+}
+
+.summary-menu-item svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summary-menu {
+    animation: none;
+  }
+}
+
 /* After a walk or run the title leads and the six numbers sit a step
    below it (Title 2), so they read as one group rather than six headings.
    The live tracking screen keeps its bigger numbers for glancing at. */
@@ -3734,6 +3813,47 @@ a.account-menu-item {
   font-size: var(--font-footnote);
   line-height: 1.4;
   color: var(--text-muted);
+}
+
+/* Sign-up: why the username won't work, and the fix to tap (onboarding.js). */
+.auth-fields input.is-wrong,
+.auth-fields input.is-wrong:focus {
+  border-color: var(--danger);
+}
+
+#ob-username-hint {
+  margin: -2px 2px 2px;
+  text-align: left;
+  color: var(--text-secondary);
+}
+
+.ob-username-fix {
+  position: relative;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+/* A full 44pt tap target around the short words. */
+.ob-username-fix::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.ob-username-fix:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .ob-label {
@@ -6814,6 +6934,110 @@ a.account-menu-item {
 
 #camera-screen.is-running .camera-tip {
   display: none;
+}
+
+/* The setup card (camera-verify.js renderSetup): a looping drawing, one
+   line, the privacy note. Once learned, just the "How to set up" button. */
+.camera-tip .setup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-height: 28px;
+}
+
+.camera-tip .setup-head b {
+  font-size: var(--font-footnote);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffffffb3;
+}
+
+.camera-tip .setup-scene {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 150px;
+  margin: 6px 0 8px;
+}
+
+.camera-tip .setup-line {
+  margin: 0;
+  color: #ffffffe6;
+}
+
+.camera-tip .setup-privacy {
+  margin: 6px 0 0;
+  font-size: var(--font-footnote);
+  color: #ffffff8c;
+}
+
+.camera-tip .setup-hide {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -8px -10px -8px 0;
+  padding: 0;
+  color: #ffffffb3;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.camera-tip .setup-hide svg {
+  width: 18px;
+  height: 18px;
+}
+
+#camera-screen:not(.is-review) .camera-tip.is-collapsed {
+  right: auto;
+  padding: 0;
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.setup-howto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: var(--font-subhead);
+  font-weight: 600;
+  color: #ffffff;
+  background: #0b0c0e99;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.setup-howto svg {
+  width: 18px;
+  height: 18px;
+}
+
+.setup-howto:focus-visible,
+.camera-tip .setup-hide:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* A sideways phone has little height: a smaller drawing, no privacy line. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .camera-tip .setup-scene {
+    max-height: 76px;
+    margin: 2px 0 4px;
+  }
+
+  .camera-tip .setup-privacy {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

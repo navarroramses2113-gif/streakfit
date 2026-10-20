@@ -482,13 +482,17 @@ window.FORJA_ES = Object.assign(window.FORJA_ES || {}, {
   "Check your email to confirm your account, then log in.": "Revisa tu correo para confirmar tu cuenta y luego inicia sesión.",
   "Enter your email address.": "Escribe tu correo.",
   "Check your email for a password reset link.": "Revisa tu correo: te enviamos un enlace para restablecer tu contraseña.",
-  "Password must be at least 6 characters.": "La contraseña debe tener al menos 6 caracteres.",
+  "Use at least 8 characters.": "Usa al menos 8 caracteres.",
+  "Add at least one letter.": "Agrega al menos una letra.",
+  "Add at least one number.": "Agrega al menos un número.",
   // Supabase's own messages (shown as they come; these are the common ones).
   "Invalid login credentials": "Correo o contraseña incorrectos.",
   "Email not confirmed": "Todavía no confirmas tu correo. Revisa tu bandeja de entrada.",
   "User already registered": "Este correo ya tiene una cuenta.",
   "Password should be at least 6 characters": "La contraseña debe tener al menos 6 caracteres.",
   "Password should be at least 6 characters.": "La contraseña debe tener al menos 6 caracteres.",
+  "Password should be at least 8 characters": "La contraseña debe tener al menos 8 caracteres.",
+  "Password should be at least 8 characters.": "La contraseña debe tener al menos 8 caracteres.",
   "Unable to validate email address: invalid format": "Ese correo no parece válido.",
   "Email rate limit exceeded": "Demasiados intentos. Espera un rato e inténtalo de nuevo.",
   "Signup requires a valid password": "Escribe una contraseña válida.",
@@ -608,7 +612,7 @@ window.FORJA_ES = Object.assign(window.FORJA_ES || {}, {
   "Show up tomorrow to make it {n}.": "Vuelve mañana para llegar a {n}.",
   "Your account is ready. Pick a username so friends can find you.": "Tu cuenta está lista. Elige un nombre de usuario para que tus amigos te encuentren.",
   "Save your plan so your streak follows you, and so you can compete with friends.": "Guarda tu plan para no perder tu racha y para competir con tus amigos.",
-  "Password (8+ characters)": "Contraseña (8 caracteres o más)",
+  "Password (8+ letters and numbers)": "Contraseña (8+ letras y números)",
   "Log in instead": "Mejor iniciar sesión",
   "Saving...": "Guardando...",
   "Creating...": "Creando...",
@@ -769,7 +773,7 @@ window.FORJA_ES = Object.assign(window.FORJA_ES || {}, {
   "{part} friend in": "{part} amigo se unió",
   "{part} friends in": "{part} amigos se unieron",
   "Cancel Challenge": "Cancelar reto",
-  "Keep It": "Mantenerlo",
+  "Keep It": "Mantener", // a challenge or a route, so no lo/la
   "Challenge cancelled": "Reto cancelado",
 
   // ---------- the camera (camera-verify.js, exercise-counter.js) ----------
@@ -839,6 +843,23 @@ window.FORJA_ES = Object.assign(window.FORJA_ES || {}, {
   "Get down into a plank - your body should be roughly horizontal": "Bájate a plancha: tu cuerpo debe estar casi horizontal",
   "Straighten your body - hips in line with shoulders and ankles": "Endereza el cuerpo: cadera en línea con hombros y tobillos",
   "Straighten your arms to start": "Estira los brazos para empezar",
+  // 2026-10-20: why a username won't work, deleting a route, the camera setup card.
+  "No spaces in usernames.": "Los nombres de usuario no pueden tener espacios.",
+  "Only letters, numbers and _ (underscore).": "Solo letras, números y _ (guion bajo).",
+  "At least 3 characters.": "Al menos 3 caracteres.",
+  "Use {name}": "Usar {name}",
+  "Delete Route": "Eliminar ruta",
+  "Delete this route?": "¿Eliminar esta ruta?",
+  "It comes off your history and your friends' Feed. This can't be undone.": "Se borra de tu historial y de la Actividad de tus amigos. No se puede deshacer.",
+  "Route deleted": "Ruta eliminada",
+  "Route deleted, but its Feed post couldn't be removed. Check your connection.": "Ruta eliminada, pero su publicación en Actividad no se pudo quitar. Revisa tu conexión.",
+  "Set up": "Cómo colocarte",
+  "How to set up": "Cómo colocarte",
+  "Video never leaves your phone.": "El video nunca sale de tu teléfono.",
+  "Phone on the floor, about 6 ft away. Side-on, head to feet in view.": "Teléfono en el piso, a unos 6 pies. De lado, que se te vea de la cabeza a los pies.",
+  "Phone on the floor, about 2 m away. Side-on, head to feet in view.": "Teléfono en el piso, a unos 2 m. De lado, que se te vea de la cabeza a los pies.",
+  "Phone at hip height, 6-8 ft away. Side-on, hip to ankle in view.": "Teléfono a la altura de la cadera, a 6-8 pies. De lado, que se te vea de la cadera al tobillo.",
+  "Phone at hip height, 2-2.5 m away. Side-on, hip to ankle in view.": "Teléfono a la altura de la cadera, a 2-2.5 m. De lado, que se te vea de la cadera al tobillo.",
 });
 
 // The page's own words, now that both files are here.

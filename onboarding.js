@@ -363,17 +363,20 @@ const Onboarding = (function () {
       body: () => {
         if (state.usernameOnly) {
           return `${coach(tr("Your account is ready. Pick a username so friends can find you."))}
-            <div class="auth-fields"><input id="ob-username" placeholder="${tr("Username")}" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20"></div>${errorLine()}`;
+            <div class="auth-fields"><input id="ob-username" placeholder="${tr("Username")}" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" aria-describedby="ob-username-hint">
+            <p id="ob-username-hint" class="ob-fine" aria-live="polite" hidden></p></div>${errorLine()}`;
         }
         // Sign in with Apple goes first here once there's an Apple Developer account.
         return `${coach(tr("Save your plan so your streak follows you, and so you can compete with friends."))}
           <div class="auth-fields">
-            <input id="ob-username" placeholder="${tr("Username")}" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20">
+            <input id="ob-username" placeholder="${tr("Username")}" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" aria-describedby="ob-username-hint">
+            <p id="ob-username-hint" class="ob-fine" aria-live="polite" hidden></p>
             <input id="ob-email" type="email" placeholder="${tr("Email")}" autocomplete="email">
             <div class="password-field">
-              <input id="ob-password" type="password" placeholder="${tr("Password (8+ characters)")}" autocomplete="new-password">
+              <input id="ob-password" type="password" placeholder="${tr("Password (8+ letters and numbers)")}" autocomplete="new-password">
               <button type="button" class="password-eye" aria-label="${tr("Show password")}"><svg class="eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-6.5 0-10-7-10-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg></button>
             </div>
+            <p id="ob-password-hint" class="ob-fine" aria-live="polite" hidden></p>
           </div>${errorLine()}
           ${state.showLogin ? `<button class="link-button ob-login" data-action="login">${tr("Log in instead")}</button>` : ""}
           <p class="auth-legal">${tr("By creating an account you agree to our")} <a href="privacy.html" target="_blank" rel="noopener">${tr("Privacy Policy")}</a>.</p>`;
@@ -481,7 +484,42 @@ const Onboarding = (function () {
     if (state.usernameOnly) return USERNAME_PATTERN.test(name.trim());
     const email = ($("ob-email") || {}).value || "";
     const password = ($("ob-password") || {}).value || "";
-    return USERNAME_PATTERN.test(name.trim()) && /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8;
+    return USERNAME_PATTERN.test(name.trim()) && /\S+@\S+\.\S+/.test(email.trim()) && !passwordProblem(password);
+  }
+
+  // Says why the username won't work (a space, a symbol) the moment it's
+  // typed, with a corrected one to tap; "too short" waits until they leave
+  // the field. Redrawn only when the message changes, so a tap on the fix
+  // isn't lost when the field's blur redraws the line.
+  let usernameLeft = false;
+  function updateUsernameHint() {
+    const input = $("ob-username");
+    const hint = $("ob-username-hint");
+    if (!input || !hint) return;
+    const problem = usernameProblem(input.value, usernameLeft);
+    const key = problem ? problem.text + "|" + (problem.fix || "") : "";
+    input.classList.toggle("is-wrong", !!problem);
+    if (hint.dataset.key === key) return;
+    hint.dataset.key = key;
+    hint.hidden = !problem;
+    hint.textContent = problem ? problem.text : "";
+    if (problem && problem.fix) {
+      const fix = document.createElement("button");
+      fix.type = "button";
+      fix.className = "ob-username-fix";
+      fix.dataset.fix = problem.fix;
+      fix.textContent = tr("Use {name}", { name: problem.fix });
+      hint.append(" ", fix);
+    }
+  }
+
+  // Says what the password still needs, once something's typed.
+  function updatePasswordHint() {
+    const hint = $("ob-password-hint");
+    if (!hint) return;
+    const password = $("ob-password").value;
+    hint.textContent = password ? passwordProblem(password) : "";
+    hint.hidden = !hint.textContent;
   }
 
   function render() {
@@ -502,6 +540,8 @@ const Onboarding = (function () {
     body.className = "ob-body" + (screen.centered ? " centered" : "");
     body.innerHTML = screen.body();
     Object.entries(typed).forEach(([id, value]) => $(id) && ($(id).value = value));
+    updateUsernameHint();
+    updatePasswordHint();
     $("ob-footer").innerHTML = screen.footer();
 
     // Slide in only when arriving on a new screen, not on every answer tap.
@@ -689,9 +729,27 @@ const Onboarding = (function () {
   });
 
   // The account button turns on as soon as the fields are filled in.
-  screenEl.addEventListener("input", () => {
+  screenEl.addEventListener("input", (event) => {
     const button = $("ob-footer").querySelector('[data-action="create"], [data-action="save-username"]');
     if (button && !state.busy) button.disabled = !accountReady();
+    if (event.target.id === "ob-username") usernameLeft = false;
+    updateUsernameHint();
+    updatePasswordHint();
+  });
+  screenEl.addEventListener("focusout", (event) => {
+    if (event.target.id !== "ob-username") return;
+    usernameLeft = true;
+    updateUsernameHint();
+  });
+  // "Use maria_lopez": puts the fixed username in, ready to go.
+  screenEl.addEventListener("click", (event) => {
+    const fix = event.target.closest(".ob-username-fix");
+    if (!fix) return;
+    const input = $("ob-username");
+    input.value = fix.dataset.fix;
+    usernameLeft = false;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
   });
 
   $("ob-body").addEventListener("animationend", () => $("ob-body").classList.remove("entering"));

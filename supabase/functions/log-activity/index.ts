@@ -1,4 +1,5 @@
-// Posts a finished walk or run to the caller's Feed. The phone sends the
+// Posts a finished walk or run to the caller's Feed (and takes it back off
+// when its route is deleted - action "delete" below). The phone sends the
 // GPS points and the moving time; the distance, the pace and whether it
 // was a walk or a run are worked out here, from the points, never taken
 // from the phone. GPS can be faked, so this is a realistic-speed check
@@ -23,6 +24,33 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: "bad_request" }, 400);
   }
   const { day, points, durationMs } = body ?? {};
+
+  // { action: "delete", day, durationMs }: the person deleted that route
+  // (2026-10-20, e.g. a recording started by accident), so its post comes
+  // off the Feed too. Only their own walk/run posts; daily workout posts
+  // stay (they're the server's record of the day). A post is matched by its
+  // day and its exact seconds, which is how this function wrote it. No post
+  // (too slow to have counted, or already gone) is fine.
+  if (body?.action === "delete") {
+    if (typeof day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ ok: false, error: "bad_day" }, 400);
+    if (!Number.isInteger(durationMs) || durationMs <= 0 || durationMs > rules.ACTIVITY.MAX_MS) return json({ ok: false, error: "bad_duration" }, 400);
+    const admin = createAdminClient();
+    const { data: post, error: findError } = await admin
+      .from("feed_events")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("day", day)
+      .in("kind", ["walk", "run"])
+      .eq("duration_s", Math.round(durationMs / 1000))
+      .limit(1)
+      .maybeSingle();
+    if (findError) return json({ ok: false, error: "server_error" }, 500);
+    if (!post) return json({ ok: true, deleted: 0 });
+    const { error: deleteError } = await admin.from("feed_events").delete().eq("id", post.id).eq("user_id", user.id);
+    if (deleteError) return json({ ok: false, error: "server_error" }, 500);
+    return json({ ok: true, deleted: 1 });
+  }
+
   if (!rules.dayInRange(day, Date.now())) return json({ ok: false, error: "bad_day" }, 400);
 
   const activity = rules.checkActivity(points, durationMs);

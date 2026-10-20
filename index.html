@@ -29,7 +29,7 @@
       }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=37">
+  <link rel="stylesheet" href="style.css?v=38">
 
   <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
        OpenStreetMap tiles - no API key needed. integrity = the file's
@@ -491,7 +491,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8L10 4h4l1.7 2h1.8A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><path d="M9.2 12.6a3 3 0 0 1 5.3-1.7M14.8 13.4a3 3 0 0 1-5.3 1.7"/><path d="M14.6 9.4v1.6H13M9.4 16.6V15H11"/></svg>
       </button>
     </div>
-    <p id="camera-tip" class="camera-tip"></p>
+    <div id="camera-tip" class="camera-tip"></div>
 
     <div id="camera-stage" class="camera-stage mirrored">
       <video id="camera-video" playsinline muted autoplay></video>
@@ -549,6 +549,9 @@
 
   <!-- Shown once after finishing a tracked walk/run. -->
   <main id="tracking-summary-screen" class="card hidden">
+    <button id="tracking-summary-more" class="summary-more-button hidden" aria-label="More" aria-haspopup="menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+    </button>
     <h1 id="tracking-summary-heading" class="large-title summary-title">Nice work!</h1>
     <p id="tracking-summary-note" class="screen-subtitle hidden"></p>
 
@@ -955,13 +958,14 @@
        First, so every script after them can use tr(). -->
   <script src="i18n.js?v=1"></script>
   <script src="i18n-guide-es.js?v=1"></script>
-  <script src="i18n-es.js?v=2"></script>
+  <script src="i18n-es.js?v=4"></script>
   <script src="supabase/functions/_shared/game-rules.js?v=10"></script>
   <script src="supabase/functions/_shared/exercise-counter.js?v=12"></script>
-  <script src="camera-verify.js?v=15"></script>
+  <script src="setup-scenes.js?v=1"></script>
+  <script src="camera-verify.js?v=16"></script>
   <script src="home-screen-guide.js?v=1"></script>
-  <script src="onboarding.js?v=12"></script>
-  <script src="script.js?v=37"></script>
+  <script src="onboarding.js?v=14"></script>
+  <script src="script.js?v=39"></script>
   <script src="challenges.js?v=7"></script>
   <script src="celebrations.js?v=10"></script>
 </body>

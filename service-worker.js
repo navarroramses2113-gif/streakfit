@@ -20,6 +20,7 @@ const FILES_TO_CACHE = [
   "./script.js",
   "./supabase/functions/_shared/game-rules.js",
   "./supabase/functions/_shared/exercise-counter.js",
+  "./setup-scenes.js",
   "./camera-verify.js",
   "./onboarding.js",
   "./challenges.js",

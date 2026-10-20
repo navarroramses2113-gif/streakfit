@@ -732,10 +732,60 @@ const ForjaCamera = (function () {
   function finishSet() {
     result = session.value();
     stopStream();
+    if (result > 0) countSetupSet();
     // Kept until it's saved: the review screen can be lost too.
     if (result > 0) writeBackup();
     else clearBackup();
     showReview();
+  }
+
+  // ---------- the setup card (before Start) ----------
+  // A looping drawing of how to set up (setup-scenes.js) and one short line,
+  // until 2 counted sets of that exercise on this phone - by then the setup
+  // clearly works. After that it's one "How to set up" button that brings
+  // the card back. (Replaced the long exercise.tip paragraph, 2026-10-20.)
+  const SETUP_KEY = "forja-setup-sets";
+  const SETUP_LEARNED_AT = 2;
+  const SETUP_LINES = {
+    pushup: { ft: "Phone on the floor, about 6 ft away. Side-on, head to feet in view.", m: "Phone on the floor, about 2 m away. Side-on, head to feet in view." },
+    squat: { ft: "Phone at hip height, 6-8 ft away. Side-on, hip to ankle in view.", m: "Phone at hip height, 2-2.5 m away. Side-on, hip to ankle in view." },
+    plank: { ft: "Phone on the floor, about 6 ft away. Side-on, head to feet in view.", m: "Phone on the floor, about 2 m away. Side-on, head to feet in view." },
+  };
+  const HELP_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.7"/><path d="M12 17h.01"/></svg>';
+  const CLOSE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+  function setupCounts() {
+    try {
+      return JSON.parse(localStorage.getItem(SETUP_KEY)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+  function countSetupSet() {
+    const counts = setupCounts();
+    counts[exerciseKey] = (counts[exerciseKey] || 0) + 1;
+    try {
+      localStorage.setItem(SETUP_KEY, JSON.stringify(counts));
+    } catch (e) {
+      // private mode: the card just keeps showing
+    }
+  }
+  // open = show the card even once it's learned (the "How to set up" tap).
+  function renderSetup(open) {
+    const tip = $("camera-tip");
+    const learned = (setupCounts()[exerciseKey] || 0) >= SETUP_LEARNED_AT;
+    if (learned && !open) {
+      tip.className = "camera-tip is-collapsed";
+      tip.innerHTML = `<button type="button" class="setup-howto" data-setup="show">${HELP_ICON}${tr("How to set up")}</button>`;
+      return;
+    }
+    const metric = typeof data !== "undefined" && data && data.units === "km";
+    const drawing = ((window.FORJA_SETUP_SCENES || {})[exerciseKey] || "").replace("{dist}", metric ? "2 m" : "6 ft");
+    tip.className = "camera-tip";
+    tip.innerHTML = `<div class="setup-head"><b>${tr("Set up")}</b>${learned ? `<button type="button" class="setup-hide" data-setup="hide" aria-label="${tr("Hide")}">${CLOSE_ICON}</button>` : ""}</div>
+      ${drawing}<p class="setup-line">${tr(SETUP_LINES[exerciseKey][metric ? "m" : "ft"])}</p><p class="setup-privacy">${tr("Video never leaves your phone.")}</p>`;
+    const svg = tip.querySelector("svg.setup-scene");
+    if (svg && reducedMotion()) svg.pauseAnimations();
   }
 
   function showReview() {
@@ -1002,6 +1052,13 @@ const ForjaCamera = (function () {
     });
     $("camera-save-button").addEventListener("click", saveSet);
     $("camera-close-button").addEventListener("click", close);
+    $("camera-tip").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-setup]");
+      if (!button) return;
+      const show = button.dataset.setup === "show";
+      renderSetup(show);
+      $("camera-tip").querySelector(show ? "[data-setup=hide]" : "[data-setup=show]").focus();
+    });
     // Leaving the app mid-set is when iOS is most likely to close it.
     const keepNow = () => {
       if (running && document.visibilityState === "hidden") writeBackup();
@@ -1054,7 +1111,7 @@ const ForjaCamera = (function () {
       result = 0;
       $("camera-title").textContent = tr(exercise.title);
       $("camera-screen").style.setProperty("--set-color", SET_COLORS[exerciseKey]);
-      $("camera-tip").innerHTML = tr(exercise.tip);
+      renderSetup(false);
       $("camera-count-label").textContent = tr(exercise.countLabel);
       $("camera-count").textContent = exercise.kind === "plank" ? "0.0" : "0";
       say("");

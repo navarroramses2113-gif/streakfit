@@ -89,6 +89,11 @@ function defaultData() {
     // encodedRoute}. encodedRoute is a compressed string (see the
     // simplifyRoute/encodePolyline functions below), not raw GPS points.
     routes: [],
+    // Routes the person deleted, as {date, durationMs, distanceKm} only (no
+    // GPS path). The database keeps every route a save leaves out (the
+    // keep-history trigger), so it needs this list to know which ones were
+    // deleted on purpose. See deleteRoute().
+    deletedRoutes: [],
     // The local hour (0-23) the daily reminder push should fire at, and
     // the IANA timezone (e.g. "America/New_York") to interpret it in -
     // captured automatically when reminders are enabled, not asked for
@@ -156,7 +161,19 @@ function migrateData(parsed) {
   delete parsed.lastRoute;
   delete parsed.routeLog;
 
+  // Deleted routes stay gone, even if a save from before the delete (another
+  // phone, or the database's keep-history merge) still has them.
+  if (!Array.isArray(parsed.deletedRoutes)) parsed.deletedRoutes = [];
+  const deleted = new Set(parsed.deletedRoutes.map(routeKey));
+  parsed.routes = parsed.routes.filter((route) => !deleted.has(routeKey(route)));
+
   return parsed;
+}
+
+// What tells two saved routes apart (the same three fields the database's
+// keep-history trigger compares).
+function routeKey(route) {
+  return [route.date, route.durationMs, route.distanceKm].join("|");
 }
 
 // Reads whatever THIS BROWSER saved before accounts existed. Used only
@@ -556,7 +573,7 @@ document.getElementById("save-profile-button").addEventListener("click", async (
   errorEl.classList.remove("success");
 
   if (!USERNAME_PATTERN.test(newUsername)) {
-    errorEl.textContent = tr("Username must be 3-20 characters: letters, numbers, underscores only.");
+    errorEl.textContent = (usernameProblem(newUsername, true) || {}).text || tr("Username must be 3-20 characters: letters, numbers, underscores only.");
     return;
   }
 
@@ -2693,6 +2710,29 @@ function avatarHtml(name, className = "leaderboard-avatar") {
 let myUsername = null;
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
 
+// Why a username won't do, in plain words, plus a corrected one to offer
+// (spaces, dots and dashes become _, accents and other symbols drop out) -
+// or null when it's fine. "Too short" only once they've left the field
+// (left = true), so it doesn't nag while they're still typing. (2026-10-20:
+// someone couldn't sign up and never saw why - her name had a space.)
+function usernameProblem(raw, left) {
+  const name = raw.trim();
+  if (!name || USERNAME_PATTERN.test(name)) return null;
+  const fixed = name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\s.-]+/g, "_")
+    .replace(/[^a-zA-Z0-9_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, 20);
+  const fix = USERNAME_PATTERN.test(fixed) ? fixed : null;
+  if (/\s/.test(name)) return { text: tr("No spaces in usernames."), fix };
+  if (/[^a-zA-Z0-9_]/.test(name)) return { text: tr("Only letters, numbers and _ (underscore)."), fix };
+  if (name.length < 3 && left) return { text: tr("At least 3 characters."), fix: null };
+  return null;
+}
+
 // Usernames are typed by OTHER real people now, not our own hardcoded
 // mock data - so unlike the old fake leaderboard, this text can't be
 // trusted. Building rows with a blank name span and setting it via
@@ -3385,7 +3425,7 @@ document.getElementById("save-username-button").addEventListener("click", async 
   errorEl.textContent = "";
 
   if (!USERNAME_PATTERN.test(username)) {
-    errorEl.textContent = tr("Username must be 3-20 characters: letters, numbers, underscores only.");
+    errorEl.textContent = (usernameProblem(username, true) || {}).text || tr("Username must be 3-20 characters: letters, numbers, underscores only.");
     return;
   }
 
@@ -4287,6 +4327,17 @@ document.getElementById("confirm-block-button").addEventListener("click", async 
 
 // STEP 5: The login/sign-up form and the log-out button.
 
+// The same password rules Supabase Auth enforces (Dashboard > Authentication:
+// 8+ characters, letters and digits). Checked here first so people get a
+// clear, translated hint instead of Supabase's raw error. Returns "" when the
+// password is fine. Keep in sync with the dashboard and config.toml.
+function passwordProblem(password) {
+  if (password.length < 8) return tr("Use at least 8 characters.");
+  if (!/[a-zA-Z]/.test(password)) return tr("Add at least one letter.");
+  if (!/[0-9]/.test(password)) return tr("Add at least one number.");
+  return "";
+}
+
 const authEmailEl = document.getElementById("auth-email");
 const authPasswordEl = document.getElementById("auth-password");
 const authErrorEl = document.getElementById("auth-error");
@@ -4359,6 +4410,12 @@ authSubmitEl.addEventListener("click", async () => {
   authSubmitEl.disabled = true;
 
   if (authMode === "signup") {
+    const problem = passwordProblem(password);
+    if (problem) {
+      authErrorEl.textContent = problem;
+      authSubmitEl.disabled = false;
+      return;
+    }
     const { data: signUpData, error } = await supabaseClient.auth.signUp({ email, password });
 
     if (error) {
@@ -4449,8 +4506,9 @@ resetPasswordSubmitEl.addEventListener("click", async () => {
 
   resetPasswordErrorEl.textContent = "";
 
-  if (!newPassword || newPassword.length < 6) {
-    resetPasswordErrorEl.textContent = tr("Password must be at least 6 characters.");
+  const problem = passwordProblem(newPassword);
+  if (problem) {
+    resetPasswordErrorEl.textContent = problem;
     return;
   }
 
@@ -5301,23 +5359,29 @@ function cancelTracking() {
   resetRecordToIdle();
 }
 
-// Every finished route is kept - there's no "keep or discard?" question.
+// Every finished route is kept - there's no "keep or discard?" question
+// (an accidental one can be deleted from its summary, see deleteRoute).
 // Simplified (near-redundant points dropped) then encoded (packed into one
 // compact string), which is what makes it reasonable to keep every route
 // forever. A route with fewer than two points (Start then straight to
-// Finish) has no line to show, so it isn't saved.
-function saveRoute(route, distanceKm, durationMs, elevationGainM) {
-  if (route.length < 2) return;
-  data.routes.push({
+// Finish) has no line to show, so it isn't saved. countedMinutes = what it
+// added to today's walk/run minutes (0 when too slow to count). Returns the
+// saved route, or null.
+function saveRoute(route, distanceKm, durationMs, elevationGainM, countedMinutes) {
+  if (route.length < 2) return null;
+  const saved = {
     date: todayString(),
     distanceKm,
     durationMs,
     elevationGainM: elevationGainM || 0,
     encodedRoute: encodePolyline(simplifyRoute(route, ROUTE_SIMPLIFY_TOLERANCE)),
-  });
+  };
+  if (countedMinutes) saved.countedMinutes = countedMinutes;
+  data.routes.push(saved);
   saveData(data);
   renderPastRoutesList();
   renderDistanceChart();
+  return saved;
 }
 
 async function finishTracking() {
@@ -5338,11 +5402,11 @@ async function finishTracking() {
     todayProgress().walkRun += durationMinutes;
     saveData(data);
   }
-  saveRoute(route, distanceKm, durationMs, elevationGainM);
+  const saved = saveRoute(route, distanceKm, durationMs, elevationGainM, countsTowardToday ? durationMinutes : 0);
   render();
 
   resetRecordToIdle();
-  showTrackingSummary(route, distanceKm, durationMs, elevationGainM, "new");
+  showTrackingSummary(route, distanceKm, durationMs, elevationGainM, "new", saved);
   if (!countsTowardToday && data.lastLoggedDate !== todayString()) {
     const note = document.getElementById("tracking-summary-note");
     note.textContent = tr("Too slow to count toward today. Walk/run minutes need real movement.");
@@ -5369,8 +5433,12 @@ async function shareActivity(route, durationMs) {
 }
 
 // mode is "new" (just finished tracking - already saved, so just "Done")
-// or "view" (browsing a saved route from Past Routes - "Close").
-function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode) {
+// or "view" (browsing a saved route from Past Routes - "Close"). saved =
+// the route as kept in data.routes (for the "..." menu's Delete Route), or
+// null when nothing was kept.
+function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode, saved) {
+  summaryRoute = saved || null;
+  document.getElementById("tracking-summary-more").classList.toggle("hidden", !summaryRoute);
   document.getElementById("tracking-summary-heading").textContent = mode === "view" ? tr("Route Detail") : tr("Nice work!");
   document.getElementById("tracking-summary-note").classList.add("hidden");
   document.getElementById("tracking-summary-close-button").textContent = mode === "view" ? tr("Close") : tr("Done");
@@ -5420,6 +5488,97 @@ function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode
 document.getElementById("tracking-summary-close-button").addEventListener("click", () => {
   showScreen("app-screen");
 });
+
+// ---- The summary's "..." menu: Delete Route ----
+// For a recording started by accident (or any route someone wants gone).
+// The menu, then a sheet to confirm (the same sheet as Cancel Challenge).
+let summaryRoute = null; // the saved route on the summary screen
+const summaryMoreEl = document.getElementById("tracking-summary-more");
+const TRASH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+
+function closeSummaryMenu() {
+  document.querySelectorAll(".summary-menu-layer").forEach((el) => el.remove());
+  summaryMoreEl.setAttribute("aria-expanded", "false");
+}
+
+summaryMoreEl.addEventListener("click", () => {
+  closeSummaryMenu();
+  const layer = document.createElement("div");
+  layer.className = "summary-menu-layer";
+  const box = summaryMoreEl.getBoundingClientRect();
+  layer.innerHTML = `<div class="summary-menu" role="menu" style="top:${Math.round(box.bottom + 6)}px;right:${Math.round(window.innerWidth - box.right)}px">
+    <button class="summary-menu-item is-danger" role="menuitem" data-route-act="ask-delete">${tr("Delete Route")}${TRASH_SVG}</button></div>`;
+  layer.addEventListener("click", (event) => {
+    const act = event.target.closest("[data-route-act]");
+    closeSummaryMenu();
+    if (act) askDeleteRoute();
+  });
+  layer.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    closeSummaryMenu();
+    summaryMoreEl.focus();
+  });
+  document.body.appendChild(layer);
+  summaryMoreEl.setAttribute("aria-expanded", "true");
+  layer.querySelector("[role=menuitem]").focus();
+});
+
+function askDeleteRoute() {
+  if (!summaryRoute) return;
+  const entry = summaryRoute;
+  const scrim = document.createElement("div");
+  scrim.className = "challenge-scrim";
+  scrim.innerHTML = `
+    <div class="challenge-sheet" role="dialog" aria-modal="true" aria-labelledby="delete-route-title">
+      <span class="challenge-grabber"></span>
+      <h2 id="delete-route-title">${tr("Delete this route?")}</h2>
+      <p class="challenge-sheet-meta">${tr("It comes off your history and your friends' Feed. This can't be undone.")}</p>
+      <button class="auth-submit-button block-confirm-button" data-route-act="delete">${tr("Delete Route")}</button>
+      <button class="challenge-text-button is-muted" data-route-act="keep">${tr("Keep It")}</button>
+    </div>`;
+  const close = () => scrim.remove();
+  scrim.addEventListener("click", (event) => {
+    const act = event.target.closest("[data-route-act]");
+    if (event.target === scrim || (act && act.dataset.routeAct === "keep")) close();
+    if (act && act.dataset.routeAct === "delete") {
+      close();
+      deleteRoute(entry);
+    }
+  });
+  scrim.addEventListener("keydown", (event) => event.key === "Escape" && close());
+  document.body.appendChild(scrim);
+  scrim.querySelector('[data-route-act="keep"]').focus();
+}
+
+// Deletes a saved route for good: out of this phone's history and the saved
+// copy (deletedRoutes is how the database's keep-history trigger knows it's
+// gone on purpose - see supabase/sql/delete-routes-2026-10-20.sql), its
+// minutes off today if it's today's and the day isn't finished yet, and its
+// Feed post if it had one (only real-pace walks and runs get one). Minutes
+// that already finished a day stay: the day is the server's record.
+async function deleteRoute(entry) {
+  const at = data.routes.indexOf(entry);
+  if (at < 0) return;
+  data.routes.splice(at, 1);
+  data.deletedRoutes.push({ date: entry.date, durationMs: entry.durationMs, distanceKm: entry.distanceKm });
+  if (entry.countedMinutes && entry.date === todayString() && data.lastLoggedDate !== todayString()) {
+    const today = todayProgress();
+    today.walkRun = Math.max(0, today.walkRun - entry.countedMinutes);
+  }
+  saveData(data);
+  renderPastRoutesList();
+  renderDistanceChart();
+  render();
+  showScreen("app-screen");
+
+  const kmh = entry.durationMs > 0 ? entry.distanceKm / (entry.durationMs / 3600000) : 0;
+  let feedOk = true;
+  if (currentUserId && kmh >= ForjaRules.ACTIVITY.MIN_KMH) {
+    const reply = await callServerFunction("log-activity", { action: "delete", day: entry.date, durationMs: Math.round(entry.durationMs) });
+    feedOk = !!reply.ok;
+  }
+  showToast(feedOk ? tr("Route deleted") : tr("Route deleted, but its Feed post couldn't be removed. Check your connection."));
+}
 
 // ---- Share a route as an image ----
 //
@@ -5903,7 +6062,7 @@ function buildPastRouteRow(route) {
 
   row.addEventListener("click", () => {
     const points = route.encodedRoute ? decodePolyline(route.encodedRoute) : [];
-    showTrackingSummary(points, route.distanceKm, route.durationMs, route.elevationGainM || 0, "view");
+    showTrackingSummary(points, route.distanceKm, route.durationMs, route.elevationGainM || 0, "view", route);
   });
 
   return row;
