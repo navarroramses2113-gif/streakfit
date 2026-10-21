@@ -5,10 +5,11 @@
 // ES stays English - and on localhost the console says so - so a line that
 // was never translated can't break a screen.
 //
-// Which language: the one picked in Settings (localStorage "forja-lang",
-// "en" or "es"), otherwise the phone's own language. Decided once, when the
-// app opens (changing it in Settings reloads the app). Loaded before every
-// other script, so they can all use tr() while they set up.
+// Which language: one named in the link (?lang=es or ?lang=en), then the
+// one picked in Settings (localStorage "forja-lang", "en" or "es"),
+// otherwise the phone's own language. Decided once, when the app opens
+// (changing it in Settings reloads the app). Loaded before every other
+// script, so they can all use tr() while they set up.
 //
 //   tr("Saved.")                        -> "Guardado."
 //   tr("Day {n} done!", { n: 5 })       -> "¡Día 5 completado!"
@@ -29,12 +30,26 @@
     }
   }
 
+  // getforja.app/install?lang=es is Spanish even on an English phone, for
+  // posts to Spanish speakers. Saved like the Settings pick, so "Open Forja"
+  // from that page stays Spanish; Settings > Language changes it back.
+  function linkLang() {
+    const asked = (new URLSearchParams(location.search).get("lang") || "").toLowerCase();
+    if (!LANGS.includes(asked)) return null;
+    try {
+      localStorage.setItem(LANG_KEY, asked);
+    } catch (e) {
+      // storage blocked - this page still uses it
+    }
+    return asked;
+  }
+
   function phoneLang() {
     const list = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "en"];
     return /^es\b/i.test(list[0] || "") ? "es" : "en";
   }
 
-  const lang = chosenLang() || phoneLang();
+  const lang = linkLang() || chosenLang() || phoneLang();
   document.documentElement.lang = lang;
 
   const dictionary = () => (lang === "es" && window.FORJA_ES) || {};
