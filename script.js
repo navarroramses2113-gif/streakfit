@@ -1056,12 +1056,15 @@ async function enableReminderNotifications() {
     });
   }
 
+  // Saved through save_push_subscription (push-takeover-2026-10-21.sql), not
+  // a plain upsert: this phone's push address may already be saved for
+  // another account (or this one, from before), and only the server
+  // function may move it to whoever is signed in now.
   const subscriptionJson = subscription.toJSON();
-  const { error } = await supabaseClient.from("push_subscriptions").upsert({
-    endpoint: subscriptionJson.endpoint,
-    user_id: currentUserId,
-    p256dh: subscriptionJson.keys.p256dh,
-    auth_key: subscriptionJson.keys.auth,
+  const { error } = await supabaseClient.rpc("save_push_subscription", {
+    p_endpoint: subscriptionJson.endpoint,
+    p_p256dh: subscriptionJson.keys.p256dh,
+    p_auth: subscriptionJson.keys.auth,
   });
   if (error) return false;
 
@@ -4536,7 +4539,15 @@ resetPasswordSubmitEl.addEventListener("click", async () => {
   }
 });
 
-logOutButtonEl.addEventListener("click", () => {
+logOutButtonEl.addEventListener("click", async () => {
+  // This phone stops getting this account's reminders (removed while still
+  // signed in - only the owner may delete the row). At most 3 s: without a
+  // service worker, serviceWorker.ready never settles.
+  try {
+    if ("serviceWorker" in navigator) await Promise.race([disableReminderNotifications(), new Promise((r) => setTimeout(r, 3000))]);
+  } catch (e) {
+    // push unsupported here - nothing to undo
+  }
   justLoggedOut = true;
   supabaseClient.auth.signOut();
   // onAuthStateChange fires automatically after this and shows the
