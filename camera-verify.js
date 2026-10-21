@@ -537,11 +537,13 @@ const ForjaCamera = (function () {
       const fix =
         r.reason === "not_supported"
           ? tr("Up on your forearms or hands")
-          : r.reason === "not_horizontal"
-            ? tr("Get flat - body should be horizontal")
-            : r.reason === "hips_sagging_or_piking"
-              ? tr("Straighten your body - hips level with shoulders and ankles")
-              : tr("Get into plank position");
+          : r.reason === "hips_down"
+            ? tr("Lift your hips off the floor")
+            : r.reason === "not_horizontal"
+              ? tr("Get flat - body should be horizontal")
+              : r.reason === "hips_sagging_or_piking"
+                ? tr("Straighten your body - hips level with shoulders and ankles")
+                : tr("Get into plank position");
       if (r.state === "holding") {
         coach(r.paused ? tr("Paused - {fix}", { fix: fix.charAt(0).toLowerCase() + fix.slice(1) }) : tr("Holding - keep it straight"), r.paused);
       } else {

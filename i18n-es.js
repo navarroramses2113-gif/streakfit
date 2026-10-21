@@ -796,6 +796,7 @@ window.FORJA_ES = Object.assign(window.FORJA_ES || {}, {
   "Up on your forearms or hands": "Apóyate en los antebrazos o en las manos",
   "Get flat - body should be horizontal": "Bájate: el cuerpo debe estar horizontal",
   "Straighten your body - hips level with shoulders and ankles": "Endereza el cuerpo: cadera alineada con hombros y tobillos",
+  "Lift your hips off the floor": "Levanta la cadera del suelo",
   "Get into plank position": "Ponte en posición de plancha",
   "Paused - {fix}": "En pausa: {fix}",
   "Holding - keep it straight": "Aguantando: mantente recto",

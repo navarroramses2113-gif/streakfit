@@ -270,16 +270,21 @@
   }
 
   // Plank: a timer that only runs while you're really holding a plank.
-  // update(sample, timeMs), where sample is {bodyAngle, tilt, armTilt} -
-  // the shoulder-hip-ankle angle (180 = perfectly straight), how far the
-  // shoulder-to-ankle line leans from horizontal, and how steeply the upper
-  // arm points down from the shoulder (null when not measured) - or null if
-  // the body isn't visible.
+  // update(sample, timeMs), where sample is {bodyAngle, tilt, armTilt,
+  // hipLift} - the shoulder-hip-ankle angle (180 = perfectly straight), how
+  // far the shoulder-to-ankle line leans from horizontal, how steeply the
+  // upper arm points down from the shoulder, and how high the hips are off
+  // the floor in body lengths (the last two null when not measured) - or
+  // null if the body isn't visible.
   //
   // - Strict to start, forgiving to stay: the clock starts only on good
   //   form, but once holding, a little more sag or tilt is allowed.
   // - Arms must hold you up: in a plank (forearms or hands) the upper arm
   //   points down from the shoulder; lying flat on the floor, it's level.
+  // - Hips off the floor: lying on your stomach propped on your elbows is
+  //   straight, level and arm-supported too (a forearm plank's shoulders
+  //   are so low that even hips on the floor barely bend the body line),
+  //   but the hips rest on the floor.
   // - A wobble PAUSES the clock instead of resetting it: time with broken
   //   form doesn't count, and the hold only ends after `graceMs` of it.
   // `bestMs` is the longest hold, which is what counts for competition.
@@ -291,6 +296,8 @@
         keepSlack: 10, // once holding, angle and tilt may each be this much worse
         minArmTilt: 40, // upper arm at least this steep (degrees) to start
         keepArmTilt: 30, // ...and to keep going
+        minHipLift: 0.09, // hips at least this high off the floor (body lengths) to start
+        keepHipLift: 0.075, // ...and to keep going
         startHoldMs: 1000, // form must be good this long before the clock starts
         graceMs: 3000, // broken form this long ends the hold (shorter = a pause)
         maxFrameGapMs: 500, // never credit more than this between two frames
@@ -363,8 +370,10 @@
         const straight = smoothedAngle >= cfg.minBodyAngle - slack;
         const armTilt = sample.armTilt ?? null;
         const supported = armTilt === null || armTilt >= (holding ? cfg.keepArmTilt : cfg.minArmTilt);
-        const good = flat && straight && supported;
-        const reason = good ? null : !supported ? "not_supported" : !flat ? "not_horizontal" : "hips_sagging_or_piking";
+        const hipLift = sample.hipLift ?? null;
+        const lifted = hipLift === null || hipLift >= (holding ? cfg.keepHipLift : cfg.minHipLift);
+        const good = flat && straight && supported && lifted;
+        const reason = good ? null : !supported ? "not_supported" : !lifted ? "hips_down" : !flat ? "not_horizontal" : "hips_sagging_or_piking";
 
         if (state === "waiting") {
           if (good) {
@@ -545,11 +554,18 @@
         // picture's y grows downward): ~70-90 holding a plank, ~0 lying
         // flat. An elbow above the shoulder isn't holding anything up.
         let armTilt = null;
+        let hipLift = null;
         if (pt.has("elbow")) {
           const elbow = pt("elbow");
           armTilt = elbow.y > shoulder.y ? tiltFromHorizontal(shoulder, elbow) : 0;
+          // How high the hips are off the floor, in body lengths (shoulder
+          // to ankle). The floor is at the elbow (forearm plank) or the feet
+          // (hands plank), whichever is lower: ~0.1-0.22 in a plank,
+          // ~0.05-0.07 lying on your stomach propped on your elbows.
+          const body = Math.hypot(shoulder.x - ankle.x, shoulder.y - ankle.y);
+          if (body > 0) hipLift = (Math.max(elbow.y, ankle.y) - hip.y) / body;
         }
-        return { sample: bodyAngle === null ? null : { bodyAngle, tilt: tiltFromHorizontal(shoulder, ankle), armTilt } };
+        return { sample: bodyAngle === null ? null : { bodyAngle, tilt: tiltFromHorizontal(shoulder, ankle), armTilt, hipLift } };
       },
       graphLines: (v) => [v[0]],
     },
