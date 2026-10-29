@@ -610,6 +610,47 @@ const Celebrations = (function () {
   // the moment, and tapping it gets another line.
   const MOVES = { fresh: "wave", newbie: "wave", nudged: "wave", partway: "nod", close: "bounce", risk: "shake" };
   const FACES = { close: "wow", risk: "worried" };
+  // One health tip a day, the same for everyone. Before the workout it's a
+  // tap away; once the day is done it's the first thing the pet says.
+  const TIPS = [
+    "Sleep 7 to 9 hours tonight. Muscles grow while you rest.",
+    "Drink a glass of water before your first coffee.",
+    "Add protein to every meal: eggs, beans, chicken, yogurt.",
+    "Phone down 30 minutes before bed. You'll fall asleep faster.",
+    "Fill half your plate with vegetables. Easy win.",
+    "A 10-minute walk after dinner helps your body handle the meal.",
+    "Keep a water bottle where you can see it. You'll drink more.",
+    "Same bedtime every night, weekends too. Your body loves a routine.",
+    "Sitting a lot? Stand up and stretch for a minute.",
+    "Sore? Light movement helps more than lying still.",
+    "Get some daylight this morning. It helps you sleep tonight.",
+    "Craving something sweet? Fruit first.",
+    "Breathe in for 4, out for 6. Five times. Calmer already.",
+    "Cook one meal at home this week instead of ordering.",
+    "Take the stairs once today. Small wins add up.",
+    "Eat slowly. It takes about 20 minutes to feel full.",
+    "Swap one soda for sparkling water with lemon.",
+    "Rest days are part of the plan, not a break from it.",
+    "Stretch your hips today. Sitting all day makes them tight.",
+    "Coffee after 2 PM can keep you up tonight.",
+    "Pack a snack: nuts, fruit or yogurt. Hungry you makes worse choices.",
+    "Invite a friend to train with you. It's easier together.",
+    "Posture check: shoulders back, chin level.",
+    "Fiber keeps you full longer: oats, beans, berries.",
+    "A cool, dark room helps you sleep deeper.",
+    "Fewer drinks tonight, better sleep tonight.",
+    "On a phone call? Walk while you talk.",
+    "Pick tomorrow's workout time tonight. Then it's already decided.",
+    "Feeling tired? Try water and a short walk before more coffee.",
+    "Showing up today is the habit forming. Proud of you.",
+  ];
+  function tipLine() {
+    const day = Math.round(Date.parse(todayString() + "T00:00:00Z") / 86400000);
+    return tr("<b>Tip:</b> {tip}", { tip: tr(TIPS[day % TIPS.length]) });
+  }
+  // The tip goes second, right after the pet's first line.
+  const withTip = (lines) => [lines[0], tipLine(), ...lines.slice(1)];
+  let finishedHere = false; // the day was finished in this visit: "Day N done" stays first
   let coachMoment = null; // the moment the pet last talked about
   let coachLines = []; // what it can say about it (tap = the next one)
   let coachIndex = 0;
@@ -755,16 +796,20 @@ const Celebrations = (function () {
   // { moment, lines } for the day as it stands, or null while it's saving.
   // Nudged and nothing done yet: the pet says who nudged you first.
   // Asked to turn on notifications: that line comes first.
+  // The day's tip: first on a done day opened later, otherwise second.
   function coachSays(done, progress) {
     const says = coachSaysPlain(done, progress);
     if (!says) return says;
     const asking = notifAsk && notifAsk.day === todayString() ? notifAsk.moment : null;
-    if (done) return asking === "done" ? { moment: "done", lines: [askLine(), ...says.lines] } : says;
+    if (done) {
+      if (asking === "done") return { moment: "done", lines: [askLine(), ...withTip(says.lines)] };
+      return { moment: "done", lines: finishedHere ? withTip(says.lines) : [tipLine(), ...says.lines] };
+    }
     const started = progress.pushups + progress.planks + progress.squats + progress.walkRun > 0;
     const nudged = nudgedBy.names.length > 0 && nudgedBy.userId === currentUserId && nudgedBy.day === todayString();
-    if (started || !nudged) return says;
+    if (started || !nudged) return { moment: says.moment, lines: withTip(says.lines) };
     const first = asking === "nudged" ? nudgeLine(nudgedBy.names, false) + askLine() : nudgeLine(nudgedBy.names);
-    return { moment: "nudged", lines: [first, ...says.lines] };
+    return { moment: "nudged", lines: [first, ...withTip(says.lines)] };
   }
 
   function coachSaysPlain(done, progress) {
@@ -845,6 +890,7 @@ const Celebrations = (function () {
 
   function coachRender(done, progress, animate) {
     if (!data || inSignUp()) return;
+    if (done && animate) finishedHere = true;
     const says = coachSays(done, progress);
     if (!says) return;
     placeCoach(done, animate);

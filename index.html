@@ -12,10 +12,10 @@
   <meta property="og:url" content="https://getforja.app/">
   <meta property="og:title" content="Forja: workouts your camera verifies">
   <meta property="og:description" content="Every rep counted, every streak real. Join me and build a daily streak.">
-  <meta property="og:image" content="https://getforja.app/og-image.png">
+  <meta property="og:image" content="https://getforja.app/og-image.png?v=2">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="The Forja pet inside its ring: workouts your camera verifies">
+  <meta property="og:image:alt" content="The Forja pet inside its ring: become someone who works out">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -27,16 +27,17 @@
       if (localStorage.getItem("forja-theme") === "light") {
         document.documentElement.setAttribute("data-theme", "light");
       }
+      // Been here before: the loading screen is Today's outline (where
+      // the app opens), not the logo (first visits open on sign-up).
+      if (localStorage.getItem("streakfit-seen-onboarding") === "true") {
+        document.documentElement.setAttribute("data-boot", "returning");
+      }
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=38">
+  <link rel="stylesheet" href="style.css?v=39">
 
-  <!-- Leaflet: renders the live map for GPS walk/run tracking. Uses free
-       OpenStreetMap tiles - no API key needed. integrity = the file's
-       fingerprint: the browser refuses anything that isn't exactly this
-       file, so a hacked download server couldn't slip code into Forja. -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+  <!-- Leaflet (the live walk map) loads once the app is on screen: see
+       loadLeaflet() in script.js. Opening the app doesn't wait for it. -->
 
   <!-- PWA: lets the browser offer "Install App" / "Add to Home Screen" -->
   <link rel="manifest" href="manifest.json">
@@ -74,6 +75,17 @@
         </g>
       </svg>
       <svg class="splash-word" viewBox="0 0 233 92.1" role="img" aria-label="Forja"><use href="#forja-word"/></svg>
+    </div>
+    <!-- Returning visits: gray shapes where Today's parts will be. -->
+    <div class="sk-today" aria-label="Loading" role="status">
+      <div class="sk sk-title"></div>
+      <div class="sk-coach"><div class="sk sk-pet"></div><div class="sk sk-bubble"></div></div>
+      <div class="sk sk-streak"></div>
+      <div class="sk sk-streak-label"></div>
+      <div class="sk-ring"></div>
+      <div class="sk-legend"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+      <div class="sk-cards"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+      <div class="sk-tabs"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
     </div>
   </div>
 
@@ -177,6 +189,16 @@
     <button id="home-guide-done" class="auth-submit-button">Done</button>
   </main>
 
+  <!-- Me > Recaps: every past weekly card, plus one card per month. -->
+  <main id="recaps-screen" class="card hidden">
+    <button id="recaps-close-button" class="nav-back" aria-label="Back to Me">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Me
+    </button>
+    <h1 class="large-title">Recaps</h1>
+    <p id="recaps-note" class="preview-note hidden"></p>
+    <div id="recaps-list" class="recaps-list"></div>
+  </main>
+
   <!-- Full calendar view, opened by tapping the small heatmap. -->
   <main id="calendar-screen" class="card hidden">
     <button id="calendar-close-button" class="nav-back" aria-label="Back to Me">
@@ -198,6 +220,8 @@
       <span><i class="calendar-legend-done"></i>Worked out</span>
       <span><i class="calendar-legend-rest"></i>Rest day</span>
     </div>
+    <!-- What you did on the day you tapped (renderCalendarDay). -->
+    <section id="calendar-day-detail" class="week-recap calendar-day-detail hidden" aria-live="polite"></section>
   </main>
 
   <!-- Followers/Following list, opened by tapping either stat on the
@@ -335,8 +359,9 @@
          changed, like the iPhone's own Settings. -->
     <div id="settings-panel" class="settings-panel hidden">
       <p class="settings-title">Settings</p>
-      <div class="settings-row settings-checkbox-row">
+      <div class="settings-row settings-picker">
         <label for="theme-select">Appearance</label>
+        <span class="settings-value" aria-hidden="true"></span>
         <select id="theme-select">
           <option value="dark">Dark</option>
           <option value="light">Light</option>
@@ -344,8 +369,9 @@
       </div>
 
       <!-- Language: the phone's own unless one is picked (i18n.js). -->
-      <div class="settings-row settings-checkbox-row">
+      <div class="settings-row settings-picker">
         <label for="language-select">Language</label>
+        <span class="settings-value" aria-hidden="true"></span>
         <select id="language-select">
           <option value="auto">Automatic</option>
           <option value="en">English</option>
@@ -357,14 +383,16 @@
         <label for="enable-reminders">Daily Reminders</label>
         <input type="checkbox" id="enable-reminders">
       </div>
-      <div id="reminder-hour-row" class="settings-row hidden">
+      <div id="reminder-hour-row" class="settings-row settings-picker hidden">
         <label for="reminder-hour">Reminder time</label>
+        <span class="settings-value" aria-hidden="true"></span>
         <select id="reminder-hour"></select>
       </div>
       <p id="reminders-status" class="error"></p>
 
-      <div class="settings-row settings-checkbox-row">
+      <div class="settings-row settings-picker">
         <label for="distance-units">Distance units</label>
+        <span class="settings-value" aria-hidden="true"></span>
         <select id="distance-units">
           <option value="miles">Miles</option>
           <option value="km">Kilometers</option>
@@ -842,6 +870,14 @@
         </div>
       </div>
 
+      <!-- Signed in only: the recaps come from the server's records. -->
+      <div id="recaps-row" class="account-menu hidden">
+        <button id="open-recaps-button" class="account-menu-item">
+          <span>Recaps</span>
+          <span class="account-menu-chevron">›</span>
+        </button>
+      </div>
+
       <!-- Walk/run distance: bars for the week, month, 6 months or year.
            Tap or drag across the bars to read one of them. -->
       <p class="section-heading">Distance</p>
@@ -958,15 +994,15 @@
        First, so every script after them can use tr(). -->
   <script src="i18n.js?v=2"></script>
   <script src="i18n-guide-es.js?v=1"></script>
-  <script src="i18n-es.js?v=4"></script>
+  <script src="i18n-es.js?v=5"></script>
   <script src="supabase/functions/_shared/game-rules.js?v=10"></script>
-  <script src="supabase/functions/_shared/exercise-counter.js?v=13"></script>
+  <script src="supabase/functions/_shared/exercise-counter.js?v=15"></script>
   <script src="setup-scenes.js?v=1"></script>
-  <script src="camera-verify.js?v=16"></script>
+  <script src="camera-verify.js?v=17"></script>
   <script src="home-screen-guide.js?v=1"></script>
   <script src="onboarding.js?v=14"></script>
-  <script src="script.js?v=39"></script>
+  <script src="script.js?v=40"></script>
   <script src="challenges.js?v=7"></script>
-  <script src="celebrations.js?v=10"></script>
+  <script src="celebrations.js?v=11"></script>
 </body>
 </html>

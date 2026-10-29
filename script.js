@@ -422,6 +422,21 @@ function showOnlyPanel(panelToShow) {
   });
 }
 
+// Each Settings choice shows its value as grey text beside the row's
+// arrows, while the select itself sits invisibly over the row (see
+// .settings-picker in style.css). Refreshed whenever a value can have
+// changed: picked by hand, or set from saved data.
+function syncSettingsValues() {
+  document.querySelectorAll(".settings-picker").forEach((row) => {
+    const select = row.querySelector("select");
+    row.querySelector(".settings-value").textContent = select.selectedOptions[0]?.textContent ?? "";
+  });
+}
+
+settingsPanelEl.addEventListener("change", (event) => {
+  if (event.target.tagName === "SELECT") syncSettingsValues();
+});
+
 document.getElementById("open-account-screen-button").addEventListener("click", () => {
   // Add to Home Screen: only in a phone browser, not once Forja is there.
   document.getElementById("open-home-guide-button").classList.toggle("hidden", !ForjaHomeGuide.shouldOffer());
@@ -675,6 +690,7 @@ function renderSettingsInputs() {
   minWalkrunRowEl.classList.toggle("hidden", !walkRunEnabled);
   distanceUnitsEl.value = data.units;
   renderBodyWeightInput();
+  syncSettingsValues();
 }
 
 // ---- Body weight (optional, for walk/run calories) ----
@@ -1113,6 +1129,7 @@ async function refreshRemindersToggle() {
   enableRemindersEl.checked = !!existingSubscription;
   reminderHourEl.value = data.reminderHour;
   reminderHourRowEl.classList.toggle("hidden", !existingSubscription);
+  syncSettingsValues();
 }
 
 enableRemindersEl.addEventListener("change", async () => {
@@ -1130,6 +1147,7 @@ enableRemindersEl.addEventListener("change", async () => {
     }
     reminderHourEl.value = data.reminderHour;
     reminderHourRowEl.classList.remove("hidden");
+    syncSettingsValues();
     remindersStatusEl.textContent = tr("Reminders enabled.");
     remindersStatusEl.classList.add("success");
   } else {
@@ -1338,9 +1356,13 @@ function recordVerifiedSet(exerciseKey, value) {
 // replace the local copy with what it has. If the request fails (offline,
 // or the table doesn't exist yet) leave the local numbers alone rather
 // than overwriting a real streak with zeros.
-async function loadServerStats() {
+// The fetch*() halves let start-up ask for everything at once (showApp).
+const fetchServerStats = () => supabaseClient.from("player_stats").select("*").eq("user_id", currentUserId).maybeSingle();
+const fetchTodaysSets = () => supabaseClient.from("verified_sets").select("exercise, value").eq("user_id", currentUserId).eq("day", todayString());
+
+async function loadServerStats(pending) {
   if (!currentUserId) return;
-  const { data: row, error } = await supabaseClient.from("player_stats").select("*").eq("user_id", currentUserId).maybeSingle();
+  const { data: row, error } = await (pending || fetchServerStats());
   if (error) return;
   applyStats({
     streak: row ? row.streak : 0,
@@ -1354,9 +1376,9 @@ async function loadServerStats() {
 // A signed-in player's targets come from their plan on the server, which
 // raises them as days are completed. (The server starts a plan from the
 // minimums they already had the first time it's asked.)
-async function loadServerPlan(pace) {
+async function loadServerPlan(pace, pending) {
   if (!currentUserId) return;
-  const reply = await callServerFunction("plan", pace ? { pace } : {});
+  const reply = await (pending || callServerFunction("plan", pace ? { pace } : {}));
   if (reply.ok && reply.plan) {
     serverPlan = reply.plan;
     applyPlanTargets();
@@ -1379,13 +1401,9 @@ function applyPlanTargets() {
 
 // Today's totals for a signed-in player come from the sets the server
 // verified, not from anything stored on this device.
-async function refreshVerifiedProgress() {
+async function refreshVerifiedProgress(pending) {
   if (!currentUserId) return;
-  const { data: sets, error } = await supabaseClient
-    .from("verified_sets")
-    .select("exercise, value")
-    .eq("user_id", currentUserId)
-    .eq("day", todayString());
+  const { data: sets, error } = await (pending || fetchTodaysSets());
   if (error) return;
   const totals = ForjaRules.totalsFromSets(sets);
   const progress = todayProgress();
@@ -2048,14 +2066,78 @@ function renderCalendarMonth() {
       cell.classList.add("is-today");
     }
     cell.textContent = day;
+    // Past days and today open what was done that day.
+    if (dateStr <= todayStr) {
+      cell.setAttribute("role", "button");
+      cell.tabIndex = 0;
+      cell.dataset.day = dateStr;
+      cell.classList.toggle("is-selected", dateStr === calendarSelectedDay);
+    }
 
     gridEl.appendChild(cell);
   }
 }
 
+// ---------- one day on the calendar ----------
+// Tap a day: what you did on it, under the calendar. Today comes from this
+// phone; past days from your Feed posts (signed in). Guests only keep the
+// dates, so a past day just says whether you trained.
+let calendarSelectedDay = null;
+let calendarDayLoadNumber = 0;
+
+async function renderCalendarDay(day) {
+  calendarSelectedDay = day;
+  document.querySelectorAll("#calendar-grid [data-day]").forEach((cell) => cell.classList.toggle("is-selected", cell.dataset.day === day));
+  const el = document.getElementById("calendar-day-detail");
+  const loadNumber = ++calendarDayLoadNumber;
+  const today = todayString();
+  const name = day === today ? tr("Today") : day === ForjaRules.addDays(today, -1) ? tr("Yesterday") : new Date(`${day}T12:00:00`).toLocaleDateString(trLocale("en-US"), { weekday: "long", month: "short", day: "numeric" });
+  const trained = data.history.includes(day);
+  const routeKm = data.routes.filter((r) => r.date === day).reduce((total, r) => total + (Number(r.distanceKm) || 0), 0);
+  let totals = null;
+  if (day === today) {
+    totals = { pushups: data.today.pushups, squats: data.today.squats, plank: data.today.planks, km: routeKm };
+  } else if (currentUserId) {
+    // The day's name right away; gray tiles until its numbers arrive.
+    el.innerHTML = `<div class="week-recap-top"><h2>${name}</h2></div><div class="sk-stats"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>`;
+    el.classList.remove("hidden");
+    const viewerId = currentUserId;
+    const { data: posts, error } = await supabaseClient.from("feed_events").select("kind, pushups, plank_seconds, squats, distance_m").eq("user_id", viewerId).eq("day", day);
+    if (loadNumber !== calendarDayLoadNumber || viewerId !== currentUserId) return;
+    if (!error && posts && posts.length) {
+      const dayPost = posts.find((p) => p.kind === "day") || {};
+      const walked = posts.filter((p) => p.kind === "walk" || p.kind === "run").reduce((total, p) => total + (Number(p.distance_m) || 0), 0) / 1000;
+      totals = { pushups: Number(dayPost.pushups) || 0, squats: Number(dayPost.squats) || 0, plank: Number(dayPost.plank_seconds) || 0, km: walked };
+    }
+  } else if (routeKm) {
+    totals = { pushups: 0, squats: 0, plank: 0, km: routeKm };
+  }
+  const anything = totals && totals.pushups + totals.squats + totals.plank + totals.km > 0;
+  const state = trained ? tr("Worked out") : restDaySet().has(day) ? tr("Rest day") : day === today ? (anything ? tr("In progress") : tr("Not yet")) : tr("No workout");
+  el.innerHTML = `<div class="week-recap-top"><h2>${name}</h2><span class="calendar-day-state${trained ? " is-done" : ""}">${state}</span></div>${anything ? recapStatsHtml(totals) : ""}`;
+  el.classList.remove("hidden");
+}
+
+document.getElementById("calendar-grid").addEventListener("click", (event) => {
+  const cell = event.target.closest("[data-day]");
+  if (cell) renderCalendarDay(cell.dataset.day);
+});
+document.getElementById("calendar-grid").addEventListener("keydown", (event) => {
+  const cell = event.target.closest("[data-day]");
+  if (cell && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    renderCalendarDay(cell.dataset.day);
+  }
+});
+
 document.getElementById("heatmap-section").addEventListener("click", () => {
   calendarViewDate = new Date();
   renderCalendarMonth();
+  // Opens on today, or yesterday if today has nothing yet.
+  const today = todayString();
+  const p = data.today;
+  const startedToday = data.history.includes(today) || p.pushups + p.planks + p.squats + p.walkRun > 0;
+  renderCalendarDay(startedToday ? today : ForjaRules.addDays(today, -1));
   showScreen("calendar-screen");
 });
 
@@ -2083,12 +2165,17 @@ let splashHidden = false;
 function hideSplash() {
   if (splashHidden) return;
   splashHidden = true;
+  // Today's outline goes the moment the app is ready. The logo (first
+  // visits) stays until it has drawn itself in, ~0.7s after opening.
+  const returning = document.documentElement.dataset.boot === "returning";
   setTimeout(() => {
     const splash = document.getElementById("splash-screen");
     splash.classList.add("splash-fade-out");
-    // Removed once it has faded, so the turning logo stops running.
+    // Removed once it has faded, so nothing keeps animating behind the app.
     setTimeout(() => splash.remove(), 450);
-  }, 500);
+    // The map, quietly, so Record is ready when it's opened.
+    setTimeout(() => loadLeaflet().catch(() => {}), 1500);
+  }, returning ? 0 : Math.max(0, 700 - performance.now()));
 }
 
 // The 4 mutually-exclusive full-screen views. Listing them once here
@@ -2096,7 +2183,7 @@ function hideSplash() {
 // "hide this one" line added into every other show-a-different-screen
 // function (which is exactly how the reset-password screen almost got
 // left out of revealApp() below).
-const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "share-route-screen", "calendar-screen", "follow-list-screen", "user-actions-screen", "account-screen", "my-plan-screen", "challenge-screen", "reminder-setup-screen", "camera-screen", "home-guide-screen"];
+const SCREEN_IDS = ["onboarding-screen", "auth-screen", "forgot-password-screen", "reset-password-screen", "app-screen", "tracking-summary-screen", "share-route-screen", "calendar-screen", "recaps-screen", "follow-list-screen", "user-actions-screen", "account-screen", "my-plan-screen", "challenge-screen", "reminder-setup-screen", "camera-screen", "home-guide-screen"];
 
 function showScreen(idToShow) {
   SCREEN_IDS.forEach((id) => {
@@ -2121,8 +2208,12 @@ function revealApp(show = true) {
 }
 
 // Runs once we know someone is logged in: loads their data from the
-// database, then reveals the app.
-async function showApp(userId) {
+// database, then reveals the app. reopened = the app opened with a login
+// it already had (not a fresh log-in or sign-up): that account has its
+// row and plan already, so everything the first draw needs is asked for
+// at once - one wait instead of two. (A new account's plan must wait: it
+// starts at the pace picked in sign-up.)
+async function showApp(userId, reopened = false) {
   // A different account than the last one (logged out, then in as someone
   // else): its username must be looked up again, not carried over.
   if (userId !== currentUserId) {
@@ -2130,6 +2221,7 @@ async function showApp(userId) {
     friendIds = [];
   }
   currentUserId = userId;
+  const early = reopened ? { stats: fetchServerStats(), sets: fetchTodaysSets(), plan: callServerFunction("plan", {}) } : {};
   const result = await loadUserData(userId);
   if (!result) {
     showLoadError(() => showApp(userId));
@@ -2149,7 +2241,9 @@ async function showApp(userId) {
   // The streak and today's verified totals belong to the server - pull
   // them in before the first draw so nothing shows a stale local copy.
   // A new account's plan starts at the pace picked during sign-up.
-  await Promise.all([loadServerStats(), refreshVerifiedProgress(), loadServerPlan(result.isNewAccount ? data.startPace : undefined)]);
+  // (A brand new account just claimed its guest sets: today's are read fresh.)
+  const fresh = result.isNewAccount;
+  await Promise.all([loadServerStats(early.stats), refreshVerifiedProgress(fresh ? undefined : early.sets), loadServerPlan(fresh ? data.startPace : undefined, fresh ? undefined : early.plan)]);
   const signingUp = Onboarding.isActive();
   revealApp(!signingUp && !cameraIsOpen());
   // Catches a day that hit its minimums but didn't get saved (no signal).
@@ -2378,7 +2472,7 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     // (2026-10-16). Coming back on screen refreshes what the server owns
     // instead (see the visibilitychange listener).
     if (session.user.id === shownUserId) return;
-    showApp(session.user.id);
+    showApp(session.user.id, event === "INITIAL_SESSION");
     return;
   }
 
@@ -2789,6 +2883,17 @@ function drawNudgeButton(button, name, nudged) {
 }
 
 // A short message at the top of the screen (same look as challenges').
+// Gray shapes where a list is about to appear (style.css "Skeletons"),
+// shaped like what's coming: Feed posts, list rows, recap cards.
+const SK_LINES = '<div class="sk-lines"><div class="sk sk-line"></div><div class="sk sk-line is-short"></div></div>';
+const skeletonPostsHtml = (count) => `<div class="feed-card sk-post"><div class="sk-head"><div class="sk sk-avatar"></div>${SK_LINES}</div><div class="sk sk-block"></div></div>`.repeat(count);
+const skeletonRowsHtml = (count) => `<div class="leaderboard-row sk-item"><div class="sk sk-avatar"></div>${SK_LINES}</div>`.repeat(count);
+const skeletonCardsHtml = (count) => `<section class="week-recap sk-card">${SK_LINES}<div class="sk-stats"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div></section>`.repeat(count);
+function showSkeleton(el, html) {
+  el.innerHTML = html;
+  el.setAttribute("aria-busy", "true");
+}
+
 function showToast(text) {
   document.querySelectorAll(".challenge-toast").forEach((el) => el.remove());
   const el = document.createElement("div");
@@ -3135,6 +3240,7 @@ function recapHidden(viewerId, week) {
 function hideRecap() {
   const recap = recapShare.recap;
   document.getElementById("week-recap").classList.add("hidden");
+  showToast(tr("Saved in Me › Recaps"));
   if (!recap) return;
   try {
     const hidden = JSON.parse(localStorage.getItem(RECAP_HIDDEN_KEY) || "{}");
@@ -3165,44 +3271,51 @@ async function loadWeekRecap() {
     leagueStandings(week),
   ]);
   if (loadNumber !== recapLoadNumber || viewerId !== currentUserId) return;
-  const posts = postsReply.data || [];
   if (postsReply.error) return;
-  const dayPosts = posts.filter((p) => p.kind === "day");
-  const moves = posts.filter((p) => p.kind === "walk" || p.kind === "run");
-  const trained = new Set(dayPosts.map((p) => p.day));
-  if (trained.size === 0 && moves.length === 0) {
+  const recap = buildRecap(viewerId, week, end, postsReply.data || [], setsReply.data || []);
+  if (!recap) {
     el.classList.add("hidden");
     return;
   }
+  const me = league && league.find((r) => r.is_you && r.points > 0);
+  recap.place = me ? me.place : 0;
+  recap.of = league ? league.length : 0;
+  recap.withStreak = true; // today's streak fits last week, not older cards
+  recapShare.recap = recap;
+  drawWeekRecap(recap);
+  renderRecapImage(recap);
+}
+
+// One card's numbers (from..to, a week or a month) from the server's own
+// records, or null when nothing was done in it.
+function buildRecap(viewerId, from, to, posts, sets) {
+  const inRange = (row) => row.day >= from && row.day <= to;
+  const dayPosts = posts.filter((p) => p.kind === "day" && inRange(p));
+  const moves = posts.filter((p) => (p.kind === "walk" || p.kind === "run") && inRange(p));
+  const trained = new Set(dayPosts.map((p) => p.day));
+  if (trained.size === 0 && moves.length === 0) return null;
   const rested = restDaySet();
+  const dates = Array.from({ length: ForjaRules.daysBetween(from, to) + 1 }, (_, i) => ForjaRules.addDays(from, i));
   const sum = (list, key) => list.reduce((total, p) => total + (Number(p[key]) || 0), 0);
   // The best single set, push-ups first (the one most people compare).
-  const sets = setsReply.data || [];
   const best = ["pushup", "squat", "plank"]
-    .map((exercise) => sets.filter((s) => s.exercise === exercise).sort((a, b) => b.value - a.value)[0])
+    .map((exercise) => sets.filter((s) => s.exercise === exercise && inRange(s)).sort((a, b) => b.value - a.value)[0])
     .find(Boolean);
-  const me = league && league.find((r) => r.is_you && r.points > 0);
-  const recap = {
+  return {
     userId: viewerId,
-    week,
-    end,
-    days: Array.from({ length: 7 }, (_, i) => {
-      const day = ForjaRules.addDays(week, i);
-      return trained.has(day) ? "on" : rested.has(day) ? "rest" : "";
-    }),
+    week: from,
+    end: to,
+    days: dates.map((day) => (trained.has(day) ? "on" : rested.has(day) ? "rest" : "")),
     trainedCount: trained.size,
-    restCount: Array.from({ length: 7 }, (_, i) => ForjaRules.addDays(week, i)).filter((day) => !trained.has(day) && rested.has(day)).length,
+    restCount: dates.filter((day) => !trained.has(day) && rested.has(day)).length,
     pushups: sum(dayPosts, "pushups"),
     squats: sum(dayPosts, "squats"),
     plank: sum(dayPosts, "plank_seconds"),
     km: sum(moves, "distance_m") / 1000,
     best,
-    place: me ? me.place : 0,
-    of: league ? league.length : 0,
+    place: 0,
+    of: 0,
   };
-  recapShare.recap = recap;
-  drawWeekRecap(recap);
-  renderRecapImage(recap);
 }
 
 function bestSetWords(best) {
@@ -3224,12 +3337,7 @@ function drawWeekRecap(recap) {
       ${recap.days.map((state, i) => `<li><span class="week-recap-dot ${state ? `is-${state}` : ""}" aria-label="${weekdays[i]}: ${state === "on" ? tr("trained") : state === "rest" ? tr("rest day") : tr("missed")}">${state === "on" ? CHECK_SMALL_SVG : state === "rest" ? MOON_SVG : ""}</span><span aria-hidden="true">${DAY_LETTERS[i]}</span></li>`).join("")}
     </ol>
     <p class="week-recap-count">${tr("<b>{days}</b> trained{rest} · streak <b>{streak}</b>", { days, rest, streak: currentStreak() })}</p>
-    <div class="week-recap-stats">
-      <div><b>${recap.pushups}</b><span><i style="--dot: var(--ring-pushups)"></i>${tr("push-ups")}</span></div>
-      <div><b>${recap.squats}</b><span><i style="--dot: var(--ring-squats)"></i>${tr("squats")}</span></div>
-      <div><b>${plankWords(recap.plank)}</b><span><i style="--dot: var(--ring-planks)"></i>${tr("plank")}</span></div>
-      <div><b>${(data.units === "km" ? recap.km : milesFromKm(recap.km)).toFixed(1)}</b><span><i style="--dot: var(--ring-walkrun)"></i>${tr("{unit} walked", { unit: distanceUnitLabel() })}</span></div>
-    </div>
+    ${recapStatsHtml(recap)}
     ${highlights ? `<p class="week-recap-best">${highlights}</p>` : ""}
     <div class="week-recap-actions">
       <button class="week-recap-hide" data-recap="hide">${tr("Hide")}</button>
@@ -3237,6 +3345,118 @@ function drawWeekRecap(recap) {
     </div>`;
   el.classList.remove("hidden");
 }
+
+function recapStatsHtml(recap) {
+  return `<div class="week-recap-stats">
+      <div><b>${recap.pushups}</b><span><i style="--dot: var(--ring-pushups)"></i>${tr("push-ups")}</span></div>
+      <div><b>${recap.squats}</b><span><i style="--dot: var(--ring-squats)"></i>${tr("squats")}</span></div>
+      <div><b>${plankWords(recap.plank)}</b><span><i style="--dot: var(--ring-planks)"></i>${tr("plank")}</span></div>
+      <div><b>${(data.units === "km" ? recap.km : milesFromKm(recap.km)).toFixed(1)}</b><span><i style="--dot: var(--ring-walkrun)"></i>${tr("{unit} walked", { unit: distanceUnitLabel() })}</span></div>
+    </div>`;
+}
+
+// A card on Me > Recaps. Weeks: the dates are the title, no streak (that's
+// today's number). Months: no dots or best set, to keep it short.
+function recapsCardHtml(recap, index) {
+  const days = tr(recap.trainedCount === 1 ? "{n} day" : "{n} days", { n: recap.trainedCount });
+  const rest = recap.restCount ? " · " + tr(recap.restCount === 1 ? "{n} rest day" : "{n} rest days", { n: recap.restCount }) : "";
+  const count = `<p class="week-recap-count">${tr("<b>{days}</b> trained{rest}", { days, rest })}</p>`;
+  const share = `<div class="week-recap-actions"><button class="week-recap-share" data-recap-index="${index}" disabled>${SHARE_ICON_SVG}${tr(recap.month ? "Share My Month" : "Share My Week")}</button></div>`;
+  if (recap.month) {
+    const note = recap.end === todayString() ? tr("This month") : "";
+    return `<div class="week-recap-top"><div><p class="recap-kind">${tr("Month")}</p><h2>${recap.month}</h2></div><span>${note}</span></div>${count}${recapStatsHtml(recap)}${share}`;
+  }
+  const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => tr(day));
+  const note = recap.week === lastWeekStart() ? tr("Last week") : "";
+  return `
+    <div class="week-recap-top"><h2>${dayLabel(recap.week)} – ${dayLabel(recap.end)}</h2><span>${note}</span></div>
+    <ol class="week-recap-days" aria-label="${tr("Days trained that week")}">
+      ${recap.days.map((state, i) => `<li><span class="week-recap-dot ${state ? `is-${state}` : ""}" aria-label="${weekdays[i]}: ${state === "on" ? tr("trained") : state === "rest" ? tr("rest day") : tr("missed")}">${state === "on" ? CHECK_SMALL_SVG : state === "rest" ? MOON_SVG : ""}</span><span aria-hidden="true">${DAY_LETTERS[i]}</span></li>`).join("")}
+    </ol>
+    ${count}${recapStatsHtml(recap)}
+    ${recap.best ? `<p class="week-recap-best">${tr("Best set: <b>{what}</b>", { what: bestSetWords(recap.best) })}</p>` : ""}
+    ${share}`;
+}
+
+// ---------- Me > Recaps ----------
+// The last few months: every finished week with a workout in it, and a
+// card per month (this one so far), newest first. Share images are made
+// ahead of the tap, one after another.
+const recapsShare = { files: [] };
+let recapsLoadNumber = 0;
+
+async function openRecaps() {
+  showScreen("recaps-screen");
+  window.scrollTo(0, 0);
+  const listEl = document.getElementById("recaps-list");
+  const noteEl = document.getElementById("recaps-note");
+  const viewerId = currentUserId;
+  const loadNumber = ++recapsLoadNumber;
+  noteEl.classList.add("hidden");
+  if (!viewerId) return;
+  showSkeleton(listEl, skeletonCardsHtml(2));
+  const today = todayString();
+  const [year, month] = today.split("-").map(Number); // month is 1-12
+  const from = dateToString(new Date(year, month - 4, 1));
+  const [postsReply, setsReply] = await Promise.all([
+    supabaseClient.from("feed_events").select("kind, day, pushups, plank_seconds, squats, distance_m").eq("user_id", viewerId).gte("day", from).lte("day", today),
+    // Biggest first, so the cap can only drop small sets (never a best one).
+    supabaseClient.from("verified_sets").select("exercise, value, day").eq("user_id", viewerId).gte("day", from).lte("day", today).order("value", { ascending: false }).limit(1000),
+  ]);
+  if (loadNumber !== recapsLoadNumber || viewerId !== currentUserId) return;
+  listEl.innerHTML = "";
+  listEl.removeAttribute("aria-busy");
+  if (postsReply.error) {
+    noteEl.textContent = tr("Couldn't load your recaps. Check your connection.");
+    noteEl.classList.remove("hidden");
+    return;
+  }
+  const posts = postsReply.data || [];
+  const sets = setsReply.data || [];
+  const recaps = [];
+  let week = ForjaRules.weekOf(from);
+  if (week < from) week = ForjaRules.addDays(week, 7); // whole weeks only
+  for (; week <= lastWeekStart(); week = ForjaRules.addDays(week, 7)) {
+    const recap = buildRecap(viewerId, week, ForjaRules.addDays(week, 6), posts, sets);
+    if (recap) recaps.push(recap);
+  }
+  for (let i = 0; i <= 3; i++) {
+    const first = new Date(year, month - 4 + i, 1);
+    const last = dateToString(new Date(first.getFullYear(), first.getMonth() + 1, 0));
+    const recap = buildRecap(viewerId, dateToString(first), last < today ? last : today, posts, sets);
+    if (!recap) continue;
+    const name = first.toLocaleDateString(trLocale("en-US"), first.getFullYear() === year ? { month: "long" } : { month: "long", year: "numeric" });
+    recap.month = name.charAt(0).toUpperCase() + name.slice(1);
+    recaps.push(recap);
+  }
+  // Newest first; a month goes above the weeks that end with it.
+  recaps.sort((a, b) => b.end.localeCompare(a.end) || (a.month ? -1 : b.month ? 1 : 0));
+  if (recaps.length === 0) {
+    noteEl.textContent = tr("Finish a workout and your recaps show up here.");
+    noteEl.classList.remove("hidden");
+    return;
+  }
+  listEl.innerHTML = recaps.map((recap, i) => `<section class="week-recap${recap.month ? " is-month" : ""}">${recapsCardHtml(recap, i)}</section>`).join("");
+  recapsShare.files = [];
+  for (let i = 0; i < recaps.length; i++) {
+    const file = await recapImageFile(recaps[i]);
+    if (loadNumber !== recapsLoadNumber) return;
+    recapsShare.files[i] = file;
+    const button = listEl.querySelector(`[data-recap-index="${i}"]`);
+    if (button && file) button.disabled = false;
+  }
+}
+
+document.getElementById("open-recaps-button").addEventListener("click", openRecaps);
+document.getElementById("recaps-close-button").addEventListener("click", () => {
+  recapsLoadNumber++; // stop making images
+  showScreen("app-screen");
+});
+document.getElementById("recaps-list").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-recap-index]");
+  const file = button && recapsShare.files[Number(button.dataset.recapIndex)];
+  if (file) shareImageFile(file);
+});
 
 // The story image (1080 x 1920, dark), made ahead of the tap like the
 // route share.
@@ -3257,14 +3477,14 @@ function drawRecapImage(ctx, recap, logo) {
   ctx.textAlign = "left";
   ctx.fillStyle = "#9a9a96";
   ctx.font = font(44, 700);
-  ctx.fillText(tr("MY WEEK · {from} – {to}", { from: dayLabel(recap.week).toUpperCase(), to: dayLabel(recap.end).toUpperCase() }), 90, 330);
+  ctx.fillText(recap.month ? tr("MY MONTH · {month}", { month: recap.month.toUpperCase() }) : tr("MY WEEK · {from} – {to}", { from: dayLabel(recap.week).toUpperCase(), to: dayLabel(recap.end).toUpperCase() }), 90, 330);
   ctx.fillStyle = "#ffffff";
   ctx.font = font(150, 900);
   ctx.fillText(tr(recap.trainedCount === 1 ? "{n} day." : "{n} days.", { n: recap.trainedCount }), 84, 500);
   ctx.font = font(84, 800);
   ctx.fillText(tr("Every rep verified."), 90, 610);
-  // The 7 days.
-  recap.days.forEach((state, i) => {
+  // The 7 days (a month skips them).
+  if (!recap.month) recap.days.forEach((state, i) => {
     const x = 90 + 60 + i * 135;
     ctx.beginPath();
     ctx.arc(x, 760, 54, 0, Math.PI * 2);
@@ -3281,11 +3501,11 @@ function drawRecapImage(ctx, recap, logo) {
     [tr("Squats"), String(recap.squats)],
     [tr("Plank"), plankWords(recap.plank)],
     [tr("Walked"), distanceWords(recap.km)],
-    [tr("Streak"), tr("{n} days", { n: currentStreak() })],
   ];
+  if (recap.withStreak) lines.push([tr("Streak"), tr("{n} days", { n: currentStreak() })]);
   if (recap.place) lines.push([tr("League"), tr("#{place} of {of}", { place: recap.place, of: recap.of })]);
   lines.forEach(([label, value], i) => {
-    const y = 1010 + i * 120;
+    const y = (recap.month ? 800 : 1010) + i * 120;
     ctx.textAlign = "left";
     ctx.fillStyle = "#9a9a96";
     ctx.font = font(52, 600);
@@ -3311,8 +3531,16 @@ function drawRecapImage(ctx, recap, logo) {
 
 async function renderRecapImage(recap) {
   recapShare.file = null;
+  const file = await recapImageFile(recap);
+  if (recapShare.recap !== recap || !file) return;
+  recapShare.file = file;
+  const button = document.querySelector("#week-recap [data-recap=share]");
+  if (button) button.disabled = false;
+}
+
+// The card's story image as a PNG file, or null if it couldn't be made.
+async function recapImageFile(recap) {
   await loadInviteLink(); // the link goes on the image
-  if (recapShare.recap !== recap) return;
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
   canvas.height = 1920;
@@ -3324,10 +3552,7 @@ async function renderRecapImage(recap) {
     drawRecapImage(ctx, recap, null);
     blob = await canvasToPng(canvas).catch(() => null);
   }
-  if (recapShare.recap !== recap || !blob) return;
-  recapShare.file = new File([blob], "forja-my-week.png", { type: "image/png" });
-  const button = document.querySelector("#week-recap [data-recap=share]");
-  if (button) button.disabled = false;
+  return blob ? new File([blob], recap.month ? "forja-my-month.png" : "forja-my-week.png", { type: "image/png" }) : null;
 }
 
 async function shareImageFile(file) {
@@ -3643,6 +3868,7 @@ async function respondToRequest(friendshipId, accept) {
 
 async function loadLeaderboard() {
   const leaderboardEl = document.getElementById("leaderboard");
+  if (!leaderboardEl.hasChildNodes()) showSkeleton(leaderboardEl, skeletonRowsHtml(3));
 
   const { data: friendships } = await supabaseClient
     .from("friendships")
@@ -3703,6 +3929,7 @@ async function loadLeaderboard() {
   combined.sort((a, b) => b.streak - a.streak);
 
   leaderboardEl.innerHTML = "";
+  leaderboardEl.removeAttribute("aria-busy");
   combined.forEach((person, index) => {
     leaderboardEl.appendChild(buildLeaderboardRow(person, index + 1));
   });
@@ -3756,9 +3983,12 @@ async function enterFeedTab() {
   // Opening the Feed is what "seen" means: the dot goes, and the newest
   // post's time is remembered.
   document.getElementById("feed-tab-badge").classList.add("hidden");
-  // First visit: say something while it loads. Later visits keep showing
-  // the last posts while the fresh ones arrive.
-  if (!feedListEl.hasChildNodes()) showFeedMessage(tr("Loading..."));
+  // First visit: gray post shapes while it loads. Later visits keep
+  // showing the last posts while the fresh ones arrive.
+  if (!feedListEl.hasChildNodes()) {
+    showFeedMessage(null);
+    showSkeleton(feedListEl, skeletonPostsHtml(3));
+  }
   try {
     await loadFeed();
   } finally {
@@ -3773,56 +4003,61 @@ async function loadFeed() {
   const stillCurrent = () => thisLoad === feedLoadNumber && viewerId === currentUserId;
   const loadFailed = () => {
     if (!stillCurrent()) return;
+    if (feedListEl.getAttribute("aria-busy")) {
+      feedListEl.innerHTML = ""; // the placeholders go; the message says why
+      feedListEl.removeAttribute("aria-busy");
+    }
     showFeedMessage(tr("Couldn't load the Feed. Check your connection."), tr("Try Again"), () => enterFeedTab());
   };
 
-  const { data: friendships, error: friendsError } = await supabaseClient
-    .from("friendships")
-    .select("requester_id, addressee_id")
-    .eq("status", "accepted")
-    .or(`requester_id.eq.${currentUserId},addressee_id.eq.${currentUserId}`);
-  if (friendsError) return loadFailed();
-  const feedFriendIds = (friendships || []).map((f) => (f.requester_id === currentUserId ? f.addressee_id : f.requester_id));
-
-  // The database only ever hands back your own and your friends' posts;
-  // asking for exactly those just keeps the request small.
+  // Two waits, not four: the friend list (for the empty-Feed message) and
+  // the posts together - the database only ever hands back your own and
+  // your friends' posts, so the posts don't need the list first - then
+  // the kudos and the names together.
   const oldestDay = new Date();
   oldestDay.setDate(oldestDay.getDate() - (FEED_DAYS_SHOWN - 1));
-  const { data: postRows, error: postsError } = await supabaseClient
-    .from("feed_events")
-    // Every column, so the Feed keeps working whether or not the newer
-    // post kinds (like challenge wins) have their columns yet.
-    .select("*")
-    .in("user_id", [currentUserId, ...feedFriendIds])
-    .gte("day", dateToString(oldestDay))
-    .order("created_at", { ascending: false })
-    .limit(FEED_MAX_POSTS);
-  if (postsError) return loadFailed();
+  const [{ data: friendships, error: friendsError }, { data: postRows, error: postsError }] = await Promise.all([
+    supabaseClient
+      .from("friendships")
+      .select("requester_id, addressee_id")
+      .eq("status", "accepted")
+      .or(`requester_id.eq.${currentUserId},addressee_id.eq.${currentUserId}`),
+    supabaseClient
+      .from("feed_events")
+      // Every column, so the Feed keeps working whether or not the newer
+      // post kinds (like challenge wins) have their columns yet.
+      .select("*")
+      .gte("day", dateToString(oldestDay))
+      .order("created_at", { ascending: false })
+      .limit(FEED_MAX_POSTS),
+  ]);
+  if (friendsError || postsError) return loadFailed();
+  const feedFriendIds = (friendships || []).map((f) => (f.requester_id === currentUserId ? f.addressee_id : f.requester_id));
   const posts = postRows || [];
 
-  let kudosRows = [];
-  if (posts.length > 0) {
-    const { data: rows, error: kudosError } = await supabaseClient
-      .from("kudos")
-      .select("event_id, giver_id")
-      .in("event_id", posts.map((p) => p.id));
-    if (kudosError) return loadFailed();
-    kudosRows = rows || [];
-  }
-
-  const peopleIds = [...new Set([...posts.map((p) => p.user_id), ...kudosRows.map((k) => k.giver_id)])];
   const usernameByUserId = {};
-  if (peopleIds.length > 0) {
-    const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", peopleIds);
+  const readNames = async (ids) => {
+    if (ids.length === 0) return;
+    const { data: profiles } = await supabaseClient.from("profiles").select("user_id, username, avatar_color").in("user_id", ids);
     rememberAvatarColors(profiles);
     (profiles || []).forEach((p) => {
       usernameByUserId[p.user_id] = p.username;
     });
-  }
+  };
+  // Names: whoever posted, you and your friends (who give most kudos).
+  const [kudosReply] = await Promise.all([
+    posts.length > 0 ? supabaseClient.from("kudos").select("event_id, giver_id").in("event_id", posts.map((p) => p.id)) : { data: [], error: null },
+    readNames([...new Set([currentUserId, ...feedFriendIds, ...posts.map((p) => p.user_id)])]),
+  ]);
+  if (kudosReply.error) return loadFailed();
+  const kudosRows = kudosReply.data || [];
+  // Kudos from someone not named yet (a friend of a friend): one more ask.
+  await readNames([...new Set(kudosRows.map((k) => k.giver_id))].filter((id) => !(id in usernameByUserId)));
 
   if (!stillCurrent()) return;
 
   feedListEl.innerHTML = "";
+  feedListEl.removeAttribute("aria-busy");
   if (posts.length === 0) {
     if (feedFriendIds.length === 0) {
       showFeedMessage(tr("Your friends' workouts show up here. Add some friends to get started."), tr("Find Friends"), () => showTab("competition"));
@@ -4059,6 +4294,7 @@ async function enterMeTab() {
   const headerEl = document.getElementById("profile-header");
   const promptEl = document.getElementById("profile-header-prompt");
   if (typeof Challenges !== "undefined") Challenges.showTrophies();
+  document.getElementById("recaps-row").classList.toggle("hidden", !currentUserId);
 
   const inviteRowEl = document.getElementById("invite-row");
   if (!currentUserId) {
@@ -4999,6 +5235,39 @@ function displayElevation(meters) {
 // fake "gain" from that noise alone.
 const ELEVATION_NOISE_THRESHOLD_M = 1;
 
+// Leaflet renders the live map for GPS walk/run tracking (free
+// OpenStreetMap tiles - no API key needed). Only Record and route
+// summaries use it, so it loads after the app is on screen instead of
+// holding up the first paint. integrity = the file's fingerprint: the
+// browser refuses anything that isn't exactly this file, so a hacked
+// download server couldn't slip code into Forja.
+let leafletLoading = null;
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (!leafletLoading) {
+    leafletLoading = new Promise((resolve, reject) => {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      css.integrity = "sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H";
+      css.crossOrigin = "anonymous";
+      document.head.appendChild(css);
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.integrity = "sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH";
+      script.crossOrigin = "anonymous";
+      script.onload = () => resolve();
+      script.onerror = () => {
+        leafletLoading = null; // offline: try again next time
+        script.remove();
+        reject(new Error("map didn't load"));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return leafletLoading;
+}
+
 // No +/- buttons: you pinch to zoom, like Apple Maps. The OpenStreetMap
 // credit stays (their license needs it), without Leaflet's own link.
 function createMap(containerId) {
@@ -5014,7 +5283,17 @@ function createMap(containerId) {
 // Called every time the Record tab is opened. If a session is already
 // in progress (e.g. you switched to another tab mid-run and came back),
 // this leaves everything as-is instead of resetting the view.
-function enterRecordTab() {
+async function enterRecordTab() {
+  // The past routes live on this phone: they show even before (or
+  // without) the map.
+  if (!session) renderPastRoutesList();
+  if (!window.L) {
+    try {
+      await loadLeaflet();
+    } catch (e) {
+      return; // offline: no map this time
+    }
+  }
   if (!recordMap) {
     recordMap = createMap("record-map");
     recordMap.setView([20, 0], 2); // whole-world view until we know better
@@ -5028,7 +5307,6 @@ function enterRecordTab() {
     return; // already tracking - keep showing the live view as-is
   }
 
-  renderPastRoutesList();
   showPreviewLocation();
 }
 
@@ -5479,7 +5757,13 @@ function showTrackingSummary(route, distanceKm, durationMs, elevationGainM, mode
   document.getElementById("tracking-summary-share-button").classList.toggle("hidden", shareRoute.points.length < 2);
 
   showScreen("tracking-summary-screen");
+  // The map may still be loading (a past route tapped right away).
+  loadLeaflet()
+    .then(() => drawSummaryMap(route))
+    .catch(() => {}); // offline: the numbers still show, just no map
+}
 
+function drawSummaryMap(route) {
   // Leaflet throws if you re-initialize a map on a container that
   // already has one - remove the previous summary map first, since this
   // screen gets reused for every route (new or from history).
@@ -6043,7 +6327,15 @@ shareRouteCopyEl.addEventListener("click", async () => {
 startTrackingButtonEl.addEventListener("click", () => showTab("record"));
 
 const recordStartButtonEl = document.getElementById("record-start-button");
-recordStartButtonEl.addEventListener("click", startTracking);
+// A quick tap right after opening Record: the map may still be on its way.
+recordStartButtonEl.addEventListener("click", async () => {
+  if (!recordMap) await enterRecordTab();
+  if (!recordMap) {
+    trackingErrorEl.textContent = tr("The map didn't load. Check your connection.");
+    return;
+  }
+  startTracking();
+});
 
 // "Today", "Yesterday", "Wed, Oct 7" - with the year only when it isn't
 // this year ("Aug 17, 2025").

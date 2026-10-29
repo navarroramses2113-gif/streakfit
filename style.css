@@ -93,6 +93,7 @@ input[type="number"]::-webkit-inner-spin-button {
   --map-credit: #f4f4f580;
   --card-solid: #1c1c1f; /* Feed posts: solid, so each one stands apart */
   --card-line: #ffffff14;
+  --skeleton: #ffffff14; /* loading shapes: a tint, so they show on the page and on cards */
   --like: #ff5a5f; /* the Feed heart, filled (the push-up ring red) */
   --popover-bg: #2c2c31; /* raised a step above cards, for tip bubbles */
   /* Hold-to-confirm buttons (walk Finish / Cancel): the fill that sweeps
@@ -147,6 +148,7 @@ input[type="number"]::-webkit-inner-spin-button {
   --map-credit: #1c1c1e99;
   --card-solid: #ffffff;
   --card-line: #3c3c4326;
+  --skeleton: #0000000f;
   --like: #e0393e;
   --popover-bg: #ffffff;
   --hold-fill: #ffffff52;
@@ -324,6 +326,199 @@ body {
   .splash-ring,
   .splash-arc,
   .splash-word {
+    animation: none;
+  }
+}
+
+/* ---------- Skeletons ----------
+   Gray shapes where content is about to appear, gently pulsing (still
+   with Reduce Motion). .sk is the shape; each screen sizes its own. */
+.sk {
+  background: var(--skeleton);
+  border-radius: var(--radius-sm);
+  animation: sk-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes sk-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk {
+    animation: none;
+  }
+}
+
+/* List placeholders (script.js skeleton*Html): post cards, rows, recaps. */
+.sk-head,
+.sk-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.sk-avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.sk-lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sk-line {
+  width: 60%;
+  height: 14px;
+}
+
+.sk-line.is-short {
+  width: 35%;
+}
+
+.sk-block {
+  height: 64px;
+  border-radius: var(--radius-sm);
+}
+
+.sk-item {
+  min-height: 60px;
+}
+
+.sk-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sk-stats .sk {
+  height: 64px;
+  border-radius: var(--radius-sm);
+}
+
+/* Loading a returning visit: Today's outline instead of the logo, laid
+   out like Today (same padding, sizes measured from the real screen). */
+.sk-today {
+  display: none;
+}
+
+:root[data-boot="returning"] #splash-screen {
+  align-items: stretch;
+  justify-content: flex-start;
+  transition-duration: 0.2s;
+}
+
+:root[data-boot="returning"] .splash-content {
+  display: none;
+}
+
+:root[data-boot="returning"] .sk-today {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+  padding: calc(32px + var(--safe-top)) 24px 0;
+}
+
+.sk-title {
+  width: 132px;
+  height: 41px;
+  margin-bottom: 24px;
+}
+
+.sk-coach {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 96px;
+  margin-bottom: 16px;
+}
+
+.sk-pet {
+  flex: none;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+}
+
+.sk-bubble {
+  flex: 1;
+  height: 78px;
+  align-self: flex-start;
+  border-radius: 18px;
+}
+
+.sk-streak {
+  width: 48px;
+  height: 48px;
+  margin: 4px auto 8px;
+}
+
+.sk-streak-label {
+  width: 104px;
+  height: 13px;
+  margin: 0 auto 16px;
+}
+
+.sk-ring {
+  width: 170px;
+  height: 170px;
+  margin: 0 auto 10px;
+  border: 20px solid var(--skeleton);
+  border-radius: 50%;
+  animation: sk-pulse 1.4s ease-in-out infinite;
+}
+
+.sk-legend {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.sk-legend .sk {
+  width: 72px;
+  height: 15px;
+}
+
+.sk-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.sk-cards .sk {
+  height: 158px;
+  border-radius: var(--radius);
+}
+
+.sk-tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-around;
+  padding: 14px 24px calc(14px + var(--safe-bottom));
+  border-top: 1px solid var(--border);
+}
+
+.sk-tabs .sk {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-ring {
     animation: none;
   }
 }
@@ -1259,18 +1454,27 @@ body {
   margin-bottom: var(--space-sm);
 }
 
+/* Rows read like iPhone Settings: each one the Account menu's 48pt with a
+   line between rows, and its value (a choice, a number or a switch) on
+   the right. */
 .settings-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-sm);
+  gap: var(--space-sm);
+  min-height: 48px;
+  border-top: 1px solid var(--border);
   font-size: var(--font-body);
-  color: var(--text-soft);
+  color: var(--text-primary);
 }
 
-.settings-checkbox-row {
-  padding-top: var(--space-xs);
-  border-top: 1px solid var(--border);
+.settings-title + .settings-row {
+  border-top: 0;
+}
+
+.settings-row ~ .auth-submit-button {
+  margin-top: var(--space-sm);
 }
 
 .settings-checkbox-row input[type="checkbox"] {
@@ -1280,17 +1484,73 @@ body {
   cursor: pointer;
 }
 
+/* A number is typed straight into its row, right-aligned with no box, like
+   iPhone Settings. Tapping the row's label focuses it too. */
 .settings-row input {
-  width: 56px;
+  width: 96px;
   min-height: 44px;
-  padding: 6px;
-  text-align: center;
-  background: var(--field-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
+  padding: 0;
+  text-align: right;
   font-family: inherit;
   font-size: var(--font-body);
+  color: var(--text-secondary);
+  caret-color: var(--accent);
+  background: none;
+  border: 0;
+  -moz-appearance: textfield;
+}
+
+.settings-row input::-webkit-inner-spin-button,
+.settings-row input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.settings-row input::placeholder {
+  color: var(--text-muted);
+}
+
+.settings-row input:focus {
+  outline: none;
+  color: var(--text-primary);
+}
+
+/* A choice shows its value in grey with Apple's up/down arrows. The real
+   select is stretched invisibly over the whole row, so a tap anywhere on
+   it opens the iPhone's picker. Safari can't right-align the text inside
+   a visible select, so the value is drawn separately (syncSettingsValues
+   in script.js). */
+.settings-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.settings-value::after {
+  content: "";
+  width: 9px;
+  height: 14px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 16' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 6l3-3 3 3M2 10l3 3 3-3'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 16' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 6l3-3 3 3M2 10l3 3 3-3'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.settings-picker select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  font-size: var(--font-body); /* 16px or more, so the iPhone doesn't zoom in */
+  cursor: pointer;
+}
+
+.settings-picker:has(select:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
 }
 
 /* Edit Profile's fields (username/email/phone) need real room to type
@@ -1326,17 +1586,6 @@ body {
 .profile-field input:focus {
   outline: none;
   border-color: var(--accent);
-}
-
-.settings-row select {
-  min-height: 44px;
-  padding: 6px 10px;
-  background: var(--field-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: var(--font-body);
 }
 
 
@@ -2287,6 +2536,32 @@ body {
   transform: rotate(-20deg);
 }
 
+/* Tappable days: the one picked gets a ring (a gap, then the text color). */
+.calendar-day[data-day] {
+  cursor: pointer;
+}
+
+.calendar-day.is-selected {
+  box-shadow: 0 0 0 2px var(--page-bg), 0 0 0 4px var(--text-primary);
+}
+
+.calendar-day-detail .week-recap-top {
+  margin-bottom: 12px;
+}
+
+.calendar-day-detail .week-recap-stats {
+  margin-bottom: 0;
+}
+
+.calendar-day-detail .sk-stats {
+  margin-top: 0;
+}
+
+.calendar-day-state.is-done {
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
 .calendar-legend {
   display: flex;
   gap: var(--space-md);
@@ -2978,8 +3253,7 @@ body {
 
   /* While a set is running, only what matters from across the room stays. */
   #camera-screen.is-running #camera-tip,
-  #camera-screen.is-running .camera-live,
-  #camera-screen.is-running #camera-flip-button {
+  #camera-screen.is-running .camera-live {
     display: none;
   }
 }
@@ -5128,6 +5402,7 @@ a.account-menu-item {
   position: fixed;
   top: calc(16px + var(--safe-top));
   left: 50%;
+  transform: translateX(-50%); /* the animation does this too; Reduce Motion skips it */
   z-index: 300;
   padding: 9px 16px;
   font-size: var(--font-subhead);
@@ -6274,9 +6549,9 @@ a.account-menu-item {
   color: var(--text-secondary);
 }
 
-/* Settings: under "Show Me in Leagues". */
+/* Settings: the small grey line under a row (Weight, Show Me in Leagues). */
 .settings-note {
-  margin: calc(-1 * var(--space-xs)) 0 var(--space-sm);
+  margin: -4px 0 var(--space-sm);
   font-size: var(--font-footnote);
   line-height: 1.35;
   color: var(--text-secondary);
@@ -6606,6 +6881,43 @@ a.account-menu-item {
   cursor: default;
 }
 
+/* A month stands apart from the weeks when skimming: green-tinted card,
+   a "MONTH" label and a bigger title. No dots: its count sits under the
+   title, on its left. */
+.week-recap.is-month {
+  background: linear-gradient(var(--accent-tint), var(--accent-tint)), var(--card-solid);
+  border-color: #22c55e73;
+}
+
+.recap-kind {
+  margin-bottom: 2px;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+:root[data-theme="light"] .week-recap.is-month .week-recap-stats div {
+  background: var(--card-solid);
+}
+
+.week-recap.is-month .week-recap-top h2 {
+  font-size: var(--font-title1);
+}
+
+.week-recap.is-month .week-recap-count {
+  margin-top: 4px;
+  text-align: left;
+}
+
+/* Me > Recaps: no Hide, so Share takes the row. */
+.recaps-list .week-recap-share {
+  flex: 1;
+  justify-content: center;
+  min-height: 44px;
+}
+
 .week-recap-share svg {
   width: 16px;
   height: 16px;
@@ -6625,14 +6937,31 @@ a.account-menu-item {
    to fix), today's ring for this exercise bottom-right, the big button at
    the bottom. Sideways (push-ups, plank): the body fills the bottom of the
    frame, so it all moves to the top edge. */
+/* Close on the left, Sound and Flip on the right: two button-wide columns
+   on each side (the second left one empty), so the title sits in the true
+   middle of the screen - with one button on the left it sat ~26px left of
+   center (2026-10-22). */
 .camera-top {
-  display: flex;
+  display: grid;
+  grid-template-columns: 44px 44px minmax(0, 1fr) 44px 44px;
   align-items: center;
   gap: var(--space-sm);
 }
 
+#camera-close-button {
+  grid-area: 1 / 1;
+}
+
+#camera-sound-button {
+  grid-area: 1 / 4;
+}
+
+#camera-flip-button {
+  grid-area: 1 / 5;
+}
+
 .camera-title {
-  flex: 1;
+  grid-area: 1 / 3;
   min-width: 0;
   margin: 0;
   text-align: center;
@@ -6760,12 +7089,6 @@ a.account-menu-item {
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   color: #fff;
-}
-
-/* Mid-set only Close's place stays (Close itself comes back after Finish):
-   sound and camera are chosen before you start. */
-#camera-screen.is-running #camera-flip-button {
-  visibility: hidden;
 }
 
 #camera-screen:not(.is-review) .camera-hud {
@@ -7060,6 +7383,12 @@ a.account-menu-item {
   /* The count's label already says what this is. */
   #camera-screen.is-running .camera-title {
     visibility: hidden;
+  }
+
+  /* Finish takes the top-right corner mid-set, so Flip moves to the top
+     left, where Close is out of the way until the set ends. */
+  #camera-screen.is-running #camera-flip-button {
+    grid-area: 1 / 1;
   }
 
   #camera-screen.is-running .camera-state {

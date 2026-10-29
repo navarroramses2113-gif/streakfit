@@ -63,11 +63,15 @@ self.addEventListener("activate", (event) => {
 // "fetch" fires for every network request the page makes (loading the
 // HTML, CSS, JS, etc).
 //
-// Strategy: NETWORK-FIRST. Always try to fetch the latest version from
-// the internet first, and only fall back to the saved cache copy if that
-// fails (e.g. you're offline). This is the opposite of "cache-first" -
-// it means you always see the newest version when you have a connection,
-// and offline support is purely a fallback rather than the default.
+// Two strategies:
+//  - CACHE-FIRST for files whose address names their version: our own
+//    "?v=" files and libraries pinned to one version (supabase-js@2.117.2,
+//    leaflet@1.9.4, font files). They can never change at that address -
+//    a new version is a new address - so the saved copy is always right
+//    and the app doesn't wait on the network for them.
+//  - NETWORK-FIRST for everything else (the page itself, the manifest...),
+//    so a new version shows up as soon as it's published. On a slow
+//    connection the saved copy is used after 3 seconds instead of waiting.
 //
 // Left alone (the browser handles them as if there were no service worker):
 //  - anything that isn't a plain GET (those can't be cached)
@@ -76,26 +80,50 @@ self.addEventListener("activate", (event) => {
 //  - map pieces (the Feed's route maps and the live walk map): thousands
 //    of small files that would only pile up here
 const LEFT_ALONE_HOSTS = ["tiles.openfreemap.org", "tile.openstreetmap.org"];
+// Hosts that only ever serve pinned versions (the address has "@1.2.3").
+const VERSIONED_HOSTS = ["cdn.jsdelivr.net", "unpkg.com", "fonts.gstatic.com"];
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  const host = new URL(event.request.url).hostname;
+  const url = new URL(event.request.url);
+  const host = url.hostname;
   if (host.endsWith(".supabase.co")) return;
   if (LEFT_ALONE_HOSTS.some((h) => host === h || host.endsWith("." + h))) return;
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Save a copy of the fresh response into the cache for next time
-        // you're offline, then return the fresh response to the page.
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseClone);
-        });
-        return response;
-      })
-      .catch(() => caches.match(event.request))
-  );
+  const versioned = url.origin === self.location.origin ? url.searchParams.has("v") : VERSIONED_HOSTS.includes(host);
+  event.respondWith(versioned ? cacheFirst(event.request) : networkFirst(event.request));
 });
+
+// Keeps a copy of a good reply for next time.
+function saveCopy(request, response) {
+  if (!response.ok) return;
+  const copy = response.clone();
+  caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+}
+
+function cacheFirst(request) {
+  return caches.match(request).then(
+    (cached) =>
+      cached ||
+      fetch(request)
+        .then((response) => {
+          saveCopy(request, response);
+          return response;
+        })
+        // Offline before this version was ever saved: the copy saved at
+        // install (same file, address without "?v=") is the next best.
+        .catch(() => caches.match(request, { ignoreSearch: true }))
+  );
+}
+
+function networkFirst(request) {
+  const fromNetwork = fetch(request).then((response) => {
+    saveCopy(request, response);
+    return response;
+  });
+  // A slow connection: after 3 seconds, the saved copy if there is one.
+  const slow = new Promise((resolve) => setTimeout(resolve, 3000)).then(() => caches.match(request));
+  return Promise.race([fromNetwork, slow.then((cached) => cached || fromNetwork)]).catch(() => caches.match(request));
+}
 
 // "push" fires when a push message arrives from the server, even if no tab
 // has the app open. This is the part that actually puts a notification on

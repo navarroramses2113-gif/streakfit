@@ -57,11 +57,12 @@
       {
         downBelow: 100,
         upAbove: 160,
-        smoothing: 0.4, // 0-1, higher reacts faster but jitters more
+        smoothing: 0.4, // 0-1 per 30fps frame; higher reacts faster but jitters more
         minRepMs: 500, // a real rep can't be faster than this
         readyHoldMs: 500, // must hold the start position this long before counting
         minDrop: 0.2, // dropY must lower by >= this fraction of scale
         maxAnchorMove: 0.25, // anchor may wander <= this fraction of scale
+        anchorHoldMs: 400, // ...and only counts as moved once it's stayed away this long
         maxBadPostureMs: 400, // bad posture longer than this during a rep voids it
         maxDegPerSec: 900, // faster angle change than this is a tracking glitch
         maxLostMs: 700, // lose tracking this long mid-rep and the rep is dropped
@@ -92,6 +93,7 @@
     const base = { dropY: null, anchorX: null, anchorY: null, scale: null };
     let maxDropY = 0;
     let maxAnchorMove = 0;
+    let anchorRecent = []; // { t, d }: the anchor's distance from its start, over the last anchorHoldMs
     let badPostureMs = 0;
 
     const postureOk = (extra) => !extra || extra.posture !== false;
@@ -109,13 +111,27 @@
       descentStart = timeMs;
       maxDropY = extra ? extra.dropY : 0;
       maxAnchorMove = 0;
+      anchorRecent = [];
       badPostureMs = 0;
     }
 
-    function trackDescent(extra, dtMs) {
+    // How far the anchor moved counts only what it HELD for anchorHoldMs.
+    // The pose model's dot for a hidden joint jumps around for a few frames
+    // (the ankle behind the shin at the bottom of a squat), and taking the
+    // single worst frame threw out real reps - 66 squats in the first week
+    // (2026-10-22). A real step leaves the foot somewhere else, so it
+    // still shows.
+    function trackAnchor(d, timeMs) {
+      anchorRecent.push({ t: timeMs, d });
+      while (anchorRecent.length > 1 && anchorRecent[1].t <= timeMs - cfg.anchorHoldMs) anchorRecent.shift();
+      if (anchorRecent[0].t > timeMs - cfg.anchorHoldMs) return; // not this long yet
+      maxAnchorMove = Math.max(maxAnchorMove, Math.min(...anchorRecent.map((a) => a.d)));
+    }
+
+    function trackDescent(extra, dtMs, timeMs) {
       if (!extra || base.scale === null) return;
       maxDropY = Math.max(maxDropY, extra.dropY);
-      maxAnchorMove = Math.max(maxAnchorMove, Math.hypot(extra.anchorX - base.anchorX, extra.anchorY - base.anchorY));
+      trackAnchor(Math.hypot(extra.anchorX - base.anchorX, extra.anchorY - base.anchorY), timeMs);
       if (!postureOk(extra)) badPostureMs += dtMs;
     }
 
@@ -174,7 +190,14 @@
           prevTime = timeMs;
         }
 
-        smoothed = smoothed === null ? angle : cfg.smoothing * angle + (1 - cfg.smoothing) * smoothed;
+        // Smoothing by time, not by frame (2026-10-29): per frame, a phone
+        // running the camera at 10-15 fps lagged 2-3x more, so at the top of
+        // a quick push-up the arms read 172 but the smoothed angle turned
+        // back at 153 - the rep never finished and the next ones merged into
+        // it. This weighs a frame by how much time it covers: the same as
+        // before at 30 fps, the same lag in milliseconds on slower phones.
+        const weight = 1 - Math.pow(1 - cfg.smoothing, Math.max(dtMs, 1) / 33.3);
+        smoothed = smoothed === null ? angle : weight * angle + (1 - weight) * smoothed;
 
         if (state === "waiting") {
           if (smoothed > cfg.upAbove && postureOk(extra)) {
@@ -196,7 +219,7 @@
               shallowDeepest = smoothed;
             }
             shallowDeepest = Math.min(shallowDeepest, smoothed);
-            trackDescent(extra, dtMs);
+            trackDescent(extra, dtMs, timeMs);
           }
           if (smoothed < cfg.downBelow) {
             state = "down";
@@ -215,7 +238,7 @@
 
         // state === "down"
         deepest = Math.min(deepest, smoothed);
-        trackDescent(extra, dtMs);
+        trackDescent(extra, dtMs, timeMs);
         if (smoothed > cfg.upAbove) {
           const durationMs = timeMs - descentStart;
           const depth = deepest;
@@ -255,17 +278,28 @@
   }
 
   // Squat: the knee angle is the rep; hips must drop and ankles stay put.
+  // Feet get more room than hands (0.35 of leg length): a side-on camera
+  // loses the ankle behind the shin at the bottom, and a real step is
+  // still about half a leg.
+  // Depth: a solid half squat (knee 115 degrees, hips down ~0.17 of a leg)
+  // counts. It was 100 (near thighs parallel) and 0.2, and "Go lower" threw
+  // out 64 squats in the first week - beginners building a habit rarely
+  // go that deep (2026-10-22). Walking or a knee bend drops the hips ~0.03,
+  // so 0.12 still tells them apart.
   function createSquatCounter(options) {
-    return createRepCounter(Object.assign({ downBelow: 100, upAbove: 155, minRepMs: 500, minDrop: 0.2, maxAnchorMove: 0.25, maxBadPostureMs: 800 }, options));
+    return createRepCounter(Object.assign({ downBelow: 115, upAbove: 155, minRepMs: 500, minDrop: 0.12, maxAnchorMove: 0.35, maxBadPostureMs: 800 }, options));
   }
 
   // Push-up: the elbow angle is the rep; shoulders must lower, hands stay
   // put, and the body must be horizontal and straight (the `posture` flag)
   // - which is what stops standing arm curls or kneeling "worm" reps.
   // Push-ups are faster than squats, so the minimum rep time is lower.
+  // "Arms straight" is 150 (was 155, 2026-10-29): quick reps turn around at
+  // ~160 without a full lockout, and the model reads straight arms as
+  // 160-175 - 155 sat right on that edge and dropped real reps.
   function createPushupCounter(options) {
     return createRepCounter(
-      Object.assign({ downBelow: 95, upAbove: 155, minRepMs: 400, minDrop: 0.06, maxAnchorMove: 0.15 }, options)
+      Object.assign({ downBelow: 95, upAbove: 150, minRepMs: 400, minDrop: 0.06, maxAnchorMove: 0.15 }, options)
     );
   }
 
@@ -433,7 +467,7 @@
       minVisibility: 0.5,
       draw: ["shoulder", "hip", "knee", "ankle"],
       sliders: [
-        { text: 'Counts as "down" below', min: 60, max: 130, value: 100 },
+        { text: 'Counts as "down" below', min: 60, max: 130, value: 115 },
         { text: 'Counts as "standing" above', min: 140, max: 178, value: 155 },
       ],
       lost: "Can't see your leg - stand side-on and step back",
@@ -484,7 +518,7 @@
       draw: ["wrist", "elbow", "shoulder", "hip", "ankle"],
       sliders: [
         { text: 'Counts as "down" below', min: 60, max: 130, value: 95 },
-        { text: 'Counts as "arms straight" above', min: 135, max: 178, value: 155 },
+        { text: 'Counts as "arms straight" above', min: 135, max: 178, value: 150 },
       ],
       lost: "Can't see your arm and body - turn side-on, full body in frame",
       states: { waiting: "Get into plank position - arms straight, body flat", up: "Ready - lower yourself", down: "Down - now push all the way up" },
@@ -523,7 +557,7 @@
         if (m.extra.posture === false) {
           return m.tilt > 35 ? "Get down into a plank - your body should be roughly horizontal" : "Straighten your body - hips in line with shoulders and ankles";
         }
-        if (m.angle !== null && m.angle < 155) return "Straighten your arms to start";
+        if (m.angle !== null && m.angle < 150) return "Straighten your arms to start";
         return null;
       },
       graphLines: (v) => [v[0], v[1]],

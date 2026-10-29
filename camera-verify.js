@@ -339,12 +339,15 @@ const ForjaCamera = (function () {
   }
 
   // Not every joint the exercise needs is visible: which ones are missing,
-  // on whichever side the camera sees best (null = no body at all).
+  // on whichever side the camera sees best (null = no body at all). A joint
+  // the model places outside the picture is a guess, so it counts as
+  // missing however sure the model says it is.
   const PART_NAMES = { shoulder: "shoulders", elbow: "elbows", wrist: "hands", hip: "hips", knee: "knees", ankle: "feet" };
+  const inPicture = (p) => p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1;
   function missingParts(landmarks) {
     let best = null;
     for (const idx of Object.values(JOINTS)) {
-      const vis = (joint) => landmarks[idx[joint]].visibility ?? 0;
+      const vis = (joint) => (inPicture(landmarks[idx[joint]]) ? landmarks[idx[joint]].visibility ?? 0 : 0);
       const missing = exercise.needs.filter((joint) => vis(joint) < exercise.minVisibility);
       const score = Math.min(...exercise.needs.map(vis));
       if (!best || score > best.score) best = { idx, missing, score };
@@ -374,7 +377,7 @@ const ForjaCamera = (function () {
     const ctx = overlay.getContext("2d");
     const w = overlay.width;
     const h = overlay.height;
-    const seen = (joint) => (landmarks[idx[joint]].visibility ?? 0) >= exercise.minVisibility;
+    const seen = (joint) => inPicture(landmarks[idx[joint]]) && (landmarks[idx[joint]].visibility ?? 0) >= exercise.minVisibility;
     const at = (joint) => ({ x: landmarks[idx[joint]].x * w, y: landmarks[idx[joint]].y * h });
     ctx.clearRect(0, 0, w, h);
     ctx.lineWidth = 5;
@@ -499,13 +502,20 @@ const ForjaCamera = (function () {
   function handleFrame(output, t) {
     const landmarks = output.landmarks && output.landmarks[0];
     const side = landmarks ? pickSide(landmarks) : null;
+    const joints = side ? exercise.needs.map((joint) => [landmarks[side.idx[joint]].x, landmarks[side.idx[joint]].y]) : null;
+    const { r, m } = session.push(t, joints);
+    lastResult = r;
+    cue(r);
 
-    if (!side) {
-      const lost = session.push(t, null).r;
-      lastResult = lost;
-      cue(lost);
+    // No body, or the model is sure of some joints but guessed the rest far
+    // outside the picture (face close to the camera: shoulders in view, the
+    // rest "below" the screen). The recording drops a frame like that, so
+    // the screen treats it as not in view too - drawing it as a found body
+    // and then reading its missing measurements froze the camera for good
+    // (2026-10-22).
+    if (!m) {
       settleBuzz(false);
-      noteEvent(lost);
+      noteEvent(r);
       // Part of a body: show it and name what's cut off. None at all: the
       // general line.
       const partial = landmarks ? missingParts(landmarks) : null;
@@ -521,13 +531,9 @@ const ForjaCamera = (function () {
       return;
     }
 
-    const joints = exercise.needs.map((joint) => [landmarks[side.idx[joint]].x, landmarks[side.idx[joint]].y]);
-    const { r, m } = session.push(t, joints);
-    lastResult = r;
-    cue(r);
     // Push-ups happen flat on the floor; a body tilting up is someone
     // getting up.
-    settleBuzz(exerciseKey !== "pushup" || !(m && m.tilt > 35));
+    settleBuzz(exerciseKey !== "pushup" || !(m.tilt > 35));
 
     if (exercise.kind === "plank") {
       drawBody(landmarks, side, r.state === "holding");
@@ -577,7 +583,13 @@ const ForjaCamera = (function () {
       if (now - lastProcessedMs >= MIN_FRAME_GAP_MS) {
         lastProcessedMs = now;
         const t = Math.round(now - setStartMs);
-        handleFrame(poseLandmarker.detectForVideo(video, now), t);
+        // One bad frame must never stop the loop: the camera would sit
+        // frozen on its last drawing with no way to recover but closing it.
+        try {
+          handleFrame(poseLandmarker.detectForVideo(video, now), t);
+        } catch (err) {
+          console.error("camera frame failed", err);
+        }
         if (backupDue || now - lastBackupAt >= BACKUP_EVERY_MS) writeBackup();
         if (t >= AUTO_FINISH_MS) {
           finishSet();
@@ -1081,16 +1093,28 @@ const ForjaCamera = (function () {
       Sound.setEnabled(!Sound.isEnabled());
       renderSoundButton();
     });
+    // Mid-set too (2026-10-22: hiding it once the set started left people
+    // stuck with the wrong camera). One switch at a time.
+    let flipping = false;
     $("camera-flip-button").addEventListener("click", async () => {
+      if (flipping) return;
       facing = facing === "user" ? "environment" : "user";
       if (!running) return;
+      flipping = true;
       stopStream();
       try {
         await startStream();
-        running = true;
-        loop();
+        // Finished while the camera was switching: let the new one go.
+        if (!$("camera-screen").classList.contains("is-running") || $("camera-screen").classList.contains("hidden")) {
+          stopStream();
+        } else {
+          running = true;
+          loop();
+        }
       } catch (err) {
         say(tr("Couldn't switch cameras."), true);
+      } finally {
+        flipping = false;
       }
     });
   }
