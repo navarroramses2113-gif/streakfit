@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Forja: the workout app you can't cheat</title>
+  <title>Forja: become someone who works out</title>
   <!-- getforja.app's front page. The app itself is index.html. People who
        already use the app never stay here: an installed Home Screen app, a
        signed-in or guest phone, an invite link (?i=) or a login/reset link
@@ -20,16 +20,16 @@
       if (toApp) l.replace("index.html" + l.search + l.hash);
     })();
   </script>
-  <meta name="description" content="Your camera counts every push-up, squat and plank. No typing in numbers. Join the waitlist: Founding Members get Forja Pro free for a year.">
+  <meta name="description" content="Stop starting over. A few minutes a day at home, your phone counts every rep, and your streak shows how far you've come. Join the waitlist: Founding Members get Forja Pro free for a year.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Forja">
   <meta property="og:url" content="https://getforja.app/">
-  <meta property="og:title" content="Forja: the workout app you can't cheat">
-  <meta property="og:description" content="Your camera counts every rep. Join the waitlist and become a Founding Member.">
-  <meta property="og:image" content="https://getforja.app/og-image.png">
+  <meta property="og:title" content="Forja: become someone who works out">
+  <meta property="og:description" content="Stop starting over. A few minutes a day at home, and your phone counts every rep.">
+  <meta property="og:image" content="https://getforja.app/og-image.png?v=2">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="The Forja pet inside its ring: workouts your camera verifies">
+  <meta property="og:image:alt" content="The Forja pet inside its ring: become someone who works out">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0b0c0e">
@@ -90,9 +90,10 @@
   .lockup svg.word { height: 22px; width: auto; }
   .nav-link {
     display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px;
-    border: 1px solid var(--line-strong); border-radius: 999px;
-    font-size: 15px; font-weight: 600; text-decoration: none; color: var(--text);
+    border-radius: 999px; background: var(--accent);
+    font-size: 15px; font-weight: 700; text-decoration: none; color: #04130a;
   }
+  .nav-link:active { background: var(--accent-press); }
 
   /* ---------- hero ---------- */
   .hero { display: grid; gap: 40px; padding-block: 28px 56px; align-items: center; }
@@ -106,8 +107,8 @@
     margin: 0; font-family: var(--font-display); font-weight: 900;
     font-size: clamp(44px, 10.5vw, 84px); line-height: 0.95; letter-spacing: -0.035em; text-wrap: balance;
   }
-  h1 .cant { position: relative; white-space: nowrap; }
-  h1 .cant::after {
+  h1 .hl { position: relative; white-space: nowrap; }
+  h1 .hl::after {
     content: ""; position: absolute; left: -2%; right: -2%; bottom: 0.06em; height: 0.12em; border-radius: 99px;
     background: linear-gradient(90deg, var(--red) 0 31%, transparent 31% 34.5%, var(--yellow) 34.5% 65.5%, transparent 65.5% 69%, var(--teal) 69%);
   }
@@ -132,10 +133,12 @@
   .founder-line { margin: 4px 0 0; font-size: 15px; color: var(--text-2); }
   .founder-line b { color: var(--text); }
   .beta-link {
-    display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 4px;
-    font-size: 15px; font-weight: 600; color: var(--accent); text-decoration: none;
+    display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; margin-top: 14px;
+    border: 1.5px solid var(--accent); border-radius: 14px; background: var(--accent-tint);
+    font-size: 17px; font-weight: 700; color: var(--accent); text-decoration: none;
   }
-  .beta-link svg { width: 16px; height: 16px; }
+  .beta-link:active { background: #22c55e33; }
+  .beta-link svg { width: 18px; height: 18px; }
 
   /* after joining */
   .joined { display: grid; gap: 14px; padding: 20px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); }
@@ -300,8 +303,8 @@
   <header class="hero" id="top">
     <div>
       <p class="eyebrow"><i></i>Beta open now · App Store next</p>
-      <h1>The workout app you <span class="cant">can't cheat.</span></h1>
-      <p class="lede">Your camera counts every push-up, squat and plank. You can't type in a number. When a friend sees <b>40 push-ups</b>, you did 40.</p>
+      <h1>Become someone who <span class="hl">works out.</span></h1>
+      <p class="lede">No gym, and no 45-minute plan you'll drop by Thursday. Just <b>a few minutes a day</b> at home. Your phone counts every rep, your streak grows, and a month from now you've kept 30 promises to yourself.</p>
 
       <div class="join" id="join">
         <form id="join-form" novalidate>
@@ -339,25 +342,25 @@
     </div>
   </header>
 
-  <!-- ---------- no honor system ---------- -->
-  <section aria-labelledby="proof-title">
-    <p class="kicker">No honor system</p>
-    <h2 class="big" id="proof-title">Every rep is counted. Twice.</h2>
+  <!-- ---------- sound familiar ---------- -->
+  <section aria-labelledby="pain-title">
+    <p class="kicker">Sound familiar?</p>
+    <h2 class="big" id="pain-title">You're not lazy. Your plan is too big.</h2>
     <div class="proof">
       <article>
-        <div class="icon" style="background:#ff5a5f22;color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h2l1.5-2h6l1.5 2h2A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
-        <h3>Counted on camera</h3>
-        <p>Set your phone on the floor and train. Forja watches your form and only counts full reps.</p>
+        <div class="icon" style="background:#ff5a5f22;color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3.5V8h4.5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20.5V16h-4.5"/></svg></div>
+        <h3>Starting over every Monday</h3>
+        <p>A new plan, four good days, then life gets busy. Every restart makes the next one harder to believe.</p>
       </article>
       <article>
-        <div class="icon" style="background:#ffc23322;color:var(--yellow)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.4-3 8.2-7 9.5-4-1.3-7-5.1-7-9.5V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></div>
-        <h3>Checked again on our server</h3>
-        <p>Your phone counts, then our server replays the movement and counts again before anything is saved.</p>
+        <div class="icon" style="background:#ffc23322;color:var(--yellow)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M7 15h4"/></svg></div>
+        <h3>The gym you pay for</h3>
+        <p>The membership charges you every month, and the guilt shows up with it.</p>
       </article>
       <article>
-        <div class="icon" style="background:#2dd4bf22;color:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></div>
-        <h3>Your video stays on your phone</h3>
-        <p>Nothing is recorded or uploaded. Only a few body points are checked, never an image.</p>
+        <div class="icon" style="background:#2dd4bf22;color:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.1A9.7 9.7 0 0 1 12 6c5 0 8.5 4.2 9.5 6-.4.8-1.3 2-2.5 3.2"/><path d="M6.6 7.6C4.6 8.9 3.1 10.8 2.5 12c1 1.8 4.5 6 9.5 6 1.4 0 2.7-.3 3.9-.9"/><path d="M9.9 10a3 3 0 0 0 4.1 4.1"/></svg></div>
+        <h3>Nobody notices</h3>
+        <p>Train or skip, the day looks the same. So skipping keeps winning.</p>
       </article>
     </div>
   </section>
@@ -366,12 +369,12 @@
   <section aria-labelledby="ring-title">
     <div class="split">
       <div>
-        <p class="kicker">One ring a day</p>
-        <h2 class="big" id="ring-title">Close your ring. Keep the streak.</h2>
+        <p class="kicker">A few minutes a day</p>
+        <h2 class="big" id="ring-title">Small days add up.</h2>
         <ul class="points">
-          <li><span class="dot" style="background:var(--red)"></span><span><b>Three moves a day.</b> Push-ups, a plank and squats, sized to you.</span></li>
-          <li><span class="dot" style="background:var(--yellow)"></span><span><b>Your plan grows with you.</b> Targets step up as you get stronger.</span></li>
-          <li><span class="dot" style="background:var(--teal)"></span><span><b>Two rest days a week.</b> One bad day doesn't end your streak.</span></li>
+          <li><span class="dot" style="background:var(--red)"></span><span><b>Start small.</b> Push-ups, a plank and squats, sized to where you are today.</span></li>
+          <li><span class="dot" style="background:var(--yellow)"></span><span><b>Watch yourself get stronger.</b> Your targets step up as you do, so the numbers keep climbing.</span></li>
+          <li><span class="dot" style="background:var(--teal)"></span><span><b>Miss a day? You're fine.</b> Two rest days a week, so one bad day doesn't undo your progress.</span></li>
         </ul>
       </div>
       <div class="ring-card">
@@ -399,13 +402,36 @@
     </div>
   </section>
 
+  <!-- ---------- your phone counts ---------- -->
+  <section aria-labelledby="proof-title">
+    <p class="kicker">Nothing to log</p>
+    <h2 class="big" id="proof-title">Just move. Forja keeps count.</h2>
+    <div class="proof">
+      <article>
+        <div class="icon" style="background:#ff5a5f22;color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h2l1.5-2h6l1.5 2h2A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+        <h3>Prop up your phone</h3>
+        <p>Set it on the floor and train. Forja counts every full rep for you, so there's nothing to type.</p>
+      </article>
+      <article>
+        <div class="icon" style="background:#ffc23322;color:var(--yellow)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.4-3 8.2-7 9.5-4-1.3-7-5.1-7-9.5V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></div>
+        <h3>Progress you can trust</h3>
+        <p>Every rep is checked again on our server, so each number in your streak is one you really did.</p>
+      </article>
+      <article>
+        <div class="icon" style="background:#2dd4bf22;color:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></div>
+        <h3>Your video stays on your phone</h3>
+        <p>Nothing is recorded or uploaded. Only a few body points are checked, never an image.</p>
+      </article>
+    </div>
+  </section>
+
   <!-- ---------- friends (example people, not real accounts) ---------- -->
   <section aria-labelledby="friends-title">
     <div class="split">
       <div>
         <p class="kicker">Better with friends</p>
-        <h2 class="big" id="friends-title">Real numbers. Real bragging rights.</h2>
-        <p class="sub">See your friends' workouts in the Feed, like them, nudge anyone who hasn't trained yet today, and race everyone in a weekly league.</p>
+        <h2 class="big" id="friends-title">Friends who notice.</h2>
+        <p class="sub">Your friends see your workouts in the Feed and cheer you on. Nudge anyone who hasn't trained yet today, and race everyone in a weekly league.</p>
       </div>
       <div class="social" aria-hidden="true">
         <div class="feed-card">
@@ -455,6 +481,8 @@
     <p class="kicker">Questions</p>
     <h2 class="big" id="faq-title">Good to know</h2>
     <div class="faq">
+      <details><summary>I've quit every workout plan. Why is this different?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></summary>
+        <p>Most plans ask for an hour. Forja asks for a few minutes and grows with you from there. Your friends see when you show up, and two rest days a week mean one bad day doesn't undo your progress.</p></details>
       <details><summary>Can I use Forja now?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></summary>
         <p>Yes. The beta runs in your phone's browser today. On iPhone, add it to your Home Screen for reminders. The App Store app comes next, and your streak carries over.</p></details>
       <details><summary>Is it free?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></summary>
@@ -479,7 +507,7 @@
 <!-- English or Spanish, like the app (i18n.js); this page's Spanish is its
      own small file. -->
 <script src="i18n.js?v=2"></script>
-<script src="i18n-landing-es.js?v=1"></script>
+<script src="i18n-landing-es.js?v=2"></script>
 <script>
   // The example week's letters (a lookup can't tell Tuesday's T from Thursday's).
   if (ForjaI18n.lang === "es") {
@@ -585,7 +613,7 @@
     });
     const share = document.getElementById("share");
     if (share) share.addEventListener("click", () => {
-      navigator.share({ title: "Forja", text: tr("The workout app you can't cheat. Join the waitlist with me:"), url: link }).catch(() => {});
+      navigator.share({ title: "Forja", text: tr("A few minutes a day to become someone who works out. Join the waitlist with me:"), url: link }).catch(() => {});
     });
   }
 
